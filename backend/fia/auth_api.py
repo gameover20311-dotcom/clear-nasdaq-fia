@@ -71,7 +71,16 @@ def _secret_path() -> Path:
 
 
 def _auth_secret() -> bytes:
+    """Signing secret. Must be at least as durable as the accounts it signs for.
+
+    V6.6.8: on an ephemeral filesystem this file was regenerated on every deploy,
+    so even a surviving account would have had all of its sessions invalidated.
+    Order of preference: explicit env var, then the durable database, then the
+    local file.
+    """
     raw = str(os.getenv("CLEAR_NASDAQ_AUTH_SECRET") or "").strip()
+    if not raw and _database_url() and _PG_AVAILABLE:
+        raw = _durable_secret() or ""
     if not raw:
         path = _secret_path()
         try:
@@ -83,7 +92,173 @@ def _auth_secret() -> bytes:
     return raw.encode("utf-8")
 
 
-def _connect() -> sqlite3.Connection:
+# ------------------------------------------------------------------ V6.6.8
+# DURABLE AUTH STORAGE.
+#
+# Proven ephemeral on 2026-09-07: two accounts created through the live signup
+# flow returned 401 INVALID_CREDENTIALS after a single redeploy, and the issued
+# session token stopped validating. Render's filesystem -- including the home
+# directory that held auth.sqlite3 and auth_secret -- does not survive a deploy,
+# so every user was silently forced to sign up again.
+#
+# When DATABASE_URL is set the store is a managed Postgres and survives restarts,
+# redeploys and sleep/wake. When it is absent the SQLite file is used exactly as
+# before, and durable_backend() reports EPHEMERAL so nothing claims otherwise.
+#
+# Password handling is unchanged: scrypt/pbkdf2 with a per-user salt. No
+# plaintext password is written to either backend.
+_PG_AVAILABLE = False
+try:  # psycopg 3
+    import psycopg as _psycopg
+    from psycopg.rows import dict_row as _pg_dict_row
+    _PG_AVAILABLE = True
+except Exception:  # pragma: no cover - driver absent locally
+    _psycopg = None
+    _pg_dict_row = None
+
+
+def _database_url() -> str:
+    return str(os.getenv("DATABASE_URL") or "").strip()
+
+
+def durable_backend() -> Dict[str, Any]:
+    """What the auth store actually is right now. Never claims durability."""
+    url = _database_url()
+    if url and _PG_AVAILABLE:
+        return {"backend": "postgres", "durability": "DURABLE",
+                "survives_redeploy": True,
+                "detail": "DATABASE_URL configured and psycopg available"}
+    if url and not _PG_AVAILABLE:
+        return {"backend": "sqlite", "durability": "EPHEMERAL",
+                "survives_redeploy": False,
+                "detail": "DATABASE_URL is set but the psycopg driver is not installed"}
+    return {"backend": "sqlite", "durability": "EPHEMERAL",
+            "survives_redeploy": False,
+            "detail": ("no DATABASE_URL; auth lives on the deploy filesystem and is "
+                       "destroyed by every redeploy")}
+
+
+class _PgConn:
+    """Minimal sqlite3-shaped wrapper so the existing SQL runs unchanged.
+
+    Translates '?' placeholders to '%s' and returns mapping rows, which is all
+    the callers in this module rely on.
+    """
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    @staticmethod
+    def _q(sql: str) -> str:
+        out, in_str = [], False
+        for ch in sql:
+            if ch == "'":
+                in_str = not in_str
+            if ch == "?" and not in_str:
+                out.append("%s")
+            else:
+                out.append(ch)
+        return "".join(out)
+
+    def execute(self, sql, params=()):
+        cur = self._conn.cursor()
+        cur.execute(self._q(sql), tuple(params))
+        return cur
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        self._conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if exc_type is None:
+            self._conn.commit()
+        else:
+            self._conn.rollback()
+        self._conn.close()
+        return False
+
+
+_PG_SCHEMA = (
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password_salt TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        plan TEXT NOT NULL DEFAULT 'FULL_ACCESS',
+        status TEXT NOT NULL DEFAULT 'ACTIVE',
+        failed_attempts INTEGER NOT NULL DEFAULT 0,
+        locked_until BIGINT NOT NULL DEFAULT 0,
+        created_at BIGINT NOT NULL,
+        last_login_at BIGINT
+    )
+    """,
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)",
+    """
+    CREATE TABLE IF NOT EXISTS sessions (
+        nonce_hash TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        issued_at BIGINT NOT NULL,
+        expires_at BIGINT NOT NULL,
+        revoked_at BIGINT NOT NULL DEFAULT 0
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
+    # The signing secret must be as durable as the accounts it authenticates;
+    # a regenerated secret invalidates every live session.
+    """
+    CREATE TABLE IF NOT EXISTS auth_secret (
+        id INTEGER PRIMARY KEY,
+        secret TEXT NOT NULL,
+        created_at BIGINT NOT NULL
+    )
+    """,
+)
+
+
+def _connect_pg():
+    conn = _psycopg.connect(_database_url(), row_factory=_pg_dict_row,
+                            connect_timeout=10)
+    shim = _PgConn(conn)
+    for ddl in _PG_SCHEMA:
+        shim.execute(ddl)
+    shim.commit()
+    return shim
+
+
+def _durable_secret() -> Optional[str]:
+    """Read (or create once) the signing secret inside the durable database."""
+    try:
+        with _connect_pg() as conn:
+            row = conn.execute("SELECT secret FROM auth_secret WHERE id=1").fetchone()
+            if row and str(row["secret"] or "").strip():
+                return str(row["secret"]).strip()
+            fresh = secrets.token_urlsafe(48)
+            conn.execute(
+                "INSERT INTO auth_secret (id, secret, created_at) VALUES (1, ?, ?) "
+                "ON CONFLICT (id) DO NOTHING",
+                (fresh, int(time.time())),
+            )
+            conn.commit()
+            row = conn.execute("SELECT secret FROM auth_secret WHERE id=1").fetchone()
+            return str(row["secret"]).strip() if row else fresh
+    except Exception as exc:                                         # noqa: BLE001
+        print("Durable auth secret unavailable -> %s" % type(exc).__name__)
+        return None
+
+
+def _connect():
+    if _database_url() and _PG_AVAILABLE:
+        return _connect_pg()
     path = _db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path), timeout=5.0)
@@ -425,7 +600,10 @@ def install_auth_routes(app) -> None:
                 users = int(row["n"] if row else 0)
             finally:
                 conn.close()
-            return {"ok": True, "status": "READY", "plan": PLAN, "users": users, "billing": "NOT_CONFIGURED"}
+            # V6.6.8: publish what the store actually is, so nobody has to guess
+            # whether accounts survive a redeploy.
+            return {"ok": True, "status": "READY", "plan": PLAN, "users": users,
+                    "billing": "NOT_CONFIGURED", "storage": durable_backend()}
         except Exception as exc:
             raise _http_error(exc)
 
