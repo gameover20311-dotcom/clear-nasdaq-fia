@@ -50,6 +50,7 @@ except Exception:                                                    # pragma: n
     _pg_dict_row = None
 
 TABLE = "forward_oos_events"
+_LEDGER_FILE_RE = __import__("re").compile(r"^\d{8}_[a-z0-9-]+_.+\.json$")
 _LAST_ERROR: Optional[str] = None
 
 _SCHEMA = (
@@ -176,16 +177,29 @@ def restore_missing(root: Path | str) -> Dict[str, Any]:
         cid = _campaign_id(root)
         with _connect() as conn:
             with conn.cursor() as cur:
+                # is_test rows must NEVER be restored into the ledger.
+                # Without this predicate a durability fixture was written into
+                # events/ and the hash-chain verifier correctly rejected the whole
+                # ledger (sequence/chain_prev/event_hash issues). The fixture is
+                # durable in Postgres; it is not, and must never become, a ledger
+                # event.
                 cur.execute(
                     "SELECT seq, file_name, canonical_json, event_hash FROM forward_oos_events "
-                    "WHERE campaign_id=%s ORDER BY seq ASC", (cid,))
+                    "WHERE campaign_id=%s AND is_test = FALSE ORDER BY seq ASC", (cid,))
                 rows = cur.fetchall() or []
         if not rows:
             return {"restored": 0, "available": 0}
         events_dir.mkdir(parents=True, exist_ok=True)
         written = 0
         for r in rows:
-            path = events_dir / str(r["file_name"])
+            name = str(r["file_name"])
+            # Defence in depth: a ledger file is always NNNNNNNN_<type>_<id>.json.
+            # Anything else (a fixture, a stray row) is refused even if the
+            # is_test predicate above were somehow bypassed.
+            if not _LEDGER_FILE_RE.match(name):
+                print("Forward-OOS restore skipped non-ledger row: %s" % name[:64])
+                continue
+            path = events_dir / name
             if path.exists():
                 continue
             blob = bytes(r["canonical_json"])

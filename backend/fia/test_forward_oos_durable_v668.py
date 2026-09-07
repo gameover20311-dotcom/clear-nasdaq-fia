@@ -118,6 +118,28 @@ check("[G3] duplicate events are still refused",
 check("[G4] files are still written read-only and exclusively",
       "O_EXCL" in asrc and "0o444" in asrc)
 
+print("\n[H] A TEST FIXTURE MUST NEVER BECOME A LEDGER EVENT")
+# Found live on 2026-09-07: restore_missing had no is_test predicate, so a
+# durability fixture was written into events/ as TEST_<marker>.json. The
+# hash-chain verifier correctly rejected the whole ledger
+# (sequence / chain_prev / event_hash / missing_ledger_head_anchor) -- the
+# tamper-evidence worked, but the fixture should never have reached the files.
+rsrc2 = inspect.getsource(dur.restore_missing)
+check("[H1] restore excludes is_test rows",
+      "is_test = FALSE" in rsrc2, "the is_test predicate is the primary guard")
+check("[H2] a filename allowlist backs it up",
+      "_LEDGER_FILE_RE.match(name)" in rsrc2)
+for name, allowed in (("00000001_forecast-lock_NQ-FOOS-20260903.json", True),
+                      ("00000002_abstention-observation_x.json", True),
+                      ("TEST_durability-probe-abc123.json", False),
+                      ("../../etc/passwd", False),
+                      ("evil.json", False)):
+    check("[H3] %-44s allowed=%s" % (name[:44], allowed),
+          bool(dur._LEDGER_FILE_RE.match(name)) is allowed)
+check("[H4] the fixture writer still uses a non-ledger filename",
+      'TEST_%s.json' in inspect.getsource(dur.write_test_fixture),
+      "so the allowlist can catch it even if the predicate is bypassed")
+
 print("\n" + "=" * 66)
 if FAILURES:
     print("FAILED %d check(s):" % len(FAILURES))
