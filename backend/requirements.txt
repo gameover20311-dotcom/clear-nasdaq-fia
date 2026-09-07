@@ -8,6 +8,16 @@ google-genai>=1.0
 fastapi==0.128.8
 starlette==0.49.3
 
-# V6.6.8: durable auth + Forward-OOS storage when DATABASE_URL is configured.
-# Absent DATABASE_URL the code falls back to SQLite and reports EPHEMERAL.
-psycopg[binary]==3.2.3
+# V6.6.8 DURABLE AUTH STORAGE -- DRIVER DELIBERATELY NOT PINNED HERE.
+#
+# fia/auth_api.py uses Postgres whenever DATABASE_URL is set and psycopg imports;
+# otherwise it falls back to SQLite and reports EPHEMERAL. Adding
+# `psycopg[binary]==3.2.3` here stalled the Render build: this repo pins no
+# Python version, so the platform default is used, and psycopg-binary 3.2.3
+# publishes linux wheels only up to cp313. On a newer interpreter pip falls back
+# to a source build that needs libpq headers and fails, which leaves the whole
+# service stuck on the previous deploy.
+#
+# The dependency is therefore added at provisioning time, together with
+# DATABASE_URL, so a driver-resolution failure can never take the API down:
+#     psycopg[binary]>=3.2
