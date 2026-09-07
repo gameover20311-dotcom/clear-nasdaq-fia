@@ -10,7 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import Body, HTTPException
+from fastapi import Body, HTTPException, Header
 
 
 def _read_json(path: Path) -> Dict[str, Any]:
@@ -24,6 +24,7 @@ def _read_json(path: Path) -> Dict[str, Any]:
 def _find_brain_root() -> Path | None:
     home=Path.home()
     candidates=[
+        Path(__file__).resolve().parents[1] / 'clear_nasdaq_brain',
         home/'Downloads/CLEAR_NASDAQ_FIA_BRAIN_V6_CAUSAL_TWIN',
         home/'ClearNasdaq/CLEAR_NASDAQ_FIA_BRAIN_V6_CAUSAL_TWIN',
     ]
@@ -300,6 +301,74 @@ def install_final_cockpit_routes(app, hub, build_forecast, backend_root=None):
             'dashboard_contract':'ATOMIC_LIVE_BASE_PLUS_TRUTH_LABELED_LOCAL_VALIDATION_OVERLAYS',
         }
         return base
+
+
+    # CLOUD THREE-BRAIN SHADOW ENDPOINT
+    _cloud_brain_lock = asyncio.Lock()
+    _cloud_brain_instance = None
+
+    @app.post('/api/final/brain/analyze')
+    async def final_brain_analyze(authorization: Optional[str] = Header(default=None)):
+        nonlocal _cloud_brain_instance
+
+        try:
+            from fia.auth_api import _bearer, decode_session_token
+            decode_session_token(_bearer(authorization))
+        except Exception as exc:
+            raise HTTPException(status_code=401, detail='AUTH_REQUIRED') from exc
+
+        if _cloud_brain_lock.locked():
+            raise HTTPException(status_code=409, detail='BRAIN_BUSY')
+
+        async with _cloud_brain_lock:
+            try:
+                import os, sys
+
+                brain_root = root / 'clear_nasdaq_brain'
+                if not brain_root.exists():
+                    raise RuntimeError('CLOUD_BRAIN_ROOT_MISSING')
+
+                brain_root_s = str(brain_root)
+                if brain_root_s not in sys.path:
+                    sys.path.insert(0, brain_root_s)
+
+                # Render exposes its runtime port through PORT.
+                # Keep the FIA evidence capture loopback-only.
+                port = str(os.environ.get('PORT') or '').strip()
+                if port:
+                    os.environ['FIA_BASE_URL'] = f'http://127.0.0.1:{port}'
+
+                os.environ.setdefault('FIA_INFERENCE_PROVIDER', 'groq')
+                os.environ['FIA_LOCAL_MODEL_DIGEST'] = ''
+
+                from fia_brain.config import load
+                from fia_brain.orchestrator import FIABrain
+
+                if _cloud_brain_instance is None:
+                    cfg = load(str(brain_root / 'config.json'))
+                    _cloud_brain_instance = FIABrain(cfg)
+
+                result = await asyncio.to_thread(
+                    _cloud_brain_instance.analyze,
+                    False,  # NEVER write old/local shadow ledger from this web endpoint.
+                )
+
+                if not isinstance(result, dict):
+                    raise RuntimeError('INVALID_BRAIN_RESULT')
+
+                result['cloud_endpoint'] = True
+                result['base_fia_modified'] = False
+                result['forward_oos_modified'] = False
+                return result
+
+            except HTTPException:
+                raise
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=503,
+                    detail=type(exc).__name__ + ': ' + str(exc)[:400],
+                ) from exc
+
 
     @app.post('/api/final/confluence/three-way')
     async def final_three_way_confluence(request: Dict[str,Any]=Body(...)):
