@@ -85,9 +85,16 @@ fut_bad = session_state("dxy", 20 * H, 6 * H, now=SUNDAY_NIGHT)
 check("fresh futures value is LIVE", fut_ok["freshness"] == "LIVE", fut_ok["freshness"])
 check("20h-old futures value while open is STALE", fut_bad["usable"] is False, str(fut_bad))
 
-print("\n[FIX-1/2] no holiday calendar is claimed")
+print("\n[FIX-1/2] the holiday calendar now exists and is declared")
 summ = summarize(SUNDAY_NIGHT)
-check("holiday modelling honestly declared false", summ["holiday_calendar_modelled"] is False)
+# V6.6.8: holidays ARE modelled now. The old assertion pinned the absence of the
+# calendar, which is what allowed Labor Day 2026 to look like an open session.
+check("holiday modelling honestly declared true", summ["holiday_calendar_modelled"] is True)
+check("session phase is published", bool(summ.get("session_phase")), str(summ.get("session_phase")))
+from fia.market_sessions import holiday_name as _hn
+from datetime import date as _date
+check("Labor Day 2026 is a known closure", _hn(_date(2026, 9, 7)) == "Labor Day")
+check("a normal trading day is not a closure", _hn(_date(2026, 9, 8)) is None)
 
 print("\n[FIX-1/2] premove age_gate consumes the session model")
 g_weekend = age_gate({"name": "US10Y"}, {"us10y": 55.6 * H}, now=SUNDAY_NIGHT)

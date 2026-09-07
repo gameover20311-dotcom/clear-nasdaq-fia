@@ -38,15 +38,21 @@ is still excluded. Closure is never an excuse for missing data.
 
 DELIBERATE NON-GOALS
 --------------------
-* No holiday calendar. US market holidays are not modelled, so a holiday looks
-  like an open day and its inputs will be correctly flagged STALE rather than
-  silently accepted. That fails closed, which is the safe direction, and it is
-  reported honestly rather than approximated.
+* Holidays ARE modelled (V6.6.8). Before this, a holiday looked like an open day,
+  so every cash input was judged against the intraday live ceiling and flagged
+  STALE. That failed closed, but it also mislabelled a correct last print as
+  degraded data and it let a stale-but-fetched-now quote read as LIVE. Verified
+  on 2026-09-07 (Labor Day): QQQ, SPY, ^TNX and NQ=F each returned ZERO bars for
+  the day, yet the session layer reported cash_equity_open=true.
+* Early closes are modelled as a 13:00 ET close.
+* No non-US holiday calendar, and no exchange-specific ad-hoc closure (weather,
+  national mourning). Those still fail closed as STALE.
 * No fabricated value is ever produced for a closed market.
 """
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta, timezone
+from calendar import monthrange
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Dict, Optional
 
 try:  # stdlib on 3.9+, present in this venv
@@ -83,6 +89,111 @@ FRESH_STALE = "STALE"                               # late even allowing for clo
 FRESH_UNKNOWN_AGE = "UNKNOWN_AGE"
 
 
+# --------------------------------------------------------------- US holidays
+# NYSE/Nasdaq full-day closures. Rule-derived rather than hardcoded per year, so
+# the calendar does not silently expire. Observance: a Saturday holiday is taken
+# on the preceding Friday, a Sunday holiday on the following Monday.
+SESSION_REGULAR = "REGULAR"
+SESSION_EARLY_CLOSE = "EARLY_CLOSE"
+SESSION_CLOSED_WEEKEND = "CLOSED_WEEKEND"
+SESSION_CLOSED_HOLIDAY = "CLOSED_HOLIDAY"
+SESSION_CLOSED_OUTSIDE_HOURS = "CLOSED_OUTSIDE_HOURS"
+
+EARLY_CLOSE_HOUR = 13  # 13:00 ET on a half day
+
+
+def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
+    """n-th (1-based) `weekday` of a month; n=-1 means the last one."""
+    if n > 0:
+        d = date(year, month, 1)
+        d += timedelta(days=(weekday - d.weekday()) % 7)
+        return d + timedelta(weeks=n - 1)
+    d = date(year, month, monthrange(year, month)[1])
+    d -= timedelta(days=(d.weekday() - weekday) % 7)
+    return d
+
+
+def _easter(year: int) -> date:
+    """Anonymous Gregorian algorithm. Good Friday is Easter minus two days."""
+    a = year % 19
+    b, c = divmod(year, 100)
+    d, e = divmod(b, 4)
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = divmod(c, 4)
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month, day = divmod(h + l - 7 * m + 114, 31)
+    return date(year, month, day + 1)
+
+
+def _observed(d: date) -> date:
+    if d.weekday() == 5:          # Saturday -> Friday
+        return d - timedelta(days=1)
+    if d.weekday() == 6:          # Sunday -> Monday
+        return d + timedelta(days=1)
+    return d
+
+
+def us_market_holidays(year: int) -> Dict[date, str]:
+    """Full-day NYSE/Nasdaq closures for `year`."""
+    h: Dict[date, str] = {}
+    h[_observed(date(year, 1, 1))] = "New Year's Day"
+    h[_nth_weekday(year, 1, 0, 3)] = "Martin Luther King Jr. Day"
+    h[_nth_weekday(year, 2, 0, 3)] = "Washington's Birthday"
+    h[_easter(year) - timedelta(days=2)] = "Good Friday"
+    h[_nth_weekday(year, 5, 0, -1)] = "Memorial Day"
+    if year >= 2022:
+        h[_observed(date(year, 6, 19))] = "Juneteenth National Independence Day"
+    h[_observed(date(year, 7, 4))] = "Independence Day"
+    h[_nth_weekday(year, 9, 0, 1)] = "Labor Day"
+    h[_nth_weekday(year, 11, 3, 4)] = "Thanksgiving Day"
+    h[_observed(date(year, 12, 25))] = "Christmas Day"
+    return h
+
+
+def us_market_early_closes(year: int) -> Dict[date, str]:
+    """Scheduled 13:00 ET half days."""
+    e: Dict[date, str] = {}
+    e[_nth_weekday(year, 11, 3, 4) + timedelta(days=1)] = "Day after Thanksgiving"
+    jul3 = date(year, 7, 3)
+    if jul3.weekday() < 5 and _observed(date(year, 7, 4)) == date(year, 7, 4):
+        e[jul3] = "Independence Day eve"
+    dec24 = date(year, 12, 24)
+    if dec24.weekday() < 5:
+        e[dec24] = "Christmas Eve"
+    return {d: n for d, n in e.items() if d not in us_market_holidays(year)}
+
+
+def holiday_name(d: date) -> Optional[str]:
+    return us_market_holidays(d.year).get(d)
+
+
+def early_close_name(d: date) -> Optional[str]:
+    return us_market_early_closes(d.year).get(d)
+
+
+def _cash_close_hour(d: date) -> int:
+    return EARLY_CLOSE_HOUR if early_close_name(d) else 16
+
+
+def cash_session_phase(now_et: datetime) -> Dict[str, Any]:
+    """What phase the US cash session is in, holidays included."""
+    d, t = now_et.date(), now_et.time()
+    if d.weekday() >= 5:
+        return {"phase": SESSION_CLOSED_WEEKEND, "holiday": None, "early_close": None}
+    hol = holiday_name(d)
+    if hol:
+        return {"phase": SESSION_CLOSED_HOLIDAY, "holiday": hol, "early_close": None}
+    early = early_close_name(d)
+    close_h = EARLY_CLOSE_HOUR if early else 16
+    if time(9, 30) <= t < time(close_h, 0):
+        return {"phase": SESSION_EARLY_CLOSE if early else SESSION_REGULAR,
+                "holiday": None, "early_close": early}
+    return {"phase": SESSION_CLOSED_OUTSIDE_HOURS, "holiday": None, "early_close": early}
+
+
 def _now_et(now: Optional[datetime] = None) -> datetime:
     now = now or datetime.now(timezone.utc)
     if now.tzinfo is None:
@@ -91,12 +202,21 @@ def _now_et(now: Optional[datetime] = None) -> datetime:
 
 
 def _last_cash_close(now_et: datetime) -> datetime:
-    """Most recent 16:00 ET weekday close at or before `now_et`."""
+    """Most recent cash close at or before `now_et`.
+
+    V6.6.8: skips weekends AND full-day holidays, and uses 13:00 ET on a
+    scheduled half day. Previously a holiday counted as a normal trading day, so
+    the reference close was a session that never happened and the last real print
+    was measured as hours late.
+    """
     probe = now_et
-    for _ in range(8):
-        close = probe.replace(hour=16, minute=0, second=0, microsecond=0)
-        if probe.weekday() < 5 and now_et >= close:
-            return close
+    for _ in range(12):
+        d = probe.date()
+        if d.weekday() < 5 and not holiday_name(d):
+            close = probe.replace(hour=_cash_close_hour(d), minute=0,
+                                  second=0, microsecond=0)
+            if now_et >= close:
+                return close
         probe = (probe - timedelta(days=1)).replace(hour=23, minute=59)
     return now_et - timedelta(days=7)
 
@@ -112,6 +232,14 @@ def _last_futures_close(now_et: datetime) -> datetime:
         return friday_close - timedelta(days=1) if friday_close > now_et else friday_close
     if wd == 4 and t >= time(17, 0):              # Friday after close
         return now_et.replace(hour=17, minute=0, second=0, microsecond=0)
+    if holiday_name(now_et.date()):
+        # Closed for the holiday: reference the previous real session close.
+        probe = now_et - timedelta(days=1)
+        for _ in range(8):
+            d = probe.date()
+            if d.weekday() < 5 and not holiday_name(d):
+                return probe.replace(hour=17, minute=0, second=0, microsecond=0)
+            probe -= timedelta(days=1)
     return now_et                                 # open
 
 
@@ -121,7 +249,8 @@ def market_open(venue: str, now: Optional[datetime] = None) -> bool:
     if venue == VENUE_CONTINUOUS:
         return True
     if venue in (VENUE_CASH_EQUITY, VENUE_CASH_INDEX):
-        return wd < 5 and time(9, 30) <= t < time(16, 0)
+        # V6.6.8: a holiday is a closed day, not an open day with missing prints.
+        return cash_session_phase(et)["phase"] in (SESSION_REGULAR, SESSION_EARLY_CLOSE)
     if venue == VENUE_FUTURES:
         if wd == 5:
             return False
@@ -129,6 +258,11 @@ def market_open(venue: str, now: Optional[datetime] = None) -> bool:
             return t >= time(18, 0)
         if wd == 4:
             return t < time(17, 0)
+        # Equity-index futures observe the full-day US holidays too (Globex runs a
+        # shortened session; treating the day as closed is the truthful direction
+        # and matches the observed zero-bar behaviour).
+        if holiday_name(et.date()):
+            return False
         return True
     return True                                   # unknown venue: do not excuse lateness
 
@@ -152,8 +286,11 @@ def session_state(source: str, age_seconds: Optional[float],
 
     if is_open or venue == VENUE_CONTINUOUS:
         usable = age_seconds <= live_ceiling_seconds
+        _ph = cash_session_phase(et)
         return {"freshness": FRESH_LIVE if usable else FRESH_STALE,
                 "venue": venue, "market_open": is_open, "usable": usable,
+                "session_phase": _ph["phase"], "holiday": _ph["holiday"],
+                "early_close": _ph["early_close"],
                 "age_seconds": round(age_seconds, 1),
                 "live_ceiling_seconds": live_ceiling_seconds,
                 "reason": ("within live ceiling" if usable
@@ -168,8 +305,11 @@ def session_state(source: str, age_seconds: Optional[float],
     grace = max(live_ceiling_seconds, 3600.0)
     lateness = age_seconds - seconds_since_close
     usable = lateness <= grace
+    _ph = cash_session_phase(et)
     return {"freshness": FRESH_CURRENT_FOR_SESSION if usable else FRESH_STALE,
             "venue": venue, "market_open": False, "usable": usable,
+            "session_phase": _ph["phase"], "holiday": _ph["holiday"],
+            "early_close": _ph["early_close"],
             "age_seconds": round(age_seconds, 1),
             "seconds_since_venue_close": round(seconds_since_close, 1),
             "lateness_vs_close_seconds": round(lateness, 1),
@@ -184,14 +324,25 @@ def session_state(source: str, age_seconds: Optional[float],
 def summarize(now: Optional[datetime] = None) -> Dict[str, Any]:
     """Human-readable session snapshot, for provenance blocks."""
     et = _now_et(now)
+    phase = cash_session_phase(et)
     return {
         "now_et": et.isoformat(),
         "weekday": et.weekday() < 5,
         "cash_equity_open": market_open(VENUE_CASH_EQUITY, now),
         "cash_index_open": market_open(VENUE_CASH_INDEX, now),
         "futures_open": market_open(VENUE_FUTURES, now),
-        "holiday_calendar_modelled": False,
-        "note": ("US market holidays are not modelled. On a holiday the cash venues look "
-                 "open, so their inputs are flagged STALE rather than silently accepted. "
-                 "That fails closed."),
+        "session_phase": phase["phase"],
+        "holiday": phase["holiday"],
+        "early_close": phase["early_close"],
+        "market_closed_reason": (
+            phase["holiday"] if phase["phase"] == SESSION_CLOSED_HOLIDAY
+            else "weekend" if phase["phase"] == SESSION_CLOSED_WEEKEND
+            else "outside regular hours" if phase["phase"] == SESSION_CLOSED_OUTSIDE_HOURS
+            else None),
+        "holiday_calendar_modelled": True,
+        "note": ("US full-day market holidays and scheduled 13:00 ET early closes are "
+                 "modelled. A closed venue's last print is CURRENT_FOR_SESSION, not "
+                 "stale, and is never presented as current intraday evidence. "
+                 "Non-US holidays and unscheduled closures are not modelled and still "
+                 "fail closed as STALE."),
     }

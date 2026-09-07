@@ -250,6 +250,20 @@ export default function Cockpit() {
   const bear4 = truthReady ? finite(h4.bearish_probability) : null;
   const confidence8 = truthReady ? finite(h8.confidence) : null;
   const confidence4 = truthReady ? finite(h4.confidence) : null;
+  // V6.6.8 SESSION TRUTH. The backend now models US market holidays and early
+  // closes. Surfaced in the EXISTING banner so a closed session is never read as
+  // fresh intraday evidence. No layout, theme or card change.
+  const marketSession = asObj(asObj(premove.evidence_quality).market_session);
+  const sessionPhase = upper(String(marketSession.session_phase || ""));
+  const marketClosed = sessionPhase.startsWith("CLOSED");
+  const marketClosedLabel = marketClosed
+    ? (marketSession.holiday
+        ? `MARKET CLOSED — ${marketSession.holiday}`
+        : sessionPhase === "CLOSED_WEEKEND"
+          ? "MARKET CLOSED — weekend"
+          : "SESSION CLOSED — outside regular hours")
+    : null;
+
   const truthBlockedReason = truthReady
     ? null
     : finalCockpit.truth_ready !== true
@@ -440,6 +454,17 @@ export default function Cockpit() {
                       <span className="v">
                         Probabilities are withheld and shown as “—” because the truth gate is
                         not satisfied ({truthBlockedReason}). No neutral 50% is substituted.
+                        {marketClosedLabel && <> {marketClosedLabel}. Figures below are the last completed session, not current intraday evidence.</>}
+                      </span>
+                    </div>
+                  )}
+
+                  {marketClosed && truthReady && (
+                    <div className="degraded">
+                      <span className="k">{sessionPhase === "CLOSED_HOLIDAY" ? "HOLIDAY" : "CLOSED"}</span>
+                      <span className="v">
+                        {marketClosedLabel}. Evidence is the last completed session
+                        ({String(marketSession.now_et || "").slice(0, 16)} ET) — not current intraday data.
                       </span>
                     </div>
                   )}

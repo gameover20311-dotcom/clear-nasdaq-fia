@@ -255,6 +255,33 @@ def build_provider_health(source_health: Dict[str, Dict[str, Any]]) -> Dict[str,
     }
 
 
+def _session_status(source: str, age_seconds, available: bool, now=None) -> str:
+    """Truthful status word for a venue-based source.
+
+    V6.6.8: "live" was applied to any available source regardless of how old the
+    observation actually was, so a Friday close fetched on a holiday Monday read
+    as live. A closed venue's last print is CURRENT_FOR_SESSION -- real, usable,
+    but explicitly NOT current intraday evidence.
+    """
+    if not available:
+        return "missing"
+    try:
+        from .market_sessions import session_state
+        from .premove_watch import MAX_AGE_SECONDS_BY_SOURCE
+        ceiling = float(MAX_AGE_SECONDS_BY_SOURCE.get(source, 21600.0))
+        st = session_state(source, age_seconds, ceiling, now=now)
+    except Exception:
+        return "live" if age_seconds is not None else "unknown_age"
+    fresh = st.get("freshness")
+    if fresh == "LIVE":
+        return "live"
+    if fresh == "CURRENT_FOR_SESSION":
+        return "current_for_session"
+    if fresh == "UNKNOWN_AGE":
+        return "unknown_age"
+    return "stale"
+
+
 async def enrich_provider_reliability(hub: Any, data: Dict[str, Any]) -> Dict[str, Any]:
     """Enrich an existing Phase22 snapshot without changing FIA weights."""
     now_iso = datetime.now(UTC).isoformat()
@@ -274,13 +301,25 @@ async def enrich_provider_reliability(hub: Any, data: Dict[str, Any]) -> Dict[st
 
     quote_count = data.get("provider_quotes_available")
     quote_available = bool(quote_count)
+    # V6.6.8 QUOTE FRESHNESS = AGE OF THE PRINT, NOT OF THE REQUEST.
+    # age_seconds was hardcoded 0.0. On 2026-09-07 (Labor Day) that made a
+    # Friday 16:00 ET close read as a 0-second-old live quote, and the truth gate
+    # passed on it. The exchange timestamp from the provider is used instead.
+    _q_obs = data.get("quote_observed_at")
+    _q_age = data.get("quote_observation_age_seconds")
+    _q_quality = str(data.get("quote_timestamp_quality") or "UNKNOWN")
     source_health["market_quotes"] = _source_item(
         available=quote_available,
+        status=_session_status("market_quotes", _q_age, quote_available),
         source="Finnhub",
-        freshness="request_live" if quote_available else "missing",
-        observed_at=now_iso if quote_available else None,
-        age_seconds=0.0 if quote_available else None,
-        note=f"{quote_count or 0} tracked quotes returned in current snapshot request.",
+        freshness=("missing" if not quote_available
+                   else ("unknown" if _q_age is None else "recent")),
+        observed_at=(_q_obs if quote_available else None),
+        age_seconds=(float(_q_age) if (quote_available and _q_age is not None) else None),
+        evidence_state=("RELEASED_VERIFIED" if quote_available else "SOURCE_FAILURE"),
+        note=(f"{quote_count or 0} tracked quotes returned in current snapshot request; "
+              f"fetched_at={now_iso}; observed_at={_q_obs}; "
+              f"observation_age_seconds={_q_age}; timestamp_quality={_q_quality}"),
     )
 
     # V6.6.2: only a real candle series counts as candle evidence. "derived_from_quote"
@@ -288,17 +327,36 @@ async def enrich_provider_reliability(hub: Any, data: Dict[str, Any]) -> Dict[st
     _candle_state = str(data.get("provider_candle_evidence", "missing")).lower()
     candle_available = _candle_state == "available"
     candle_derived = _candle_state.startswith("derived")
+    # V6.6.8 CANDLE FRESHNESS = AGE OF THE LAST COMPLETED BAR.
+    # age_seconds was hardcoded 0.0 while the payload itself carried
+    # nq_structure_last_bar_end_utc. On 2026-09-07 the last completed bar ended
+    # 2026-09-04T22:00Z (Friday) and the source still reported "live, 0.0s".
+    _bar_end = data.get("nq_structure_last_bar_end_utc")
+    _bar_age = None
+    if _bar_end:
+        try:
+            _bd = datetime.fromisoformat(str(_bar_end).replace("Z", "+00:00"))
+            if _bd.tzinfo is None:
+                _bd = _bd.replace(tzinfo=timezone.utc)
+            _bar_age = round((datetime.now(timezone.utc) - _bd).total_seconds(), 1)
+        except (ValueError, TypeError):
+            _bar_age = None
+
     source_health["candles"] = _source_item(
         available=candle_available,
-        status=("live" if candle_available else ("derived" if candle_derived else "missing")),
+        status=(_session_status("candles", _bar_age, True) if candle_available
+                else ("derived" if candle_derived else "missing")),
         source=("Finnhub candles + Polygon fallback" if candle_available
                 else ("QQQ quote percent-change proxy (NO candle series fetched)" if candle_derived
                       else "Finnhub candles + Polygon fallback")),
-        freshness=("request_live" if candle_available else ("derived" if candle_derived else "missing")),
-        observed_at=now_iso if candle_available else None,
-        age_seconds=0.0 if candle_available else None,
+        freshness=(("recent" if _bar_age is not None else "unknown") if candle_available
+                   else ("derived" if candle_derived else "missing")),
+        observed_at=(_bar_end if candle_available else None),
+        age_seconds=(float(_bar_age) if (candle_available and _bar_age is not None) else None),
         fallback=False,
-        note=("Structure evidence health; exact upstream may be Finnhub or Polygon fallback."
+        note=(("Structure evidence health; exact upstream may be Finnhub or Polygon fallback. "
+               f"fetched_at={now_iso}; last_completed_bar_end={_bar_end}; "
+               f"observation_age_seconds={_bar_age}")
               if not candle_derived else
               "DERIVED: NQ structure was inferred from a single QQQ quote scalar. "
               "No candle series was requested or received."),
@@ -329,6 +387,7 @@ async def enrich_provider_reliability(hub: Any, data: Dict[str, Any]) -> Dict[st
         data["dxy_source_timestamp"] = dxy_obs.observed_at
         source_health["dxy"] = _source_item(
             available=signal is not None,
+            status=_session_status("dxy", dxy_obs.age_seconds, signal is not None),
             source=dxy_obs.source,
             freshness=dxy_obs.freshness,
             observed_at=dxy_obs.observed_at,
@@ -377,7 +436,8 @@ async def enrich_provider_reliability(hub: Any, data: Dict[str, Any]) -> Dict[st
         data["vix_source"] = vix_obs.source
         data["vix_source_timestamp"] = vix_obs.observed_at
         source_health["volatility"] = _source_item(
-            available=True, source=vix_obs.source, freshness=vix_obs.freshness,
+            available=True, status=_session_status("volatility", vix_obs.age_seconds, True),
+            source=vix_obs.source, freshness=vix_obs.freshness,
             observed_at=vix_obs.observed_at, age_seconds=vix_obs.age_seconds,
             fallback=False, value=data["vix_value"], change_percent=data["vix_change_percent"],
             note="Direct VIX context for the cognitive volatility/options specialist.",
@@ -410,6 +470,7 @@ async def enrich_provider_reliability(hub: Any, data: Dict[str, Any]) -> Dict[st
         data["us10y_change_percent"] = round(float(raw_change), 4) if raw_change is not None else None
         source_health["us10y"] = _source_item(
             available=True,
+            status=_session_status("us10y", tnx_obs.age_seconds, True),
             source="Yahoo Finance ^TNX",
             freshness=tnx_obs.freshness,
             observed_at=tnx_obs.observed_at,
@@ -453,8 +514,12 @@ async def enrich_provider_reliability(hub: Any, data: Dict[str, Any]) -> Dict[st
         available=news_available,
         source="NewsAPI aggregator (secondary outlets; not primary filings/wires)",
         freshness=_news_fresh,
-        status=news_status,
-        observed_at=now_iso if news_available else None,
+        # V6.6.8: a 24h-old article set is STALE, whatever the fetch said. The
+        # ceiling that already excludes it from the forecast is now also what the
+        # dashboard shows, so display and gate agree.
+        status=("stale" if (news_available and _news_age is not None
+                            and _news_age > 43200.0) else news_status),
+        observed_at=(data.get("news_observed_at") or (now_iso if news_available else None)),
         age_seconds=(float(_news_age) if _news_age is not None else None),
         evidence_state=("RELEASED_VERIFIED" if news_available else "SOURCE_FAILURE"),
         note=(f"articles={data.get('news_articles', 0)}, "

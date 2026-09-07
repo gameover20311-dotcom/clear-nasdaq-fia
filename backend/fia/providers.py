@@ -5899,6 +5899,8 @@ class ProviderHub:
                     data["news_oldest_article_age_seconds"] = round(max(_pub_ages), 1)
                     data["news_articles_with_timestamp"] = len(_pub_ages)
                     data["news_age_basis"] = "NEWEST_ARTICLE_PUBLICATION_TIME"
+                    data["news_observed_at"] = (
+                        _now_utc - timedelta(seconds=_newest)).isoformat()
                     # Future-dated publication is a provider defect, never evidence.
                     data["news_future_dated_articles"] = sum(1 for a in _pub_ages if a < -60)
                 else:
@@ -6122,6 +6124,36 @@ class ProviderHub:
         data["provider_quotes_requested"] = len(
             symbols
         )
+
+        # ---------------------------------------------------------- V6.6.8
+        # QUOTE FRESHNESS IS THE AGE OF THE OBSERVATION, NOT OF THE FETCH.
+        # source_health.market_quotes.age_seconds was hardcoded 0.0, i.e. the age
+        # of the HTTP request, which is 0 by construction. A Friday close fetched
+        # on Monday therefore reported as a live 0-second-old quote. Finnhub's
+        # quote payload carries `t`, the exchange timestamp of the print; it is
+        # used here so the freshness gate and the truth gate judge the EVIDENCE.
+        _q_ts = []
+        for _sym, _q in quotes.items():
+            _t = _q.get("t") if isinstance(_q, dict) else None
+            try:
+                _t = float(_t)
+            except (TypeError, ValueError):
+                continue
+            if _t > 0:
+                _q_ts.append(_t)
+        if _q_ts:
+            _newest = max(_q_ts)
+            _obs = datetime.fromtimestamp(_newest, timezone.utc)
+            data["quote_observed_at"] = _obs.isoformat()
+            data["quote_observation_age_seconds"] = round(
+                (datetime.now(timezone.utc) - _obs).total_seconds(), 1)
+            data["quote_timestamp_quality"] = "PROVIDER_EXCHANGE_TIMESTAMP"
+            data["quote_symbols_with_timestamp"] = len(_q_ts)
+        else:
+            data["quote_observed_at"] = None
+            data["quote_observation_age_seconds"] = None
+            data["quote_timestamp_quality"] = "NO_PROVIDER_TIMESTAMP_AVAILABLE"
+            data["quote_symbols_with_timestamp"] = 0
 
         # =====================================================
         # Phase 23 — source reliability / direct DXY / cleaner US10Y

@@ -152,7 +152,22 @@ d_av = {"provider_candle_evidence": "available"}
 h_av = health_for(d_av)
 c_av = h_av["source_health"]["candles"]
 check("available -> candles available", c_av["available"] is True)
-check("available -> status live", c_av["status"] == "live", str(c_av["status"]))
+# V6.6.8: status is derived from the age of the LAST COMPLETED BAR. This fixture
+# carries no bar timestamp, so the honest answer is "unknown_age" -- never "live".
+# Asserting "live" here was asserting the defect that let a Friday close read as
+# a live Monday quote.
+check("available + no bar timestamp -> unknown_age, NOT live",
+      c_av["status"] == "unknown_age", str(c_av["status"]))
+_c_dated = health_for({"provider_candle_evidence": "available",
+                       "nq_structure_last_bar_end_utc":
+                           __import__("datetime").datetime.now(
+                               __import__("datetime").timezone.utc).isoformat()
+                       })["source_health"]["candles"]
+check("available + fresh completed bar -> live/current_for_session",
+      _c_dated["status"] in ("live", "current_for_session"), str(_c_dated["status"]))
+check("a real bar age is reported, not 0.0",
+      _c_dated["age_seconds"] is not None and _c_dated["age_seconds"] < 60,
+      str(_c_dated["age_seconds"]))
 check("source names Finnhub AND the Polygon fallback",
       "Polygon fallback" in c_av["source"], c_av["source"])
 check("delayed Polygon is NOT relabelled 'Finnhub LIVE'",
