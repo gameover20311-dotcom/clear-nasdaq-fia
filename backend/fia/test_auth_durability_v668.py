@@ -17,6 +17,7 @@ deploy. This suite pins the contract that came out of that measurement:
 from __future__ import annotations
 
 import importlib
+import json
 import os
 import sys
 from pathlib import Path
@@ -111,6 +112,36 @@ try:
     check("[F] sqlite fallback connects and queries", True)
 finally:
     conn.close()
+
+print("\n[G] NO DSN / PASSWORD CAN ESCAPE THROUGH AN ERROR")
+# With Postgres in the path a driver error carries the CONNECTION STRING --
+# including the password -- in str(exc). The auth error mapper previously echoed
+# any unrecognised exception straight to the client.
+SECRET_DSN = "postgresql://fiauser:SuperSecretPw123@dpg-x.oregon-postgres.render.com/fia"
+for msg in ('connection failed: FATAL: password authentication failed for "%s"' % SECRET_DSN,
+            "could not translate host name in '%s'" % SECRET_DSN,
+            "psycopg.OperationalError: %s" % SECRET_DSN):
+    h = a._http_error(Exception(msg))
+    d = str(h.detail)
+    check("[G] driver error is opaque (%s...)" % msg[:26],
+          "SuperSecretPw123" not in d and "postgresql://" not in d
+          and d == "AUTH_BACKEND_ERROR" and h.status_code == 500, d[:60])
+for code, expect in (("EMAIL_ALREADY_REGISTERED", 409), ("INVALID_EMAIL", 401)):
+    h = a._http_error(Exception(code))
+    check("[G] the curated code %s still reaches the client" % code,
+          str(h.detail) == code and h.status_code == expect,
+          "%s %s" % (h.status_code, h.detail))
+check("[G] the safe-detail pattern rejects free text",
+      not a._SAFE_DETAIL_RE.match("connection failed: FATAL")
+      and bool(a._SAFE_DETAIL_RE.match("EMAIL_ALREADY_REGISTERED")))
+
+print("\n[H] THE HEALTH PAYLOAD CARRIES NO SECRET")
+os.environ["DATABASE_URL"] = "postgresql://u:PLAINTEXT_PW@host/db"
+a2 = reload_auth(DATABASE_URL="postgresql://u:PLAINTEXT_PW@host/db")
+blob = json.dumps(a2.durable_backend())
+check("[H] durable_backend() never contains the DSN or password",
+      "PLAINTEXT_PW" not in blob and "postgresql://" not in blob, blob)
+os.environ.pop("DATABASE_URL", None)
 
 print("\n" + "=" * 64)
 if FAILURES:

@@ -21,6 +21,7 @@ import hmac
 import json
 import os
 import re
+import sys
 import secrets
 import sqlite3
 import time
@@ -576,6 +577,11 @@ def _bearer(authorization: Optional[str]) -> str:
     return token
 
 
+# Only SCREAMING_SNAKE_CASE application codes may be returned to a client.
+# Anything else (driver messages, tracebacks, DSNs) is withheld.
+_SAFE_DETAIL_RE = re.compile(r"^[A-Z][A-Z0-9_]{2,63}$")
+
+
 def _http_error(exc: Exception, *, login: bool = False) -> HTTPException:
     code = str(exc)
     if code == "EMAIL_ALREADY_REGISTERED":
@@ -586,6 +592,15 @@ def _http_error(exc: Exception, *, login: bool = False) -> HTTPException:
         return HTTPException(status_code=503, detail=code)
     if login or code.startswith("INVALID_") or code in {"MISSING_SESSION", "SESSION_EXPIRED", "SESSION_REVOKED", "SESSION_NOT_REGISTERED", "SESSION_USER_NOT_ACTIVE", "SESSION_IDENTITY_MISMATCH"}:
         return HTTPException(status_code=401, detail="INVALID_CREDENTIALS" if login else code)
+    # V6.6.8 NEVER ECHO AN UNRECOGNISED EXCEPTION STRING.
+    # With Postgres in the path, a driver error (bad DSN, unreachable host, auth
+    # failure) carries the CONNECTION STRING -- including the password -- in
+    # str(exc). Returning it here would publish DATABASE_URL over HTTP. Only the
+    # curated, non-sensitive codes above are echoed; anything else becomes an
+    # opaque code, with the exception TYPE only on stdout for operators.
+    if not _SAFE_DETAIL_RE.match(code):
+        print("Auth error (detail withheld) -> %s" % type(exc).__name__)
+        return HTTPException(status_code=500, detail="AUTH_BACKEND_ERROR")
     return HTTPException(status_code=400, detail=code)
 
 
@@ -602,8 +617,13 @@ def install_auth_routes(app) -> None:
                 conn.close()
             # V6.6.8: publish what the store actually is, so nobody has to guess
             # whether accounts survive a redeploy.
+            storage = durable_backend()
+            # Record the interpreter so dependency compatibility is never guessed
+            # again -- the earlier build failure was a wheel/ABI mismatch that no
+            # live endpoint could confirm. Version only; no environment values.
+            storage["python_runtime"] = "%d.%d.%d" % sys.version_info[:3]
             return {"ok": True, "status": "READY", "plan": PLAN, "users": users,
-                    "billing": "NOT_CONFIGURED", "storage": durable_backend()}
+                    "billing": "NOT_CONFIGURED", "storage": storage}
         except Exception as exc:
             raise _http_error(exc)
 
