@@ -160,6 +160,57 @@ def install_forward_oos_routes(app: Any, hub: Any, build_forecast: Callable[[dic
         # derived records, not a mutation surface and not raw secret-bearing env.
         return {"ok": True, "records": records(DEFAULT_ROOT)}
 
+    @app.get("/api/forward-oos/campaign")
+    async def forward_oos_campaign():
+        """Truthful campaign monitor for the 30/50/100 programme.
+
+        Deliberately refuses to publish accuracy, Brier or calibration below the
+        n=30 milestone. A win rate at n=1-5 is noise, and showing it would invite
+        exactly the conclusion this campaign exists to avoid.
+        """
+        from fia.forward_oos_durable import durability_status
+        led = verify_ledger(DEFAULT_ROOT)
+        rep = forward_report(DEFAULT_ROOT)
+        recs = records(DEFAULT_ROOT) or []
+        directional = [r for r in recs
+                       if not r.get("excluded_from_directional_statistics")]
+        abstention = [r for r in recs
+                      if r.get("excluded_from_directional_statistics")]
+        n = len(directional)
+        resolved_4h = sum(1 for r in directional if r.get("outcome_4h") is not None)
+        resolved_8h = sum(1 for r in directional if r.get("outcome_8h") is not None)
+        MILESTONE = 30
+        return {
+            "ok": True,
+            "campaign_id": (rep.get("campaign_seal") or {}).get("campaign_id"),
+            "model_fingerprint": ((rep.get("campaign_seal") or {})
+                                  .get("sealed_model_fingerprint") or {}).get("digest"),
+            "forward_oos_n": len(recs),
+            "directional_n": n,
+            "abstention_n": len(abstention),
+            "resolved_4h_n": resolved_4h,
+            "resolved_8h_n": resolved_8h,
+            "milestones": {"next": MILESTONE, "reached": n >= MILESTONE,
+                           "remaining": max(0, MILESTONE - n)},
+            "last_lock_utc": (directional[-1].get("created_at_utc") if directional else None),
+            "last_resolution_utc": (rep.get("last_resolution_utc")),
+            "ledger_ok": bool(led.get("ok")),
+            "ledger_events": led.get("events"),
+            "tamper_evident": led.get("tamper_evident"),
+            "durability": durability_status(DEFAULT_ROOT),
+            "checkpoint": checkpoint_state(),
+            "metrics_available": n >= MILESTONE,
+            "metrics": (None if n < MILESTONE else {"see": "/api/forward-oos/report"}),
+            "metrics_withheld_reason": (
+                None if n >= MILESTONE else
+                "n=%d directional observations. Brier, calibration and accuracy are "
+                "withheld until n=%d: below that they are noise, not evidence."
+                % (n, MILESTONE)),
+            "base_fia": "PRODUCTION_INCUMBENT_UNCHANGED",
+            "shadow_candidate": "NOT_SCORED_YET_NO_UNSEEN_ROWS",
+            "predictive_edge": "NOT_PROVEN",
+        }
+
     @app.get("/api/forward-oos/durability")
     async def forward_oos_durability():
         """What the ledger's storage actually is. Public, carries no secret."""

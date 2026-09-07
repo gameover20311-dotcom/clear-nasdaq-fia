@@ -1,4 +1,5 @@
 import asyncio
+import os
 import httpx
 import json
 from pathlib import Path
@@ -36,13 +37,80 @@ def norm_change(pct):
     return None if pct is None else clamp(float(pct) / 2.0)
 
 
+# --------------------------------------------------------------- V6.6.9
+# FROZEN HISTORICAL MARKET ARCHIVE.
+#
+# These loaders previously fetched yfinance with windows relative to the RUN
+# DATE (period="2y" / period="60d"), which made the 258-row replay a
+# current-data reconstruction rather than a frozen historical replay. Measured
+# on row 1 (2025-09-01T17:00Z) with identical code and identical frozen
+# news/earnings/futures caches, the numbers drifted between runs:
+#     score -0.538 -> -0.527 | p_bull 26.1 -> 26.5 | conf 69.9 -> 69.2
+# The rolling window also meant the 2y lookback would stop reaching the start of
+# the replay window around late 2027, silently starving the earliest rows.
+#
+# The archive is now read from disk. Set FIA_ALLOW_LIVE_HISTORICAL_REFETCH=1 to
+# fall back to the network deliberately; the fallback is announced loudly and
+# marks the run non-reproducible rather than failing silently.
+_FROZEN_DIR = Path(__file__).resolve().parents[1] / "fia_backtest_frozen" / "data"
+
+
+def _frozen_path(ticker, interval):
+    safe = str(ticker).replace("=", "_").replace("^", "_").replace(".", "_")
+    return _FROZEN_DIR / ("%s_%s.csv" % (safe, interval))
+
+
+def _load_frozen(ticker, interval):
+    path = _frozen_path(ticker, interval)
+    if not path.exists():
+        return None
+    import pandas as _pd
+    df = _pd.read_csv(path, index_col=0)
+    if df is None or df.empty:
+        return None
+    # The archive stores exchange-local offsets (…-04:00, …-05:00), so a plain
+    # parse_dates leaves an object Index. Parse explicitly to UTC: the cutoff in
+    # asof() converts the target to the frame's tz, so UTC is equivalent and
+    # unambiguous across DST boundaries.
+    df.index = _pd.to_datetime(df.index, utc=True, errors="coerce")
+    df = df[~df.index.isna()]
+    return df if len(df) else None
+
+
+def _live_refetch_allowed():
+    return str(os.getenv("FIA_ALLOW_LIVE_HISTORICAL_REFETCH") or "").strip() in ("1", "true", "yes")
+
+
 @lru_cache(maxsize=64)
 def hist1h(ticker):
+    frozen = _load_frozen(ticker, "1h")
+    if frozen is not None:
+        return frozen
+    if not _live_refetch_allowed():
+        raise RuntimeError(
+            "FROZEN_HISTORICAL_ARCHIVE_MISSING for %s (1h). The replay refuses to "
+            "refetch live data because that makes the result non-reproducible. "
+            "Run fia_backtest_frozen/freeze_market_archive.py, or set "
+            "FIA_ALLOW_LIVE_HISTORICAL_REFETCH=1 to accept a non-reproducible run."
+            % ticker)
+    print("WARNING: live historical refetch for %s (1h) -- THIS RUN IS NOT "
+          "REPRODUCIBLE" % ticker)
     return yf.Ticker(ticker).history(period="2y", interval="1h", auto_adjust=False, prepost=False)
 
 
 @lru_cache(maxsize=2)
 def nq5m():
+    """NQ 5m. Note: period="60d" NEVER covered the 2025-09-01 replay start, so
+    this path returned an empty frame for almost every checkpoint and the
+    liquidity adapter fell back to 1h. Frozen for determinism; the coverage gap
+    is recorded honestly rather than papered over."""
+    frozen = _load_frozen("NQ=F", "5m")
+    if frozen is not None:
+        return frozen
+    if not _live_refetch_allowed():
+        import pandas as _pd
+        return _pd.DataFrame()
+    print("WARNING: live historical refetch for NQ=F (5m) -- THIS RUN IS NOT REPRODUCIBLE")
     return yf.Ticker("NQ=F").history(period="60d", interval="5m", auto_adjust=False, prepost=True)
 
 

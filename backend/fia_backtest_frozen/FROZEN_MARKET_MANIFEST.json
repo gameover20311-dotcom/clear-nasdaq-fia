@@ -1,0 +1,170 @@
+{
+ "adjustment": "auto_adjust=False, prepost=False (raw prices, no split back-adjustment)",
+ "frozen_at_utc": "2026-09-07T18:21:50.200742+00:00",
+ "interval": "1h",
+ "note": "Verbatim capture. No gap filling, no interpolation, no adjustment. A missing bar stays missing so the replay fails closed rather than inventing a price.",
+ "provider": "yfinance",
+ "requested_period": "2y",
+ "tickers": {
+  "AAPL": {
+   "file": "AAPL_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "752a1b79f67286358625f3bf3c4d512d15241995eb4e244031e11305a94d1ed0",
+   "status": "FROZEN"
+  },
+  "AMD": {
+   "file": "AMD_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "72198af08ff563a5db93970eda02025561a548eff8b5b6ca12b822515f5f3653",
+   "status": "FROZEN"
+  },
+  "AMZN": {
+   "file": "AMZN_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "7f641c1e89645b56cfc90a0e19c5d9b9e6c9a885b4e5fc4572a43558947a67f4",
+   "status": "FROZEN"
+  },
+  "AVGO": {
+   "file": "AVGO_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "0fc5cd915ddfae4632c03d4e29dd49608e984bcb9749752fde8d09386cbac30e",
+   "status": "FROZEN"
+  },
+  "DX-Y.NYB": {
+   "file": "DX-Y_NYB_1h.csv",
+   "first_bar": "2024-09-08 17:00:00-04:00",
+   "last_bar": "2026-09-06 23:00:00-04:00",
+   "rows": 11948,
+   "sha256": "78780b41ef92541e07c3825a659732deb442d956a917b9f760468894c639c47e",
+   "status": "FROZEN"
+  },
+  "GOOG": {
+   "file": "GOOG_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "dae5e5789ab45a7768a7addc6d8069ea05f1e013e0af1fa1eac46397429b8bba",
+   "status": "FROZEN"
+  },
+  "GOOGL": {
+   "file": "GOOGL_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "e202dddb3cb0438e73af2f682df26ec0ab028575a78ca71b2ade640f0077a676",
+   "status": "FROZEN"
+  },
+  "INTC": {
+   "file": "INTC_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "9418d9f1b20d07b122184293044037cf3ae1739461536e93bd2d42097e8a2b24",
+   "status": "FROZEN"
+  },
+  "META": {
+   "file": "META_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "05c27be3eba4642fc01b7e8e7f55e80993702de12830c8fe26f6caeebf306b50",
+   "status": "FROZEN"
+  },
+  "MSFT": {
+   "file": "MSFT_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "4c0a421059f4253606257aef21e2319f848d2b63a88b32ab7eeb8f843aa19eaf",
+   "status": "FROZEN"
+  },
+  "MU": {
+   "file": "MU_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "b1c76832a8d4e0bd22af23b538c06e3860073e35f8a0a991ecd8cb2c4a87d9b6",
+   "status": "FROZEN"
+  },
+  "NFLX": {
+   "file": "NFLX_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "42a7c9fadf2d858d8a5a0ab472e43e09d3fec943b68ea3a2857dcfcdf686d4f9",
+   "status": "FROZEN"
+  },
+  "NQ=F": {
+   "file": "NQ_F_1h.csv",
+   "first_bar": "2024-09-08 18:00:00-04:00",
+   "last_bar": "2026-09-04 16:00:00-04:00",
+   "rows": 11437,
+   "sha256": "50e1b51a8ceed82d016465230797663b4743bd7807ea62fe93904ba3a1b19fff",
+   "status": "FROZEN"
+  },
+  "NVDA": {
+   "file": "NVDA_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "7d5c2fa8a5af86347d482069a3d6147b1914ad64c4f900656a50fdaaf29cb2ac",
+   "status": "FROZEN"
+  },
+  "QCOM": {
+   "file": "QCOM_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "585add384ee51c05020e301b2e492b88816ee4af72f2535949c41d0a13bcb2a4",
+   "status": "FROZEN"
+  },
+  "QQQ": {
+   "file": "QQQ_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "e485b6c18a4bf84afe1f6ba17f5160a226d601cdd97ad65d8b50b8477288c258",
+   "status": "FROZEN"
+  },
+  "SMCI": {
+   "file": "SMCI_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "566891e1aa7a12758135e895cc2ce2448482cc1abce5ac1f6bd04ec6f05fe1c1",
+   "status": "FROZEN"
+  },
+  "SPY": {
+   "file": "SPY_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "7948f86781b57e94ef277a7212f1312dc5610050f675b904d8eefb38ea0ab670",
+   "status": "FROZEN"
+  },
+  "TSLA": {
+   "file": "TSLA_1h.csv",
+   "first_bar": "2024-09-05 09:30:00-04:00",
+   "last_bar": "2026-09-04 15:30:00-04:00",
+   "rows": 3494,
+   "sha256": "e1a7aee3882fd2f3b8777d624e017c1e1152db9157dcc256b496080a31660eec",
+   "status": "FROZEN"
+  },
+  "^TNX": {
+   "file": "_TNX_1h.csv",
+   "first_bar": "2024-09-05 07:20:00-05:00",
+   "last_bar": "2026-09-04 13:20:00-05:00",
+   "rows": 3514,
+   "sha256": "80ed129aa4e76f5ec69e91d78783fdb6acf9aa3f0db63678006772bd923c319a",
+   "status": "FROZEN"
+  }
+ }
+}
