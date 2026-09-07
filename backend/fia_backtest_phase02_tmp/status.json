@@ -1,0 +1,7 @@
+{
+  "module": "FIA BACKTEST LAB",
+  "version": "0.2.0",
+  "phase": "02 — Historical FIA Replay",
+  "state": "IN_PROGRESS",
+  "next_phase": "03 — Future Outcome Engine"
+}

@@ -1,0 +1,22 @@
+{
+  "module": "FIA Backtest Lab",
+  "phase": 13,
+  "name": "Historical Prediction + Outcome Dataset Integration",
+  "status": "implemented",
+  "current_capability": "Validates and standardizes a real historical FIA prediction/outcome CSV without fabricating records.",
+  "completed": [
+    "Standard historical record schema",
+    "Required-column validation",
+    "CSV ingestion",
+    "Validated dataset export",
+    "Missing-dataset detection"
+  ],
+  "not_yet_active": [
+    "Real historical records loaded",
+    "Phase 4-11 metrics populated from real records",
+    "Production data collection",
+    "Automated historical outcome generation"
+  ],
+  "next": "Load real historical FIA prediction/outcome records and run Phases 4–12 against them",
+  "note": "This phase does not fabricate historical records and does not modify live FIA weights or forecast logic."
+}

@@ -1,0 +1,26 @@
+import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const backend = process.env.FIA_BACKEND_URL || ("http:" + "//127.0.0.1:8001");
+  try {
+    const response = await fetch(`${backend}/api/dashboard`, { cache: "no-store" });
+    const text = await response.text();
+    if (!response.ok) {
+      return NextResponse.json(
+        { ok: false, error: `Backend HTTP ${response.status}`, detail: text.slice(0, 500) },
+        { status: response.status }
+      );
+    }
+    return new NextResponse(text, {
+      status: 200,
+      headers: { "content-type": "application/json", "cache-control": "no-store" },
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { ok: false, error: "Backend unavailable", detail: error?.message || String(error) },
+      { status: 502 }
+    );
+  }
+}

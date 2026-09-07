@@ -1,0 +1,7 @@
+{
+  "module": "FIA BACKTEST LAB",
+  "version": "0.1.0",
+  "phase": "01 — Historical Data Foundation",
+  "state": "IN_PROGRESS",
+  "next_phase": "02 — Historical FIA Replay"
+}

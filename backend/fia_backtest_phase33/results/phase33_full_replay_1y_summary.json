@@ -1,0 +1,119 @@
+{
+  "ok": true,
+  "phase": "PHASE 33 INSTITUTIONAL PRE-MOVE",
+  "rows": 258,
+  "development_rows": 180,
+  "untouched_holdout_rows": 78,
+  "dev": {
+    "4h": {
+      "n": 174,
+      "correct": 84,
+      "incorrect": 90,
+      "accuracy": 48.28,
+      "wilson95": [
+        40.97,
+        55.66
+      ],
+      "binary_probability_n": 154,
+      "brier": 0.2476,
+      "log_loss": 0.6884,
+      "ece": 0.0
+    },
+    "8h": {
+      "n": 143,
+      "correct": 78,
+      "incorrect": 65,
+      "accuracy": 54.55,
+      "wilson95": [
+        46.37,
+        62.48
+      ],
+      "binary_probability_n": 129,
+      "brier": 0.2365,
+      "log_loss": 0.6658,
+      "ece": 0.0728
+    }
+  },
+  "holdout": {
+    "4h": {
+      "n": 75,
+      "correct": 28,
+      "incorrect": 47,
+      "accuracy": 37.33,
+      "wilson95": [
+        27.26,
+        48.65
+      ],
+      "binary_probability_n": 69,
+      "brier": 0.2539,
+      "log_loss": 0.701,
+      "ece": 0.1219
+    },
+    "8h": {
+      "n": 62,
+      "correct": 24,
+      "incorrect": 38,
+      "accuracy": 38.71,
+      "wilson95": [
+        27.58,
+        51.15
+      ],
+      "binary_probability_n": 55,
+      "brier": 0.2719,
+      "log_loss": 0.738,
+      "ece": 0.1569
+    }
+  },
+  "base_holdout": {
+    "4h": {
+      "n": 75,
+      "correct": 40,
+      "incorrect": 35,
+      "accuracy": 53.33,
+      "brier": 0.2466,
+      "binary_probability_n": 69
+    },
+    "8h": {
+      "n": 62,
+      "correct": 30,
+      "incorrect": 32,
+      "accuracy": 48.39,
+      "brier": 0.2804,
+      "binary_probability_n": 55
+    }
+  },
+  "base_all": {
+    "4h": {
+      "n": 249,
+      "correct": 113,
+      "incorrect": 136,
+      "accuracy": 45.38,
+      "brier": 0.2662,
+      "binary_probability_n": 223
+    },
+    "8h": {
+      "n": 205,
+      "correct": 94,
+      "incorrect": 111,
+      "accuracy": 45.85,
+      "brier": 0.268,
+      "binary_probability_n": 184
+    }
+  },
+  "calibration_approved_for_live_probability": false,
+  "missing_historical_optional_inputs": [
+    "L2/L3",
+    "VIX/VXN intraday",
+    "US2Y/real-yield intraday",
+    "dealer gamma",
+    "options skew",
+    "ETF flow",
+    "volume delta",
+    "futures basis"
+  ],
+  "missing_policy": "MISSING_NOT_FAKED_AND_NO_NEUTRAL_IMPUTATION",
+  "rl_influence_on_live": 0.0,
+  "broker_execution": false,
+  "claim_95_percent": false,
+  "note": "Replay is point-in-time over the preserved Phase29 forecast/evidence rows. Optional institutional feeds absent from the historical archive are explicitly excluded, not fabricated."
+}

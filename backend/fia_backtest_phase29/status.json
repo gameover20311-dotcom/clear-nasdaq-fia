@@ -1,0 +1,10 @@
+{
+  "status": "OUTCOME_REVALIDATED_CORE_ONLY",
+  "phase": 29,
+  "truth_tests": "PASS",
+  "forecast_weights_changed": false,
+  "official_market_grade_claim_eligible": false,
+  "legacy_phase28_100_percent_claim": "REJECTED",
+  "research_only": true,
+  "broker_execution": false
+}

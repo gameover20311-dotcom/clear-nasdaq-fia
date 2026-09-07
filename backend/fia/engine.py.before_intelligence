@@ -1,0 +1,42 @@
+from datetime import datetime, timezone
+from .config import Config, MEGA_CAP_WEIGHTS
+from .models import Signal, Forecast
+
+CFG=Config()
+
+def clamp(x,a=-1,b=1): return max(a,min(b,x))
+
+def build_forecast(snapshot:dict)->Forecast:
+    raw=snapshot.get('data',{})
+    signals=[]
+    def add(name, score, weight, detail, freshness='live'):
+        signals.append(Signal(name=name,score=clamp(float(score)),weight=weight,detail=detail,freshness=freshness))
+
+    # Each adapter may supply normalized [-1,1] values. Missing inputs are neutral but reduce coverage.
+    adapters=[
+      ('NQ structure', raw.get('nq_structure'), .20, 'Intraday structure/momentum'),
+      ('SPX confirmation', raw.get('spx_confirmation'), .10, 'S&P 500 confirmation / divergence'),
+      ('DXY', raw.get('dxy'), .08, 'Dollar pressure on risk assets'),
+      ('US10Y', raw.get('us10y'), .07, 'Rates/yield pressure'),
+      ('Mega-cap leadership', raw.get('mega_cap'), .20, 'Impact-weighted NASDAQ leaders'),
+      ('Semiconductors', raw.get('semis'), .12, 'AI/chip leadership'),
+      ('Breadth', raw.get('breadth'), .08, 'Participation/breadth'),
+      ('News', raw.get('news'), .07, 'Market-moving news sentiment'),
+      ('Macro calendar', raw.get('macro'), .04, 'Scheduled macro-event risk'),
+      ('Earnings/guidance', raw.get('earnings'), .04, 'Earnings/guidance impulse'),
+    ]
+    for n,v,w,d in adapters:
+        if v is None: add(n,0,w,'Awaiting provider data','missing')
+        else: add(n,v,w,d,'live')
+    total_w=sum(s.weight for s in signals)
+    score=sum(s.score*s.weight for s in signals)/total_w if total_w else 0
+    coverage=sum(s.weight for s in signals if s.freshness!='missing')/total_w
+    # Probability is intentionally conservative and capped until calibration is trained on historical outcomes.
+    bull=50+40*score*coverage
+    bull=max(5,min(95,bull)); bear=100-bull
+    conf=abs(bull-50)*2
+    direction='BULLISH' if bull>=55 else 'BEARISH' if bull<=45 else 'NEUTRAL'
+    regime='TREND' if abs(score)>.35 else 'BALANCED' if abs(score)<.15 else 'TRANSITION'
+    status='LIVE' if coverage>=.75 else 'DEGRADED' if coverage>0 else 'DEMO'
+    invalidation=['NQ structure flips against forecast','SPX/NQ confirmation diverges materially','Major scheduled macro event invalidates current regime']
+    return Forecast(symbol='NQ',horizon_hours=CFG.horizon_hours,direction=direction,bullish_probability=round(bull,1),bearish_probability=round(bear,1),confidence=round(conf,1),regime=regime,status=status,score=round(score,3),signals=signals,invalidation=invalidation,generated_at=datetime.now(timezone.utc).isoformat(),data_coverage=round(coverage,3),source_status={'market':'configured adapter required','news':'configured adapter required','macro':'configured adapter required','earnings':'configured adapter required'})

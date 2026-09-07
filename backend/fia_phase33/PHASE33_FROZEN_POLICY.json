@@ -1,0 +1,14 @@
+{
+  "version": "33.0",
+  "frozen_before_replay": true,
+  "features_declared": 23,
+  "broker_execution": false,
+  "smart_order_routing": "simulation_only",
+  "kelly_monte_carlo": "research_only_not_applied_to_orders",
+  "reinforcement_learning": "offline_research_only_zero_live_weight_until_oos_approved",
+  "claim_95_percent_without_oos": false,
+  "missing_input_policy": "MISSING_NOT_FAKED",
+  "holdout_threshold_tuning": false,
+  "automatic_hedge_or_close": false,
+  "black_swan_action": "halt_new_research_alerts_only"
+}

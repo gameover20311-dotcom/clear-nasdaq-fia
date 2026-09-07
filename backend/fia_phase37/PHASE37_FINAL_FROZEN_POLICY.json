@@ -1,0 +1,37 @@
+{
+  "phase": "PHASE 37 FINAL LOCK",
+  "status": "FINAL_CODING_FEATURE_LOCK",
+  "project_build_final": true,
+  "further_feature_phases_required": false,
+  "only_remaining_work_category": [
+    "BACKTESTING",
+    "FORWARD_VALIDATION",
+    "REAL_DATA_COLLECTION"
+  ],
+  "candidate_policy_source": "PHASE36_DEVELOPMENT_ONLY_ABLATION",
+  "candidate_always_include": [
+    "BASE_FIA"
+  ],
+  "candidate_include_groups": [
+    "VOLATILITY",
+    "NEWS_NOVELTY",
+    "FUTURES_BASIS_PROXY",
+    "LEADERSHIP_SEMIS"
+  ],
+  "candidate_exclude_groups": [
+    "CROSS_ASSET",
+    "RATES_REAL_YIELD"
+  ],
+  "licensed_groups_fail_closed": [
+    "ORDERFLOW_LICENSED",
+    "OPTIONS_LICENSED",
+    "ETF_FLOW_LICENSED"
+  ],
+  "production_weights_changed": false,
+  "rl_live_weight": 0.0,
+  "broker_execution": false,
+  "fake_accuracy_claims_blocked": true,
+  "probability_claim_requires_oos_validation": true,
+  "missing_licensed_data_is_unfinished_code": false,
+  "policy_version": "37.0.0-final"
+}

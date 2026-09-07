@@ -1,0 +1,41 @@
+{
+  "available": true,
+  "created_at": "2026-09-06T23:10:14.220298+00:00",
+  "dataset_split": {
+    "development": "2025-09-01T00:00:00Z..2026-04-30T23:59:59Z",
+    "holdout": "2026-05-01T00:00:00Z..2026-08-31T23:59:59Z",
+    "holdout_used_for_fitting": false
+  },
+  "fitted_on": "premove raw probability (p = 50 + 25*clamp(sum(score*w)/sum(|w|),-1,1))",
+  "horizons": {
+    "4h": {
+      "a": 0.41065363,
+      "available": true,
+      "b": 0.0,
+      "development_rows_used": 146,
+      "eligible_rows_total": 223,
+      "intercept_pinned": true,
+      "method": "Platt slope-only (intercept pinned at 0; no base-rate injection)",
+      "n": 146,
+      "regularization": 0.015
+    },
+    "8h": {
+      "a": 0.75737864,
+      "available": true,
+      "b": 0.0,
+      "development_rows_used": 122,
+      "eligible_rows_total": 184,
+      "intercept_pinned": true,
+      "method": "Platt slope-only (intercept pinned at 0; no base-rate injection)",
+      "n": 122,
+      "regularization": 0.015
+    }
+  },
+  "intercept_pinned_at_zero": true,
+  "layer": "PREMOVE",
+  "method": "Platt slope-only (intercept pinned at 0)",
+  "no_base_rate_injection": true,
+  "source_dataset": "fia_backtest_phase30/results/phase30_cognitive_replay_1y.csv",
+  "source_rows": 258,
+  "source_sha256": "4fb1313da1532280768eb21e99a38430639a6e97c889edb00606ebefd0b64925"
+}

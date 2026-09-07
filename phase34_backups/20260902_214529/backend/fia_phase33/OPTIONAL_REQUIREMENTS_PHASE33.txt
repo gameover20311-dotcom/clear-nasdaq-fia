@@ -1,0 +1,8 @@
+# Optional research accelerators. Core Phase33 runs without these.
+numpy>=1.24
+scipy>=1.10
+scikit-learn>=1.2
+hmmlearn>=0.3
+# Offline RL lab only; never required for live FIA and never connected to a broker.
+gymnasium>=0.29
+stable-baselines3>=2.3

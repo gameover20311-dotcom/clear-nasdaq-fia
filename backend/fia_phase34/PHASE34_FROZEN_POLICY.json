@@ -1,0 +1,12 @@
+{
+  "phase": 34,
+  "broker_execution": false,
+  "force_high_probability_claim": false,
+  "missing_to_zero_or_neutral": false,
+  "rl_live_weight": 0.0,
+  "auto_sor_orders": false,
+  "auto_hedge_close": false,
+  "calibration_requires_untouched_oos": true,
+  "thresholds_frozen_before_replay": true,
+  "research_only": true
+}

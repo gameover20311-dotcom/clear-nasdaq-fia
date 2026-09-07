@@ -1,0 +1,618 @@
+import os
+import time
+import asyncio
+from typing import Any, Dict
+
+import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+class ProviderHub:
+    def __init__(self):
+        self.keys = {
+            k: os.getenv(k, "")
+            for k in [
+                "FRED_API_KEY",
+                "ALPHAVANTAGE_API_KEY",
+                "FINNHUB_API_KEY",
+                "POLYGON_API_KEY",
+                "NEWS_API_KEY",
+            ]
+        }
+
+    async def get(self, url: str, params: dict = None):
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                return response.json()
+        except Exception as e:
+            print(f"Provider error: {url} -> {e}")
+            return None
+
+    @staticmethod
+    def normalize_change(change_percent):
+        if change_percent is None:
+            return None
+
+        try:
+            value = float(change_percent)
+        except (TypeError, ValueError):
+            return None
+
+        return max(-1.0, min(1.0, value / 2.0))
+
+    @staticmethod
+    def normalize_yield(yield_value):
+        if yield_value is None:
+            return None
+
+        try:
+            value = float(yield_value)
+        except (TypeError, ValueError):
+            return None
+
+        # Higher yields are generally a negative pressure
+        # for growth/risk assets.
+        return max(-1.0, min(1.0, -(value - 4.0) / 1.5))
+
+    async def finnhub_quote(self, symbol: str):
+        key = self.keys["FINNHUB_API_KEY"]
+
+        if not key:
+            return None
+
+        return await self.get(
+            "https://finnhub.io/api/v1/quote",
+            {
+                "symbol": symbol,
+                "token": key,
+            },
+        )
+
+    async def fred_series(self, series_id: str):
+        key = self.keys["FRED_API_KEY"]
+
+        if not key:
+            return None
+
+        return await self.get(
+            "https://api.stlouisfed.org/fred/series/observations",
+            {
+                "series_id": series_id,
+                "api_key": key,
+                "file_type": "json",
+                "sort_order": "desc",
+                "limit": 2,
+            },
+        )
+
+    async def news_sentiment(self, symbol: str = "QQQ"):
+        key = self.keys["NEWS_API_KEY"]
+
+        if not key:
+            return None
+
+        return await self.get(
+            "https://newsapi.org/v2/everything",
+            {
+                "q": f"{symbol} OR Nasdaq OR technology stocks",
+                "language": "en",
+                "sortBy": "publishedAt",
+                "pageSize": 20,
+                "apiKey": key,
+            },
+        )
+
+    async def snapshot(self) -> Dict[str, Any]:
+
+        finnhub_key = self.keys["FINNHUB_API_KEY"]
+
+        if not finnhub_key:
+            return {
+                "data": {},
+                "status": "NO_FINNHUB_KEY",
+                "provider": None,
+                "timestamp": time.time(),
+            }
+
+        symbols = [
+            "QQQ",
+            "SPY",
+            "NVDA",
+            "MSFT",
+            "AAPL",
+            "AMZN",
+            "META",
+            "AVGO",
+            "GOOGL",
+            "GOOG",
+            "TSLA",
+            "NFLX",
+            "AMD",
+            "MU",
+            "INTC",
+            "QCOM",
+            "SMCI",
+        ]
+
+        results = await asyncio.gather(
+            *(self.finnhub_quote(symbol) for symbol in symbols)
+        )
+
+        quotes = dict(zip(symbols, results))
+
+        qqq = quotes.get("QQQ")
+        spy = quotes.get("SPY")
+
+        if not qqq:
+            return {
+                "data": {},
+                "status": "FINNHUB_ERROR",
+                "provider": "Finnhub",
+                "timestamp": time.time(),
+            }
+
+        data = {}
+
+        # ---------------------------------------------------------
+        # QQQ / NQ structure
+        # ---------------------------------------------------------
+
+        qqq_change = qqq.get("dp")
+
+        data["symbol"] = "QQQ"
+        data["price"] = qqq.get("c")
+        data["change"] = qqq.get("d")
+        data["change_percent"] = qqq_change
+        data["high"] = qqq.get("h")
+        data["low"] = qqq.get("l")
+        data["open"] = qqq.get("o")
+        data["previous_close"] = qqq.get("pc")
+
+        nq_signal = self.normalize_change(qqq_change)
+
+        if nq_signal is not None:
+            data["nq_structure"] = nq_signal
+
+        # ---------------------------------------------------------
+        # SPY confirmation
+        # ---------------------------------------------------------
+
+        if spy:
+            spy_change = spy.get("dp")
+            spy_signal = self.normalize_change(spy_change)
+
+            if spy_signal is not None:
+                data["spx_confirmation"] = spy_signal
+                data["spx_change_percent"] = spy_change
+                data["spx_price"] = spy.get("c")
+
+        # ---------------------------------------------------------
+        # Mega-cap leadership
+        # ---------------------------------------------------------
+
+        mega_cap_weights = {
+            "NVDA": 0.14,
+            "MSFT": 0.10,
+            "AAPL": 0.09,
+            "AMZN": 0.08,
+            "META": 0.07,
+            "AVGO": 0.06,
+            "GOOGL": 0.06,
+            "GOOG": 0.04,
+            "TSLA": 0.04,
+            "NFLX": 0.03,
+        }
+
+        mega_total = 0.0
+        mega_weight = 0.0
+        mega_details = {}
+
+        for symbol, weight in mega_cap_weights.items():
+
+            quote = quotes.get(symbol)
+
+            if not quote:
+                continue
+
+            signal = self.normalize_change(quote.get("dp"))
+
+            if signal is None:
+                continue
+
+            mega_total += signal * weight
+            mega_weight += weight
+
+            mega_details[symbol] = {
+                "change_percent": quote.get("dp"),
+                "signal": round(signal, 4),
+                "weight": weight,
+            }
+
+        if mega_weight > 0:
+            data["mega_cap"] = max(
+                -1.0,
+                min(1.0, mega_total / mega_weight),
+            )
+
+        data["mega_cap_details"] = mega_details
+
+        # ---------------------------------------------------------
+        # Semiconductor leadership
+        # ---------------------------------------------------------
+
+        semiconductor_symbols = [
+            "NVDA",
+            "AVGO",
+            "AMD",
+            "MU",
+            "INTC",
+            "QCOM",
+            "SMCI",
+        ]
+
+        semi_values = []
+
+        for symbol in semiconductor_symbols:
+
+            quote = quotes.get(symbol)
+
+            if not quote:
+                continue
+
+            signal = self.normalize_change(quote.get("dp"))
+
+            if signal is not None:
+                semi_values.append(signal)
+
+        if semi_values:
+            data["semis"] = sum(semi_values) / len(semi_values)
+
+        # ---------------------------------------------------------
+        # Breadth proxy
+        # ---------------------------------------------------------
+
+        breadth_symbols = symbols[2:]
+
+        breadth_values = []
+
+        for symbol in breadth_symbols:
+
+            quote = quotes.get(symbol)
+
+            if not quote:
+                continue
+
+            signal = self.normalize_change(quote.get("dp"))
+
+            if signal is not None:
+                breadth_values.append(signal)
+
+        if breadth_values:
+            data["breadth"] = sum(breadth_values) / len(breadth_values)
+
+        # ---------------------------------------------------------
+        # Optional macro providers
+        # ---------------------------------------------------------
+
+        macro_tasks = []
+
+        if self.keys["FRED_API_KEY"]:
+            macro_tasks = [
+                self.fred_series("DFF"),
+                self.fred_series("DGS10"),
+            ]
+
+        if macro_tasks:
+
+            macro_results = await asyncio.gather(*macro_tasks)
+
+            fed_data = macro_results[0]
+            us10y_data = macro_results[1]
+
+            # DFF is used as a dollar/rates macro proxy.
+            if fed_data:
+                observations = fed_data.get("observations", [])
+
+                if observations:
+                    latest = observations[0].get("value")
+
+                    try:
+                        latest = float(latest)
+                        data["dxy"] = self.normalize_yield(latest)
+                        data["fed_funds_rate"] = latest
+                    except (TypeError, ValueError):
+                        pass
+
+            if us10y_data:
+                observations = us10y_data.get("observations", [])
+
+                if observations:
+                    latest = observations[0].get("value")
+
+                    try:
+                        latest = float(latest)
+                        data["us10y"] = self.normalize_yield(latest)
+                        data["us10y_value"] = latest
+                    except (TypeError, ValueError):
+                        pass
+
+        # ---------------------------------------------------------
+        # News
+        # ---------------------------------------------------------
+
+        if self.keys["NEWS_API_KEY"]:
+
+            news = await self.news_sentiment("QQQ")
+
+            if news and news.get("articles"):
+
+                articles = news.get("articles", [])
+
+                positive_words = [
+                    "beat",
+                    "growth",
+                    "bullish",
+                    "surge",
+                    "strong",
+                    "upgrade",
+                    "record",
+                    "profit",
+                ]
+
+                negative_words = [
+                    "miss",
+                    "fall",
+                    "bearish",
+                    "drop",
+                    "weak",
+                    "downgrade",
+                    "loss",
+                    "risk",
+                ]
+
+                sentiment_values = []
+
+                for article in articles:
+
+                    text = " ".join(
+                        [
+                            str(article.get("title", "")),
+                            str(article.get("description", "")),
+                        ]
+                    ).lower()
+
+                    positive = sum(
+                        1 for word in positive_words if word in text
+                    )
+
+                    negative = sum(
+                        1 for word in negative_words if word in text
+                    )
+
+                    if positive == 0 and negative == 0:
+                        continue
+
+                    value = (positive - negative) / max(
+                        1,
+                        positive + negative
+                    )
+
+                    sentiment_values.append(value)
+
+                if sentiment_values:
+                    data["news"] = max(
+                        -1.0,
+                        min(
+                            1.0,
+                            sum(sentiment_values)
+                            / len(sentiment_values),
+                        ),
+                    )
+
+                    data["news_articles"] = len(articles)
+
+        # ---------------------------------------------------------
+        # Earnings intelligence via Finnhub
+        # ---------------------------------------------------------
+        try:
+            if self.keys["FINNHUB_API_KEY"]:
+                earnings = await self.get(
+                    "https://finnhub.io/api/v1/calendar/earnings",
+                    {
+                        "from": time.strftime("%Y-%m-%d"),
+                        "to": time.strftime(
+                            "%Y-%m-%d",
+                            time.localtime(time.time() + 7 * 86400)
+                        ),
+                        "token": self.keys["FINNHUB_API_KEY"],
+                    },
+                )
+
+                events = (earnings or {}).get("earningsCalendar", [])
+
+                tracked = {
+                    "NVDA", "MSFT", "AAPL", "AMZN", "META",
+                    "AVGO", "GOOGL", "GOOG", "TSLA", "NFLX",
+                    "AMD", "MU", "INTC", "QCOM", "SMCI"
+                }
+
+                tracked_events = [
+                    event for event in events
+                    if event.get("symbol") in tracked
+                ]
+
+                positive = 0
+                negative = 0
+                counted = 0
+
+                for event in tracked_events:
+                    actual = event.get("epsActual")
+                    estimate = event.get("epsEstimate")
+
+                    try:
+                        if actual is None or estimate is None:
+                            continue
+
+                        actual = float(actual)
+                        estimate = float(estimate)
+
+                        if actual > estimate:
+                            positive += 1
+                            counted += 1
+                        elif actual < estimate:
+                            negative += 1
+                            counted += 1
+
+                    except (TypeError, ValueError):
+                        continue
+
+                if counted:
+                    data["earnings"] = max(
+                        -1.0,
+                        min(
+                            1.0,
+                            (positive - negative) / counted
+                        )
+                    )
+                elif tracked_events:
+                    # Future earnings events are still meaningful risk.
+                    # Use a neutral signal instead of marking the provider missing.
+                    data["earnings"] = 0.0
+
+                data["earnings_events"] = len(tracked_events)
+                data["earnings_surprises_counted"] = counted
+                data["earnings_positive"] = positive
+                data["earnings_negative"] = negative
+
+        except Exception as e:
+            print(f"Earnings intelligence error -> {e}")
+
+        # ---------------------------------------------------------
+        # Macro intelligence
+        # ---------------------------------------------------------
+        try:
+            if self.keys["FRED_API_KEY"]:
+                dgs10 = await self.fred_series("DGS10")
+
+                if dgs10:
+                    observations = dgs10.get("observations", [])
+
+                    if observations:
+                        latest = observations[0].get("value")
+
+                        try:
+                            latest = float(latest)
+
+                            data["us10y_value"] = latest
+
+                            if latest < 4.0:
+                                data["us10y"] = 0.35
+                            elif latest < 4.5:
+                                data["us10y"] = 0.0
+                            else:
+                                data["us10y"] = -0.5
+
+                        except (TypeError, ValueError):
+                            pass
+
+                dff = await self.fred_series("DFF")
+
+                if dff:
+                    observations = dff.get("observations", [])
+
+                    if observations:
+                        latest = observations[0].get("value")
+
+                        try:
+                            data["fed_funds_rate"] = float(latest)
+                        except (TypeError, ValueError):
+                            pass
+
+        except Exception as e:
+            print(f"Macro intelligence error -> {e}")
+
+        # ---------------------------------------------------------
+        # Enhanced news intelligence
+        # ---------------------------------------------------------
+        try:
+            if self.keys["NEWS_API_KEY"]:
+                news = await self.news_sentiment("QQQ")
+
+                if news and news.get("articles"):
+                    articles = news.get("articles", [])
+
+                    positive_words = [
+                        "beat", "growth", "bullish", "surge",
+                        "strong", "upgrade", "record", "profit",
+                        "outperform", "raises", "rally", "optimistic"
+                    ]
+
+                    negative_words = [
+                        "miss", "fall", "bearish", "drop",
+                        "weak", "downgrade", "loss", "risk",
+                        "underperform", "cuts", "selloff", "warning"
+                    ]
+
+                    sentiment_values = []
+
+                    for article in articles:
+                        text = " ".join([
+                            str(article.get("title", "")),
+                            str(article.get("description", "")),
+                        ]).lower()
+
+                        positive_hits = sum(
+                            1 for word in positive_words if word in text
+                        )
+
+                        negative_hits = sum(
+                            1 for word in negative_words if word in text
+                        )
+
+                        total_hits = positive_hits + negative_hits
+
+                        if total_hits == 0:
+                            continue
+
+                        sentiment_values.append(
+                            (positive_hits - negative_hits) / total_hits
+                        )
+
+                    if sentiment_values:
+                        data["news"] = max(
+                            -1.0,
+                            min(
+                                1.0,
+                                sum(sentiment_values)
+                                / len(sentiment_values)
+                            )
+                        )
+
+                    data["news_articles"] = len(articles)
+                    data["news_scored_articles"] = len(sentiment_values)
+
+        except Exception as e:
+            print(f"News intelligence error -> {e}")
+
+        # ---------------------------------------------------------
+        # Provider status
+        # ---------------------------------------------------------
+
+        available = len(
+            [symbol for symbol, quote in quotes.items() if quote]
+        )
+
+        data["provider_quotes_available"] = available
+        data["provider_quotes_requested"] = len(symbols)
+
+        return {
+            "data": data,
+            "status": "LIVE",
+            "provider": "Finnhub",
+            "timestamp": time.time(),
+        }
+

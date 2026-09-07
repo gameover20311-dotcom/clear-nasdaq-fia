@@ -1,0 +1,17 @@
+{
+  "status": "DEV_ONLY_RESEARCH_CANDIDATE_NOT_LIVE",
+  "always_include": [
+    "BASE_FIA"
+  ],
+  "candidate_include_groups": [
+    "VOLATILITY",
+    "NEWS_NOVELTY",
+    "FUTURES_BASIS_PROXY",
+    "LEADERSHIP_SEMIS"
+  ],
+  "candidate_exclude_groups": [
+    "CROSS_ASSET",
+    "RATES_REAL_YIELD"
+  ],
+  "rule": "Never deploy from Phase36 alone. Candidate must be frozen and tested on genuinely new unseen data."
+}

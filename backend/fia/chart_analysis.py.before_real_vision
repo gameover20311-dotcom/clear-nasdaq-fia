@@ -1,0 +1,334 @@
+import base64
+import json
+import os
+from typing import Any, Dict
+
+import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+ALLOWED_TYPES = {
+    "image/png": "png",
+    "image/jpeg": "jpeg",
+    "image/webp": "webp",
+}
+
+
+def _extract_json(text: str) -> Dict[str, Any]:
+    text = (text or "").strip()
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    if "```" in text:
+        parts = text.split("```")
+        for part in parts:
+            candidate = part.strip()
+
+            if candidate.startswith("json"):
+                candidate = candidate[4:].strip()
+
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+
+    start = text.find("{")
+    end = text.rfind("}")
+
+    if start >= 0 and end > start:
+        try:
+            return json.loads(text[start:end + 1])
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError("AI returned invalid JSON.")
+
+
+def _normalize_direction(value: Any) -> str:
+    value = str(value or "UNKNOWN").upper().strip()
+
+    if value in {"BULLISH", "BEARISH", "NEUTRAL"}:
+        return value
+
+    if "BULL" in value:
+        return "BULLISH"
+
+    if "BEAR" in value:
+        return "BEARISH"
+
+    if "NEUTRAL" in value:
+        return "NEUTRAL"
+
+    return "UNKNOWN"
+
+
+def _clamp(value: Any, low: float = 0.0, high: float = 100.0) -> float:
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return low
+
+    return max(low, min(high, value))
+
+
+async def analyze_chart(
+    image_bytes: bytes,
+    content_type: str,
+    filename: str,
+) -> Dict[str, Any]:
+
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+
+    if not api_key:
+        raise RuntimeError(
+            "OPENAI_API_KEY is missing from backend/.env"
+        )
+
+    if content_type not in ALLOWED_TYPES:
+        raise ValueError(
+            "Unsupported image type. Use PNG, JPEG or WEBP."
+        )
+
+    if not image_bytes:
+        raise ValueError("Uploaded chart is empty.")
+
+    # Keep uploads controlled.
+    if len(image_bytes) > 15 * 1024 * 1024:
+        raise ValueError("Chart image is larger than 15 MB.")
+
+    model = os.getenv(
+        "OPENAI_VISION_MODEL",
+        "gpt-5.6-luna",
+    )
+
+    encoded = base64.b64encode(image_bytes).decode("ascii")
+
+    image_url = (
+        f"data:{content_type};base64,{encoded}"
+    )
+
+    system_prompt = """
+You are the independent chart-analysis module inside
+CLEAR NASDAQ FIA.
+
+Your job is NOT to blindly agree with FIA.
+
+Analyze the uploaded trading chart independently.
+
+Important rules:
+
+1. Read only what is actually visible.
+2. Never invent a price, indicator, pattern, level or timeframe.
+3. If something is unclear, return null or say UNKNOWN.
+4. Separate visual evidence from inference.
+5. Do not pretend to know future market direction.
+6. Give a directional hypothesis only from the visible chart evidence.
+7. This is analysis, not financial advice.
+
+Return ONLY valid JSON with this exact structure:
+
+{
+  "symbol": "NQ",
+  "direction": "BULLISH|BEARISH|NEUTRAL|UNKNOWN",
+  "confidence": 0,
+  "timeframe": null,
+  "market_structure": null,
+  "trend": null,
+  "support_levels": [],
+  "resistance_levels": [],
+  "liquidity_levels": [],
+  "patterns": [],
+  "indicators_visible": [],
+  "bullish_evidence": [],
+  "bearish_evidence": [],
+  "entry_zone": null,
+  "invalidation": null,
+  "target_zone": null,
+  "risk_notes": [],
+  "visual_quality": 0,
+  "analysis_summary": ""
+}
+
+confidence and visual_quality must be numbers from 0 to 100.
+Use null when a value cannot be reliably read.
+"""
+
+
+    payload = {
+        "model": model,
+        "input": [
+            {
+                "role": "system",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": system_prompt,
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": (
+                            "Analyze this uploaded trading chart "
+                            f"independently. Filename: {filename}"
+                        ),
+                    },
+                    {
+                        "type": "input_image",
+                        "image_url": image_url,
+                        "detail": "high",
+                    },
+                ],
+            },
+        ],
+    }
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=90) as client:
+        response = await client.post(
+            "https://api.openai.com/v1/responses",
+            headers=headers,
+            json=payload,
+        )
+
+    if response.status_code >= 400:
+        raise RuntimeError(
+            f"OpenAI vision request failed: "
+            f"{response.status_code} {response.text[:1000]}"
+        )
+
+    raw = response.json()
+
+    output_text = raw.get("output_text")
+
+    if not output_text:
+        pieces = []
+
+        for item in raw.get("output", []):
+            for content in item.get("content", []):
+                if content.get("type") in {
+                    "output_text",
+                    "text",
+                }:
+                    if content.get("text"):
+                        pieces.append(content["text"])
+
+        output_text = "\n".join(pieces)
+
+    result = _extract_json(output_text)
+
+    result["direction"] = _normalize_direction(
+        result.get("direction")
+    )
+
+    result["confidence"] = _clamp(
+        result.get("confidence")
+    )
+
+    result["visual_quality"] = _clamp(
+        result.get("visual_quality")
+    )
+
+    result["filename"] = filename
+    result["model"] = model
+
+    return result
+
+
+def compare_with_fia(
+    fia: Dict[str, Any],
+    user_analysis: Dict[str, Any],
+) -> Dict[str, Any]:
+
+    fia_direction = _normalize_direction(
+        fia.get("direction")
+    )
+
+    user_direction = _normalize_direction(
+        user_analysis.get("direction")
+    )
+
+    if (
+        fia_direction != "UNKNOWN"
+        and user_direction != "UNKNOWN"
+        and fia_direction == user_direction
+    ):
+        direction_alignment = "AGREEMENT"
+    elif (
+        fia_direction != "UNKNOWN"
+        and user_direction != "UNKNOWN"
+        and fia_direction != user_direction
+    ):
+        direction_alignment = "CONFLICT"
+    else:
+        direction_alignment = "UNDETERMINED"
+
+    fia_probability = _clamp(
+        fia.get("bullish_probability", 50)
+    )
+
+    user_confidence = _clamp(
+        user_analysis.get("confidence", 0)
+    )
+
+    if user_direction == "BULLISH":
+        user_probability = user_confidence
+    elif user_direction == "BEARISH":
+        user_probability = 100.0 - user_confidence
+    else:
+        user_probability = 50.0
+
+    probability_gap = round(
+        abs(fia_probability - user_probability),
+        2,
+    )
+
+    if direction_alignment == "AGREEMENT":
+        comparison_score = round(
+            max(
+                0.0,
+                100.0 - probability_gap,
+            ),
+            2,
+        )
+    elif direction_alignment == "CONFLICT":
+        comparison_score = round(
+            max(
+                0.0,
+                50.0 - probability_gap / 2.0,
+            ),
+            2,
+        )
+    else:
+        comparison_score = 0.0
+
+    return {
+        "direction_alignment": direction_alignment,
+        "fia_direction": fia_direction,
+        "user_direction": user_direction,
+        "fia_bullish_probability": fia_probability,
+        "user_bullish_probability_estimate": round(
+            user_probability,
+            2,
+        ),
+        "probability_gap": probability_gap,
+        "comparison_score": comparison_score,
+        "note": (
+            "This is a present-time comparison. "
+            "It does NOT determine which analysis is "
+            "actually correct until the forecast horizon "
+            "has completed and the market outcome is measured."
+        ),
+    }

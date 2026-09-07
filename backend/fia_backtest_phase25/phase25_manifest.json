@@ -1,0 +1,11 @@
+{
+  "phase": "PHASE 25",
+  "installed_at": "2026-09-02T15:44:22.770890",
+  "engine_sha256_before": "3d2f67a4df9d0aea6603afbe68f0364eb1630027358ec735f29d5c0d4a1bd70b",
+  "accuracy_sha256_before": "f0ead6ebd9ac7d0ea7c426bdd6f7a587d7db8025438de9cf5c8226459c85b03b",
+  "forecast_weights_changed": false,
+  "phase24_accuracy_logic_changed": false,
+  "broker_execution_added": false,
+  "historical_accuracy_claim_added": false,
+  "forward_validation_required": true
+}

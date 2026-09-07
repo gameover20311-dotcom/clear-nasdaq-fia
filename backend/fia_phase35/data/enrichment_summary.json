@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "rows": 258,
+  "output": "/mnt/data/fia_patch_work/CLEAR_NASDAQ_FIA_WORLDCLASS_AUDITED/project/backend/fia_phase35/data/enriched_pti.jsonl",
+  "mean_feature_coverage": 0.914,
+  "point_in_time_rules": [
+    "hourly bars require bar_end <= forecast timestamp",
+    "FRED/Treasury daily values use prior calendar date only",
+    "news published_at <= timestamp",
+    "earnings reveal_at <= timestamp",
+    "licensed feeds require timestamp <= checkpoint and max age"
+  ],
+  "no_future_leakage_by_design": true,
+  "missing_never_imputed_as_neutral": true
+}

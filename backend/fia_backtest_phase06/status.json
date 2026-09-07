@@ -1,0 +1,24 @@
+{
+  "module": "FIA Backtest Lab",
+  "phase": 6,
+  "name": "Regime Analysis",
+  "status": "implemented",
+  "current_capability": "Groups historical FIA outcomes by market regime and horizon.",
+  "completed": [
+    "Existing FIA regime extraction",
+    "Independent regime classification fallback",
+    "Regime-wise accuracy",
+    "Regime-wise average return",
+    "4H/8H horizon separation"
+  ],
+  "not_yet_active": [
+    "Session analysis",
+    "Signal attribution",
+    "Ablation testing",
+    "Walk-forward validation",
+    "Out-of-sample validation",
+    "Final dashboard"
+  ],
+  "next": "Phase 7 — Session Analysis",
+  "note": "Phase 6 does not change live FIA weights or live forecast logic."
+}

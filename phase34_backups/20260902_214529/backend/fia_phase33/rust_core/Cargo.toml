@@ -1,0 +1,9 @@
+[package]
+name = "fia_phase33_rust"
+version = "0.1.0"
+edition = "2021"
+[lib]
+name = "fia_phase33_rust"
+crate-type = ["cdylib"]
+[dependencies]
+pyo3 = { version = "0.21", features = ["extension-module"] }

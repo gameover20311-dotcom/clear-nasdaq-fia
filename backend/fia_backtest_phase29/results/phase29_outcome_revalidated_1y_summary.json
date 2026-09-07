@@ -1,0 +1,139 @@
+{
+  "phase": "PHASE 29 - AUTHENTICITY FOUNDATION",
+  "status": "OUTCOME_REVALIDATED_CORE_ONLY",
+  "official_market_grade_claim_eligible": false,
+  "reason_official_claim_is_withheld": "Predictions and outcomes are revalidated, but the full forecast must be rerun after independent chart-feature detection before any market-grade claim.",
+  "frozen_predictions": 258,
+  "prediction_digest_before": "f2e4010aaac49c06efff1039ac8ceacadc73fa12994475c9b537531d7aedb68d",
+  "prediction_digest_after": "f2e4010aaac49c06efff1039ac8ceacadc73fa12994475c9b537531d7aedb68d",
+  "prediction_digest_preserved": true,
+  "outcome_source": "Massive Futures",
+  "outcome_contract_policy": "Entry-time dominant contract frozen for entry, 4H and 8H outcomes",
+  "completed_bar_policy": "Only completed 5-minute bars at or before the requested timestamp; max staleness 15 minutes. Older bars remain unresolved, never converted to flat/neutral.",
+  "metrics": {
+    "forecasts": 258,
+    "horizons": {
+      "4h": {
+        "n": 249,
+        "correct": 113,
+        "incorrect": 136,
+        "resolution_rate": 0.9651,
+        "accuracy": 45.38,
+        "brier": 0.2662
+      },
+      "8h": {
+        "n": 204,
+        "correct": 94,
+        "incorrect": 110,
+        "resolution_rate": 0.7907,
+        "accuracy": 46.08,
+        "brier": 0.2676
+      }
+    },
+    "scheduled_resolution": {
+      "4h": {
+        "eligible_n": 258,
+        "resolved_n": 249,
+        "resolution_rate": 0.9651
+      },
+      "8h": {
+        "eligible_n": 207,
+        "resolved_n": 204,
+        "resolution_rate": 0.9855
+      }
+    },
+    "perfect_result_warning": false,
+    "false_outcomes_are_counted": true
+  },
+  "unresolved_examples": [
+    {
+      "timestamp": "2025-09-01T17:00:00+00:00",
+      "contract": "NQU5"
+    },
+    {
+      "timestamp": "2025-09-05T17:00:00+00:00",
+      "contract": "NQU5"
+    },
+    {
+      "timestamp": "2025-09-12T17:00:00+00:00",
+      "contract": "NQU5"
+    },
+    {
+      "timestamp": "2025-09-19T17:00:00+00:00",
+      "contract": "NQZ5"
+    },
+    {
+      "timestamp": "2025-09-26T17:00:00+00:00",
+      "contract": "NQZ5"
+    },
+    {
+      "timestamp": "2025-10-03T17:00:00+00:00",
+      "contract": "NQZ5"
+    },
+    {
+      "timestamp": "2025-10-10T17:00:00+00:00",
+      "contract": "NQZ5"
+    },
+    {
+      "timestamp": "2025-10-17T17:00:00+00:00",
+      "contract": "NQZ5"
+    },
+    {
+      "timestamp": "2025-10-24T17:00:00+00:00",
+      "contract": "NQZ5"
+    },
+    {
+      "timestamp": "2025-10-31T17:00:00+00:00",
+      "contract": "NQZ5"
+    },
+    {
+      "timestamp": "2025-11-07T17:00:00+00:00",
+      "contract": "NQZ5"
+    },
+    {
+      "timestamp": "2025-11-14T17:00:00+00:00",
+      "contract": "NQZ5"
+    },
+    {
+      "timestamp": "2025-11-21T17:00:00+00:00",
+      "contract": "NQZ5"
+    },
+    {
+      "timestamp": "2025-11-27T17:00:00+00:00",
+      "contract": "NQZ5"
+    },
+    {
+      "timestamp": "2025-11-28T17:00:00+00:00",
+      "contract": "NQZ5"
+    },
+    {
+      "timestamp": "2025-12-05T17:00:00+00:00",
+      "contract": "NQZ5"
+    },
+    {
+      "timestamp": "2025-12-12T17:00:00+00:00",
+      "contract": "NQZ5"
+    },
+    {
+      "timestamp": "2025-12-19T17:00:00+00:00",
+      "contract": "NQH6"
+    },
+    {
+      "timestamp": "2025-12-24T17:00:00+00:00",
+      "contract": "NQH6"
+    },
+    {
+      "timestamp": "2025-12-26T17:00:00+00:00",
+      "contract": "NQH6"
+    }
+  ],
+  "legacy_phase28_claim": {
+    "status": "REJECTED",
+    "reported_4h_accuracy": 100.0,
+    "reported_8h_accuracy": 100.0,
+    "root_cause": "False outcomes were converted to an empty value and excluded from the denominator."
+  },
+  "research_only": true,
+  "broker_execution": false,
+  "generated_at": "2026-09-04T01:07:55.437542+00:00"
+}

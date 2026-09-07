@@ -1,0 +1,23 @@
+{
+  "module": "FIA Backtest Lab",
+  "phase": 11,
+  "name": "Out-of-Sample Validation",
+  "status": "implemented",
+  "current_capability": "Separates a final chronological holdout period from development data and evaluates the unseen holdout.",
+  "completed": [
+    "Chronological ordering",
+    "Development/holdout separation",
+    "Configurable holdout size",
+    "Holdout date range",
+    "Holdout accuracy",
+    "Holdout average return"
+  ],
+  "not_yet_active": [
+    "Actual FIA model retraining",
+    "Statistical significance testing",
+    "Production monitoring",
+    "Final dashboard"
+  ],
+  "next": "Phase 12 — Final Dashboard",
+  "note": "The holdout must remain unseen during model development. This phase does not modify live FIA weights or forecast logic. Actual conclusions require real historical prediction/outcome records."
+}

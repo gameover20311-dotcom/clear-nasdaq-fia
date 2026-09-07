@@ -1,0 +1,23 @@
+{
+  "module": "FIA Backtest Lab",
+  "phase": 9,
+  "name": "Ablation Testing",
+  "status": "implemented",
+  "current_capability": "Performs descriptive leave-one-signal-out analysis on historical FIA records.",
+  "completed": [
+    "Baseline performance calculation",
+    "Single-signal removal analysis",
+    "Accuracy delta",
+    "Average return delta",
+    "Ablation suite across available signals"
+  ],
+  "not_yet_active": [
+    "Causal inference",
+    "Model rerun with recalculated weights",
+    "Walk-forward validation",
+    "Out-of-sample validation",
+    "Final dashboard"
+  ],
+  "next": "Phase 10 — Walk-Forward Validation",
+  "note": "Ablation is descriptive unless the complete FIA model is rerun with the signal removed. Live FIA weights are not changed."
+}

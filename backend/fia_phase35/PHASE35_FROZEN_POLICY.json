@@ -1,0 +1,50 @@
+{
+  "phase": "PHASE35_ONE_SHOT_INSTITUTIONAL_DATA_REPLAY",
+  "version": "35.0",
+  "frozen_before_replay": true,
+  "forecast_window": "2025-09-01 through 2026-08-31",
+  "development_partition": "first 70 percent chronological",
+  "holdout_partition": "last 30 percent chronological untouched for fitting",
+  "holdout_threshold_tuning": false,
+  "public_feeds": [
+    "VIX",
+    "VXN",
+    "QQQ",
+    "SPY",
+    "SMH",
+    "SOX",
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "AMZN",
+    "META",
+    "AVGO",
+    "TSLA",
+    "GOOGL",
+    "NFLX",
+    "AMD",
+    "MU",
+    "INTC",
+    "US2Y",
+    "US10Y",
+    "REAL_YIELD"
+  ],
+  "existing_project_feeds": [
+    "Massive NQ 5m multi-contract",
+    "Massive ES 5m multi-contract",
+    "Polygon 1-year news archive",
+    "SEC-verified earnings surprise archive",
+    "Phase29 PTI forecasts/outcomes"
+  ],
+  "licensed_optional_feeds": {
+    "L2_L3": "fia_phase35/licensed_inputs/l2_l3.csv",
+    "OPTIONS_GAMMA": "fia_phase35/licensed_inputs/options_gamma.csv",
+    "ETF_FLOW": "fia_phase35/licensed_inputs/etf_flow.csv",
+    "VOLUME_DELTA": "fia_phase35/licensed_inputs/volume_delta.csv"
+  },
+  "licensed_missing_policy": "MISSING_NOT_FAKED",
+  "rl_live_weight": 0.0,
+  "broker_execution": false,
+  "force_90_95_probability": false,
+  "probability_policy": "Platt fit on development only; untouched holdout decides approval; no live replacement unless both horizons pass strict rule."
+}

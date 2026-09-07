@@ -1,0 +1,23 @@
+{
+  "status": "NO_RESOLVED_DATA",
+  "dataset_exists": true,
+  "records_total": 3,
+  "records_resolved": 0,
+  "summary": {
+    "records_total": 3,
+    "records_resolved": 0,
+    "records_unresolved": 3,
+    "accuracy": null
+  },
+  "walk_forward": {
+    "development_records": 1,
+    "holdout_records": 2,
+    "holdout_accuracy": null
+  },
+  "robustness": {
+    "resolved_records": 0,
+    "enough_data_for_robustness": false,
+    "performance_claim_allowed": false
+  },
+  "performance_claim": "Not available: no resolved real outcomes."
+}

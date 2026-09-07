@@ -1,0 +1,5 @@
+const nextConfig = {
+  allowedDevOrigins: ["silicon-trail-riding-racks.trycloudflare.com"],
+};
+
+export default nextConfig;

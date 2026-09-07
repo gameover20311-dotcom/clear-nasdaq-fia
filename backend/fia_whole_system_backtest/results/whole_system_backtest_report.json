@@ -1,0 +1,27 @@
+{
+  "evaluation_class": "RETROSPECTIVE_TIME_TRAVEL_CURRENT_BUILD_NOT_FORWARD_OOS",
+  "final": false,
+  "generated_at_utc": "2026-09-04T01:43:19.056140+00:00",
+  "historical_1y_whole_system": null,
+  "horizons": {
+    "4h": null,
+    "8h": null
+  },
+  "progress": {
+    "completed_cases": 0,
+    "new_brain_runs": 0,
+    "pct": 0.0,
+    "reused_brain_records": 0,
+    "total_cases": 258
+  },
+  "reason": "Previous partial V6.6 replay predates strict future-leak sanitizer, horizon-isolated evaluator, neutral-outcome accounting, and runtime/model-digest checkpoint identity. Old files are archived and are not valid final evidence.",
+  "schema_version": "CLEAR_NASDAQ_WHOLE_SYSTEM_BACKTEST_V2_DUAL_4H_8H",
+  "state": "INVALIDATED_REQUIRES_FULL_RERUN_AFTER_DEEP_TRUTH_AUDIT",
+  "truth_policy": {
+    "financial_mdd_without_locked_execution_policy": "UNAVAILABLE",
+    "future_leakage_guard_required": true,
+    "neutral_market_outcomes_preserved": true,
+    "old_cache_reuse_forbidden_by_new_identity": true,
+    "old_partial_results_invalidated": true
+  }
+}

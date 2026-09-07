@@ -1,0 +1,334 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+type Obj = Record<string, any>;
+
+const API = "/api/fia/dashboard";
+const REFRESH_MS = 60_000;
+
+const asObj = (value: any): Obj => value && typeof value === "object" && !Array.isArray(value) ? value : {};
+const asList = (value: any): any[] => Array.isArray(value) ? value : [];
+const finite = (value: any): number | null => {
+  if (value === null || value === undefined || typeof value === "boolean") return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+const pct = (value: any, digits = 1) => {
+  const n = finite(value); return n === null ? "—" : `${n.toFixed(digits)}%`;
+};
+const ratioPct = (value: any, digits = 0) => {
+  const n = finite(value); if (n === null) return "—";
+  return `${(Math.abs(n) <= 1 ? n * 100 : n).toFixed(digits)}%`;
+};
+const num = (value: any, digits = 2) => {
+  const n = finite(value); return n === null ? "—" : n.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+};
+const words = (value: any) => {
+  if (value && typeof value === "object") {
+    const obj = value as Obj;
+    return String(obj.level ?? obj.status ?? obj.message ?? "—").replace(/_/g, " ");
+  }
+  return String(value ?? "—").replace(/_/g, " ");
+};
+const healthy = (value: any) => ["LIVE", "OK", "PASS", "READY", "HEALTHY", "AVAILABLE"].includes(String(value ?? "").toUpperCase());
+const bad = (value: any) => ["ERROR", "FAILED", "FAIL", "UNAVAILABLE", "STALE", "MISSING", "DOWN"].includes(String(value ?? "").toUpperCase());
+const tone = (value: any) => healthy(value) ? "good" : bad(value) ? "bad" : "warn";
+const scoreLabel = (value: any) => {
+  const n = finite(value);
+  if (n === null) return { text: "MISSING", cls: "flat" };
+  if (n > 0.12) return { text: "BULLISH NQ", cls: "pos" };
+  if (n < -0.12) return { text: "BEARISH NQ", cls: "neg" };
+  return { text: "MIXED", cls: "flat" };
+};
+const ageText = (date: Date | null) => {
+  if (!date) return "waiting";
+  const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  return `${Math.floor(seconds / 60)}m ago`;
+};
+const safeDate = (value: any) => {
+  if (!value) return "—";
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+};
+
+function Badge({ value }: { value: any }) {
+  return <span className={`pill ${tone(value)}`}><i />{words(value).toUpperCase()}</span>;
+}
+
+function SignalRow({ name, note, score, value }: { name: string; note: string; score: any; value?: string }) {
+  const s = scoreLabel(score);
+  return <div className="row"><div><b>{name}</b><small>{note}{value ? ` · ${value}` : ""}</small></div><div className={`signal ${s.cls}`}>{s.text}</div></div>;
+}
+
+function StatusBox({ label, value, note }: { label: string; value: any; note?: string }) {
+  return <div className="sys"><span>{label}</span><b>{words(value)}</b>{note && <small>{note}</small>}</div>;
+}
+
+export default function Dashboard() {
+  const [payload, setPayload] = useState<Obj | null>(null);
+  const [session, setSession] = useState<Obj | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [receivedAt, setReceivedAt] = useState<Date | null>(null);
+  const [clock, setClock] = useState(Date.now());
+  const [probabilityShift, setProbabilityShift] = useState<number | null>(null);
+  const previousBull = useRef<number | null>(null);
+  const inFlight = useRef(false);
+
+  const loadSession = useCallback(async () => {
+    const response = await fetch("/api/auth/session", { cache: "no-store" });
+    if (response.status === 401) { window.location.assign("/login"); return; }
+    const body = await response.json().catch(() => ({}));
+    if (response.ok && body?.ok === true) setSession(asObj(body.user));
+  }, []);
+
+  const load = useCallback(async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setLoading(true);
+    try {
+      const response = await fetch(API, { cache: "no-store", headers: { "cache-control": "no-cache" } });
+      if (response.status === 401) { window.location.assign("/login"); return; }
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.ok !== true) throw new Error(body?.detail || body?.error || `HTTP ${response.status}`);
+
+      const finalCockpit = asObj(body?.final_cockpit);
+      const live = asObj(body?.live);
+      const forecast = asObj(live.forecast);
+      const snapshot = asObj(live.snapshot);
+      const data = asObj(snapshot.data && typeof snapshot.data === "object" ? snapshot.data : snapshot);
+      const provider = asObj(data.provider_health);
+      const forecastStatus = String(forecast.status || "UNKNOWN").toUpperCase();
+      const snapshotStatus = String(snapshot.status || "UNKNOWN").toUpperCase();
+      const providerOverall = String(provider.overall || "UNKNOWN").toUpperCase();
+      const truthReady = finalCockpit.truth_ready === true
+        && forecastStatus === "LIVE"
+        && ["LIVE", "OK", "HEALTHY"].includes(snapshotStatus)
+        && ["LIVE", "OK", "HEALTHY"].includes(providerOverall)
+        && asList(provider.critical_missing).length === 0
+        && asList(provider.stale_sources).length === 0;
+      const currentBull = truthReady ? finite(forecast.bullish_probability) : null;
+      if (currentBull !== null && previousBull.current !== null) setProbabilityShift(Number((currentBull - previousBull.current).toFixed(1)));
+      else setProbabilityShift(null);
+      if (currentBull !== null) previousBull.current = currentBull;
+
+      setPayload(body);
+      setReceivedAt(new Date());
+      setError("");
+    } catch (caught: any) {
+      setPayload(null);
+      setError(caught?.message || "FIA dashboard unavailable");
+    } finally {
+      inFlight.current = false;
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadSession(); load(); }, [load, loadSession]);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setClock(Date.now());
+      if (document.visibilityState === "visible" && receivedAt && Date.now() - receivedAt.getTime() >= REFRESH_MS) load();
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [load, receivedAt]);
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
+    window.location.assign("/login");
+  }
+
+  const live = asObj(payload?.live);
+  const snapshot = asObj(live.snapshot);
+  const data = asObj(snapshot.data && typeof snapshot.data === "object" ? snapshot.data : snapshot);
+  const forecast = asObj(live.forecast);
+  const cognitive = asObj(live.cognitive);
+  const critic = asObj(cognitive.critic);
+  const objections = asList(critic.objections);
+  const provider = asObj(data.provider_health);
+  const earnings = asObj(live.upcoming_earnings);
+  const events = asList(earnings.events);
+  const liquidityGroups = asObj(live.liquidity_groups);
+  const nqLiquidity = asObj(liquidityGroups.nq);
+  const nqLevels = asObj(nqLiquidity.levels);
+  const phase25 = asObj(payload?.phase25);
+  const brain = asObj(payload?.brain_v66);
+  const brainOllama = asObj(brain.ollama);
+  const whole = asObj(payload?.whole_system_backtest);
+  const progress = asObj(whole.progress);
+  const forward = asObj(whole.live_forward_oos);
+  const forward4 = asObj(forward["4h"]);
+  const forward8 = asObj(forward["8h"]);
+  const dataTruth = asObj(payload?.data_truth);
+  const finalCockpit = asObj(payload?.final_cockpit);
+  const mega = asObj(data.mega_cap_details);
+
+  const forecastStatus = String(forecast.status || (error ? "UNAVAILABLE" : "UNKNOWN")).toUpperCase();
+  const snapshotStatus = String(snapshot.status || "UNKNOWN").toUpperCase();
+  const providerOverall = String(provider.overall || "UNKNOWN").toUpperCase();
+  const truthReady = finalCockpit.truth_ready === true
+    && forecastStatus === "LIVE"
+    && ["LIVE", "OK", "HEALTHY"].includes(snapshotStatus)
+    && ["LIVE", "OK", "HEALTHY"].includes(providerOverall)
+    && asList(provider.critical_missing).length === 0
+    && asList(provider.stale_sources).length === 0;
+
+  const rawDirection = String(forecast.direction || "UNKNOWN").toUpperCase();
+  const directional = truthReady && ["BULLISH", "BEARISH"].includes(rawDirection);
+  const explicitNoEdge = truthReady && ["NO_EDGE", "NO EDGE", "NEUTRAL"].includes(rawDirection);
+  const direction = !truthReady ? "UNAVAILABLE" : directional ? rawDirection : explicitNoEdge ? "NO EDGE" : "NO EDGE";
+  const biasClass = direction === "BULLISH" ? "bull" : direction === "BEARISH" ? "bear" : "neutral";
+  const gateText = !truthReady ? "DATA WARNING" : directional ? "TRUTH READY" : "NO EDGE";
+  const gateClass = !truthReady ? "bad" : directional ? "good" : "warn";
+  const decision = !truthReady ? "DO NOT TRUST BIAS" : directional ? "VALID RESEARCH BIAS" : "WAIT · NO EDGE";
+  const decisionClass = !truthReady ? "badTxt" : directional ? "goodTxt" : "warnTxt";
+  const bull = truthReady ? finite(forecast.bullish_probability) : null;
+  const bear = truthReady ? finite(forecast.bearish_probability) : null;
+  const confidence = truthReady ? finite(forecast.confidence) : null;
+  const regime = truthReady ? words(forecast.regime) : "UNKNOWN";
+
+  const nqCurrent = finite(nqLiquidity.current_price);
+  const levelEntries = useMemo(() => Object.entries(nqLevels).map(([key, raw]) => ({ key, ...asObj(raw) })), [nqLevels]);
+  const nearestHigh = useMemo(() => levelEntries
+    .filter((x: any) => String(x.side).toUpperCase() === "HIGH" && finite(x.price) !== null && (nqCurrent === null || Number(x.price) >= nqCurrent))
+    .sort((a: any, b: any) => Math.abs(Number(a.price) - (nqCurrent ?? Number(a.price))) - Math.abs(Number(b.price) - (nqCurrent ?? Number(b.price))))[0], [levelEntries, nqCurrent]);
+  const nearestLow = useMemo(() => levelEntries
+    .filter((x: any) => String(x.side).toUpperCase() === "LOW" && finite(x.price) !== null && (nqCurrent === null || Number(x.price) <= nqCurrent))
+    .sort((a: any, b: any) => Math.abs(Number(a.price) - (nqCurrent ?? Number(a.price))) - Math.abs(Number(b.price) - (nqCurrent ?? Number(b.price))))[0], [levelEntries, nqCurrent]);
+  const asiaHigh = asObj(nqLevels.asia_high);
+  const asiaLow = asObj(nqLevels.asia_low);
+  const londonHigh = asObj(nqLevels.london_high);
+  const londonLow = asObj(nqLevels.london_low);
+
+  const megaRows = useMemo(() => Object.entries(mega).map(([symbol, raw]) => ({ symbol, ...asObj(raw) }))
+    .sort((a: any, b: any) => Math.abs(finite(b.change_percent) || 0) - Math.abs(finite(a.change_percent) || 0)).slice(0, 6), [mega]);
+
+  const catalyst = data.earnings_catalyst_risk === true ? "EARNINGS ACTIVE" : events.length ? "UPCOMING" : earnings.available === true ? "NONE VERIFIED" : "UNKNOWN";
+  const shiftText = probabilityShift === null ? "—" : `${probabilityShift > 0 ? "+" : ""}${probabilityShift.toFixed(1)} pts`;
+  const shiftClass = probabilityShift === null ? "flat" : probabilityShift > 0 ? "pos" : probabilityShift < 0 ? "neg" : "flat";
+  const generatedAt = payload?.generated_at || forecast.generated_at || data.timestamp;
+  void clock;
+
+  return <main className="shell">
+    <header className="topbar">
+      <div className="brand"><div className="logo">F</div><div><h1>CLEAR NASDAQ · FIA</h1><p>OBSIDIAN LIVE COCKPIT · NQ · 4–8H</p></div></div>
+      <div className="topRight">
+        <div className="membership"><span>{session?.plan || "FULL ACCESS"}</span><b>{session?.display_name || "Member"}</b></div>
+        <div className={`live ${error || !truthReady ? "warnLive" : ""}`}><span className="dot"/><span>{error ? "UNAVAILABLE" : truthReady ? "LIVE TRUTH" : forecastStatus}</span></div>
+        <button className="ghost" onClick={logout}>Logout</button>
+      </div>
+    </header>
+
+    <div className="truthNote"><b>LIVE SOURCE ONLY.</b> No demo values. Missing, stale or invalid evidence stays unavailable. Auto-refresh every 60s; old snapshot is cleared on fetch failure.</div>
+
+    {error && <div className="errorBox"><b>FIA live snapshot failed.</b><span>{error}</span></div>}
+
+    <section className="grid hero">
+      <article className="card heroCard">
+        <div className="biasRow"><div><div className="eyebrow">01 · Current FIA Outlook</div><div className={`bias ${biasClass}`}>{direction}</div></div><div className={`gate ${gateClass}`}>{gateText}</div></div>
+        <div className="probTop"><span>Bullish <b>{pct(bull)}</b></span><span>Bearish <b>{pct(bear)}</b></span></div>
+        <div className="bar"><i style={{ width: `${bull === null ? 0 : Math.max(0, Math.min(100, bull))}%` }}/></div>
+        <div className="micro">One glance: direction, probability and whether the underlying live evidence passes the truth gate.</div>
+      </article>
+
+      <article className="card decision">
+        <div><div className="eyebrow">02 · Research Gate</div><div className={`decisionValue ${decisionClass}`}>{decision}</div></div>
+        <div><div className="label">Evidence reliability</div><div className="bigMetric">{pct(confidence)}</div><div className="micro">Reliability ≠ win rate.</div></div>
+      </article>
+    </section>
+
+    <section className="grid four metricGrid">
+      <article className="card metric"><span className="label">Market regime</span><strong>{regime}</strong><small>Interpret evidence in context</small></article>
+      <article className="card metric"><span className="label">Data coverage</span><strong>{ratioPct(forecast.data_coverage)}</strong><small>Fresh / usable inputs</small></article>
+      <article className="card metric"><span className="label">Catalyst risk</span><strong>{catalyst}</strong><small>{events.length ? `${events.length} tracked earnings event(s)` : "No fake countdown"}</small></article>
+      <article className="card metric"><span className="label">Probability shift</span><strong className={shiftClass}>{shiftText}</strong><small>Since previous successful live refresh</small></article>
+    </section>
+
+    <div className="sectionHead"><h2>What is moving NQ?</h2><span>Only high-impact live drivers</span></div>
+    <section className="grid two">
+      <article className="card">
+        <div className="eyebrow">03 · Cross-Market Pulse</div>
+        <SignalRow name="DXY" note="Dollar pressure" score={data.dxy} value={finite(data.dxy_value) === null ? undefined : num(data.dxy_value, 2)} />
+        <SignalRow name="US10Y" note="Yield pressure" score={data.us10y} value={finite(data.us10y_value) === null ? undefined : num(data.us10y_value, 3)} />
+        <SignalRow name="SPX confirmation" note="Index confirmation / divergence" score={data.spx_confirmation} />
+        <SignalRow name="Semiconductors" note="High-beta leadership" score={data.semis} />
+        <SignalRow name="Breadth" note="NASDAQ participation" score={data.breadth} />
+        <div className="why">Signal direction uses the same ±0.12 score boundary as the FIA engine. Missing inputs remain MISSING.</div>
+      </article>
+
+      <article className="card">
+        <div className="eyebrow">04 · Mega-Cap Leadership</div>
+        {megaRows.length ? megaRows.map((item: any) => {
+          const change = finite(item.change_percent);
+          return <div className="row" key={item.symbol}><div><b>{item.symbol}</b><small>{words(item.signal || item.status)}</small></div><div className={`signal ${change === null ? "flat" : change > 0 ? "pos" : change < 0 ? "neg" : "flat"}`}>{change === null ? "—" : pct(change)}</div></div>;
+        }) : <div className="empty">Mega-cap live leadership is unavailable.</div>}
+        <div className="why">Front screen keeps only the largest live movers returned by the project; it does not invent missing quotes.</div>
+      </article>
+    </section>
+
+    <div className="sectionHead"><h2>Where can price react?</h2><span>Nearest NQ liquidity only</span></div>
+    <section className="grid two">
+      <article className="card">
+        <div className="eyebrow">05 · NQ Liquidity Map</div>
+        <div className="level"><div><b>Current NQ</b><small>{nqLiquidity.source || "Source unavailable"}</small></div><div className="price">{num(nqCurrent, 2)}</div></div>
+        <div className="level"><div><b>Nearest buy-side liquidity</b><small>{nearestHigh?.name || "No verified high above current price"}</small></div><div className="price">{num(nearestHigh?.price, 2)}</div></div>
+        <div className="level"><div><b>Nearest sell-side liquidity</b><small>{nearestLow?.name || "No verified low below current price"}</small></div><div className="price">{num(nearestLow?.price, 2)}</div></div>
+        <div className="level"><div><b>Asia high / low</b><small>{words(asiaHigh.status)} / {words(asiaLow.status)}</small></div><div className="price">{num(asiaHigh.price, 2)} / {num(asiaLow.price, 2)}</div></div>
+        <div className="level"><div><b>London high / low</b><small>{words(londonHigh.status)} / {words(londonLow.status)}</small></div><div className="price">{num(londonHigh.price, 2)} / {num(londonLow.price, 2)}</div></div>
+        <div className="why">No synthetic sweep flag is shown. The cockpit displays only levels and statuses actually returned by the backend.</div>
+      </article>
+
+      <article className="card">
+        <div className="eyebrow">06 · NQ Structure</div>
+        <SignalRow name="Completed structure" note="Intraday NQ/QQQ structure score" score={data.nq_structure} />
+        <div className="row"><div><b>Candle evidence</b><small>Provider evidence state</small></div><div className={`signal ${tone(data.provider_candle_evidence)}`}>{words(data.provider_candle_evidence)}</div></div>
+        <div className="row"><div><b>Provider truth</b><small>Critical gaps: {asList(provider.critical_missing).length}</small></div><Badge value={providerOverall} /></div>
+        <div className="row"><div><b>Stale sources</b><small>{asList(provider.stale_sources).join(", ") || "None reported"}</small></div><div className={`signal ${asList(provider.stale_sources).length ? "neg" : "pos"}`}>{asList(provider.stale_sources).length}</div></div>
+        <div className="why">Structure is context, not a replacement for macro, rates, leadership, breadth or catalyst evidence.</div>
+      </article>
+    </section>
+
+    <div className="sectionHead"><h2>Why this bias — and when is it wrong?</h2><span>Thesis before conviction</span></div>
+    <section className="grid two">
+      <article className="card">
+        <div className="eyebrow">07 · Thesis + Invalidation</div>
+        <div className="thesis">{truthReady && forecast.thesis ? forecast.thesis : "Live thesis is unavailable until the truth gate is ready."}</div>
+        <div className="invalid"><strong>INVALIDATION CONDITIONS</strong><span>{truthReady && forecast.invalidation ? words(forecast.invalidation) : "Unavailable until a verified live thesis exists."}</span></div>
+      </article>
+
+      <article className="card">
+        <div className="eyebrow">08 · Your Chart + FIA</div>
+        <div className="confluence"><div className={`grade ${phase25.latest_grade ? "readyGrade" : ""}`}>{phase25.latest_grade || "—"}</div><div><b>Phase 25 chart confluence</b><small>Alignment {pct(phase25.alignment_pct)} · Completeness {pct(phase25.completeness_pct)}</small></div></div>
+        <div className="event"><div><b>Research alert</b><small>{phase25.source || "No verified chart assessment"}</small></div><div className="signal flat">{words(phase25.research_alert || "NONE")}</div></div>
+        <div className="event"><div><b>Independent critic</b><small>{objections.length} material objection(s)</small></div><div className={`signal ${objections.length ? "flat" : "pos"}`}>{objections.length ? "CHECK" : "CLEAR"}</div></div>
+        <div className="actions"><Link href="/chart-lab">Open Chart Lab</Link></div>
+      </article>
+    </section>
+
+    <div className="sectionHead"><h2>Catalyst Watch</h2><span>Verified tracked events only</span></div>
+    <section className="card">
+      {events.length ? events.slice(0, 5).map((event: any, index: number) => <div className="event" key={`${event.symbol}-${index}`}><div><b>{event.symbol || "Tracked event"}</b><small>{event.date || "Date unavailable"} · {event.hour || "time unavailable"}</small></div><div className="clock">{event.eps_estimate == null ? "EPS —" : `EPS ${num(event.eps_estimate, 2)}`}</div></div>) : <div className="empty">No verified tracked earnings event returned for the current window.</div>}
+    </section>
+
+    <details>
+      <summary>System / Validation · keep collapsed for a clean cockpit</summary>
+      <div className="systemGrid">
+        <StatusBox label="GPT-OSS Brain" value={brain.status || "UNKNOWN"} note={`${brain.model || "gpt-oss:20b"} · Ollama ${words(brainOllama.status)}`} />
+        <StatusBox label="Provider Health" value={providerOverall} note={`score ${finite(provider.score) === null ? "—" : pct(provider.score)}`} />
+        <StatusBox label="Forward-OOS 4H" value={forward4.status || "COLLECTING"} note="Historical replay stays separate" />
+        <StatusBox label="Forward-OOS 8H" value={forward8.status || "COLLECTING"} note="Historical replay stays separate" />
+        <StatusBox label="Whole-System Replay" value={whole.final ? "FINAL" : whole.state || "NOT RUN"} note={`${progress.completed_cases ?? 0}/${progress.total_cases ?? 0} completed`} />
+        <StatusBox label="Phase 25" value={phase25.status || "AWAITING_CHART"} note={phase25.latest_grade ? `Latest grade ${phase25.latest_grade}` : "No verified chart grade"} />
+        <StatusBox label="Critical Missing" value={asList(dataTruth.critical_missing).length ? "WARNING" : "NONE"} note={asList(dataTruth.critical_missing).join(", ") || "No critical gap reported"} />
+        <StatusBox label="Stale Sources" value={asList(dataTruth.stale_sources).length ? "WARNING" : "NONE"} note={asList(dataTruth.stale_sources).join(", ") || "No stale source reported"} />
+      </div>
+      <div className="systemLinks"><Link href="/whole-system-backtest">Whole-System Backtest</Link><Link href="/phase33">Phase 33</Link><Link href="/phase34">Phase 34</Link></div>
+    </details>
+
+    <footer className="footer"><span>Atomic snapshot: {generatedAt ? safeDate(generatedAt) : "—"}</span><span>{loading ? "Refreshing…" : `Last received ${ageText(receivedAt)}`} · Research only · Broker execution OFF</span></footer>
+  </main>;
+}

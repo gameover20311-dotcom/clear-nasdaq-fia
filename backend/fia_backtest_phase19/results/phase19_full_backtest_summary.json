@@ -1,0 +1,44 @@
+{
+  "checkpoints_requested": 44,
+  "forecasts_created": 44,
+  "neutral_threshold_pct": 0.05,
+  "outcome_max_staleness_minutes": 90,
+  "resolved_4h": 43,
+  "correct_4h": 20,
+  "accuracy_4h_pct": 46.51162790697674,
+  "resolved_8h": 35,
+  "correct_8h": 12,
+  "accuracy_8h_pct": 34.285714285714285,
+  "brier_4h": 0.24133817948717948,
+  "brier_4h_n": 39,
+  "brier_8h": 0.27142886666666666,
+  "brier_8h_n": 30,
+  "predictions": {
+    "BEARISH": 25,
+    "BULLISH": 12,
+    "NEUTRAL": 7
+  },
+  "regimes": {
+    "BALANCED": 10,
+    "TREND": 10,
+    "TRANSITION": 23,
+    "CONFLICTED": 1
+  },
+  "liquidity_resolutions": {
+    "5m": 44
+  },
+  "news_evidence": {
+    "available": 44
+  },
+  "earnings_evidence": {
+    "missing": 32,
+    "upcoming_verified_catalyst": 5,
+    "released_verified": 7
+  },
+  "earnings_catalyst_days": 7,
+  "verified_earnings_cache_events": 11,
+  "news_pool_size": 12520,
+  "polygon_cache_path": "fia_backtest_phase19/data/polygon_news_20260628_20260831.json",
+  "polygon_cache_exists": true,
+  "csv_path": "fia_backtest_phase19/results/phase19_full_backtest.csv"
+}

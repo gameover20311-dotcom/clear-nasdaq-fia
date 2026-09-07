@@ -1,0 +1,698 @@
+{
+  "ok": true,
+  "phase": "PHASE 36 ROOT-CAUSE + ABLATION LAB",
+  "policy": "DEVELOPMENT_ONLY_WALK_FORWARD",
+  "meta": {
+    "all_rows": 258,
+    "development_rows": 180,
+    "holdout_rows_not_loaded_for_diagnosis": 78
+  },
+  "base_only": {
+    "4h": {
+      "n": 76,
+      "correct": 36,
+      "incorrect": 40,
+      "accuracy": 47.37,
+      "brier": 0.2612,
+      "log_loss": 0.7161,
+      "ece": 0.0694,
+      "wilson95": [
+        36.54,
+        58.45
+      ],
+      "folds": 4,
+      "fold_metrics": [
+        {
+          "n": 19,
+          "correct": 6,
+          "incorrect": 13,
+          "accuracy": 31.58,
+          "brier": 0.2923,
+          "log_loss": 0.7799,
+          "ece": 0.2683,
+          "wilson95": [
+            15.36,
+            53.99
+          ],
+          "fold": 1,
+          "train_n": 78,
+          "test_n": 19
+        },
+        {
+          "n": 19,
+          "correct": 11,
+          "incorrect": 8,
+          "accuracy": 57.89,
+          "brier": 0.2454,
+          "log_loss": 0.684,
+          "ece": 0.0514,
+          "wilson95": [
+            36.28,
+            76.86
+          ],
+          "fold": 2,
+          "train_n": 97,
+          "test_n": 19
+        },
+        {
+          "n": 19,
+          "correct": 8,
+          "incorrect": 11,
+          "accuracy": 42.11,
+          "brier": 0.2642,
+          "log_loss": 0.7218,
+          "ece": 0.1243,
+          "wilson95": [
+            23.14,
+            63.72
+          ],
+          "fold": 3,
+          "train_n": 116,
+          "test_n": 19
+        },
+        {
+          "n": 19,
+          "correct": 11,
+          "incorrect": 8,
+          "accuracy": 57.89,
+          "brier": 0.2429,
+          "log_loss": 0.6789,
+          "ece": 0.2216,
+          "wilson95": [
+            36.28,
+            76.86
+          ],
+          "fold": 4,
+          "train_n": 135,
+          "test_n": 19
+        }
+      ]
+    },
+    "8h": {
+      "n": 64,
+      "correct": 40,
+      "incorrect": 24,
+      "accuracy": 62.5,
+      "brier": 0.2388,
+      "log_loss": 0.6706,
+      "ece": 0.0896,
+      "wilson95": [
+        50.25,
+        73.33
+      ],
+      "folds": 4,
+      "fold_metrics": [
+        {
+          "n": 16,
+          "correct": 8,
+          "incorrect": 8,
+          "accuracy": 50.0,
+          "brier": 0.2465,
+          "log_loss": 0.686,
+          "ece": 0.1049,
+          "wilson95": [
+            28.0,
+            72.0
+          ],
+          "fold": 1,
+          "train_n": 65,
+          "test_n": 16
+        },
+        {
+          "n": 16,
+          "correct": 8,
+          "incorrect": 8,
+          "accuracy": 50.0,
+          "brier": 0.2553,
+          "log_loss": 0.7041,
+          "ece": 0.0787,
+          "wilson95": [
+            28.0,
+            72.0
+          ],
+          "fold": 2,
+          "train_n": 81,
+          "test_n": 16
+        },
+        {
+          "n": 16,
+          "correct": 10,
+          "incorrect": 6,
+          "accuracy": 62.5,
+          "brier": 0.2458,
+          "log_loss": 0.6849,
+          "ece": 0.1135,
+          "wilson95": [
+            38.64,
+            81.52
+          ],
+          "fold": 3,
+          "train_n": 97,
+          "test_n": 16
+        },
+        {
+          "n": 16,
+          "correct": 14,
+          "incorrect": 2,
+          "accuracy": 87.5,
+          "brier": 0.2075,
+          "log_loss": 0.6076,
+          "ece": 0.3819,
+          "wilson95": [
+            63.98,
+            96.5
+          ],
+          "fold": 4,
+          "train_n": 113,
+          "test_n": 16
+        }
+      ]
+    }
+  },
+  "full_available": {
+    "4h": {
+      "n": 76,
+      "correct": 37,
+      "incorrect": 39,
+      "accuracy": 48.68,
+      "brier": 0.261,
+      "log_loss": 0.7161,
+      "ece": 0.0487,
+      "wilson95": [
+        37.78,
+        59.71
+      ],
+      "folds": 4,
+      "fold_metrics": [
+        {
+          "n": 19,
+          "correct": 7,
+          "incorrect": 12,
+          "accuracy": 36.84,
+          "brier": 0.2919,
+          "log_loss": 0.781,
+          "ece": 0.2525,
+          "wilson95": [
+            19.15,
+            58.96
+          ],
+          "fold": 1,
+          "train_n": 78,
+          "test_n": 19
+        },
+        {
+          "n": 19,
+          "correct": 8,
+          "incorrect": 11,
+          "accuracy": 42.11,
+          "brier": 0.258,
+          "log_loss": 0.7092,
+          "ece": 0.1027,
+          "wilson95": [
+            23.14,
+            63.72
+          ],
+          "fold": 2,
+          "train_n": 97,
+          "test_n": 19
+        },
+        {
+          "n": 19,
+          "correct": 8,
+          "incorrect": 11,
+          "accuracy": 42.11,
+          "brier": 0.2528,
+          "log_loss": 0.6988,
+          "ece": 0.0957,
+          "wilson95": [
+            23.14,
+            63.72
+          ],
+          "fold": 3,
+          "train_n": 116,
+          "test_n": 19
+        },
+        {
+          "n": 19,
+          "correct": 14,
+          "incorrect": 5,
+          "accuracy": 73.68,
+          "brier": 0.2411,
+          "log_loss": 0.6753,
+          "ece": 0.2196,
+          "wilson95": [
+            51.21,
+            88.19
+          ],
+          "fold": 4,
+          "train_n": 135,
+          "test_n": 19
+        }
+      ]
+    },
+    "8h": {
+      "n": 64,
+      "correct": 41,
+      "incorrect": 23,
+      "accuracy": 64.06,
+      "brier": 0.241,
+      "log_loss": 0.6752,
+      "ece": 0.1087,
+      "wilson95": [
+        51.82,
+        74.71
+      ],
+      "folds": 4,
+      "fold_metrics": [
+        {
+          "n": 16,
+          "correct": 8,
+          "incorrect": 8,
+          "accuracy": 50.0,
+          "brier": 0.2589,
+          "log_loss": 0.7116,
+          "ece": 0.0729,
+          "wilson95": [
+            28.0,
+            72.0
+          ],
+          "fold": 1,
+          "train_n": 65,
+          "test_n": 16
+        },
+        {
+          "n": 16,
+          "correct": 9,
+          "incorrect": 7,
+          "accuracy": 56.25,
+          "brier": 0.2458,
+          "log_loss": 0.6847,
+          "ece": 0.0074,
+          "wilson95": [
+            33.18,
+            76.9
+          ],
+          "fold": 2,
+          "train_n": 81,
+          "test_n": 16
+        },
+        {
+          "n": 16,
+          "correct": 9,
+          "incorrect": 7,
+          "accuracy": 56.25,
+          "brier": 0.2506,
+          "log_loss": 0.6944,
+          "ece": 0.0076,
+          "wilson95": [
+            33.18,
+            76.9
+          ],
+          "fold": 3,
+          "train_n": 97,
+          "test_n": 16
+        },
+        {
+          "n": 16,
+          "correct": 15,
+          "incorrect": 1,
+          "accuracy": 93.75,
+          "brier": 0.2087,
+          "log_loss": 0.6101,
+          "ece": 0.386,
+          "wilson95": [
+            71.67,
+            98.89
+          ],
+          "fold": 4,
+          "train_n": 113,
+          "test_n": 16
+        }
+      ]
+    }
+  },
+  "diagnosis": [
+    {
+      "group": "CROSS_ASSET",
+      "label": "SUSPECT_HARMFUL_ON_DEVELOPMENT",
+      "mean_add_accuracy_pp": 2.75,
+      "mean_remove_accuracy_pp": 1.32,
+      "mean_add_brier_delta": 0.0018,
+      "mean_remove_brier_delta": -0.0008,
+      "by_horizon": {
+        "4h": {
+          "add_to_base": {
+            "accuracy_pp": 3.95,
+            "brier": 0.0028,
+            "log_loss": 0.0066
+          },
+          "remove_from_full": {
+            "accuracy_pp": 2.64,
+            "brier": -0.0005,
+            "log_loss": -0.001
+          }
+        },
+        "8h": {
+          "add_to_base": {
+            "accuracy_pp": 1.56,
+            "brier": 0.0007,
+            "log_loss": 0.0014
+          },
+          "remove_from_full": {
+            "accuracy_pp": 0.0,
+            "brier": -0.001,
+            "log_loss": -0.0021
+          }
+        }
+      }
+    },
+    {
+      "group": "RATES_REAL_YIELD",
+      "label": "SUSPECT_HARMFUL_ON_DEVELOPMENT",
+      "mean_add_accuracy_pp": -0.37,
+      "mean_remove_accuracy_pp": 1.32,
+      "mean_add_brier_delta": -0.0004,
+      "mean_remove_brier_delta": 0.0009,
+      "by_horizon": {
+        "4h": {
+          "add_to_base": {
+            "accuracy_pp": 3.95,
+            "brier": -0.0027,
+            "log_loss": -0.0055
+          },
+          "remove_from_full": {
+            "accuracy_pp": 2.64,
+            "brier": 0.0011,
+            "log_loss": 0.0023
+          }
+        },
+        "8h": {
+          "add_to_base": {
+            "accuracy_pp": -4.69,
+            "brier": 0.002,
+            "log_loss": 0.004
+          },
+          "remove_from_full": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0007,
+            "log_loss": 0.0016
+          }
+        }
+      }
+    },
+    {
+      "group": "VOLATILITY",
+      "label": "HELPFUL_ON_DEVELOPMENT",
+      "mean_add_accuracy_pp": 3.41,
+      "mean_remove_accuracy_pp": 0.66,
+      "mean_add_brier_delta": 0.0019,
+      "mean_remove_brier_delta": -0.0012,
+      "by_horizon": {
+        "4h": {
+          "add_to_base": {
+            "accuracy_pp": 5.26,
+            "brier": 0.0034,
+            "log_loss": 0.0085
+          },
+          "remove_from_full": {
+            "accuracy_pp": 1.32,
+            "brier": -0.0014,
+            "log_loss": -0.003
+          }
+        },
+        "8h": {
+          "add_to_base": {
+            "accuracy_pp": 1.56,
+            "brier": 0.0004,
+            "log_loss": 0.0009
+          },
+          "remove_from_full": {
+            "accuracy_pp": 0.0,
+            "brier": -0.001,
+            "log_loss": -0.0022
+          }
+        }
+      }
+    },
+    {
+      "group": "NEWS_NOVELTY",
+      "label": "HELPFUL_ON_DEVELOPMENT",
+      "mean_add_accuracy_pp": 1.85,
+      "mean_remove_accuracy_pp": 0.0,
+      "mean_add_brier_delta": 0.0,
+      "mean_remove_brier_delta": -0.0004,
+      "by_horizon": {
+        "4h": {
+          "add_to_base": {
+            "accuracy_pp": 5.26,
+            "brier": 0.0001,
+            "log_loss": 0.0004
+          },
+          "remove_from_full": {
+            "accuracy_pp": 0.0,
+            "brier": -0.0003,
+            "log_loss": -0.0006
+          }
+        },
+        "8h": {
+          "add_to_base": {
+            "accuracy_pp": -1.56,
+            "brier": -0.0001,
+            "log_loss": -0.0001
+          },
+          "remove_from_full": {
+            "accuracy_pp": 0.0,
+            "brier": -0.0005,
+            "log_loss": -0.0011
+          }
+        }
+      }
+    },
+    {
+      "group": "EARNINGS",
+      "label": "MIXED_OR_SMALL_EFFECT",
+      "mean_add_accuracy_pp": 0.66,
+      "mean_remove_accuracy_pp": 0.0,
+      "mean_add_brier_delta": -0.0008,
+      "mean_remove_brier_delta": 0.0001,
+      "by_horizon": {
+        "4h": {
+          "add_to_base": {
+            "accuracy_pp": 1.31,
+            "brier": -0.0015,
+            "log_loss": -0.003
+          },
+          "remove_from_full": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0003,
+            "log_loss": 0.0006
+          }
+        },
+        "8h": {
+          "add_to_base": {
+            "accuracy_pp": 0.0,
+            "brier": -0.0001,
+            "log_loss": -0.0001
+          },
+          "remove_from_full": {
+            "accuracy_pp": 0.0,
+            "brier": -0.0001,
+            "log_loss": -0.0001
+          }
+        }
+      }
+    },
+    {
+      "group": "FUTURES_BASIS_PROXY",
+      "label": "HELPFUL_ON_DEVELOPMENT",
+      "mean_add_accuracy_pp": 1.98,
+      "mean_remove_accuracy_pp": 0.0,
+      "mean_add_brier_delta": 0.0006,
+      "mean_remove_brier_delta": 0.0001,
+      "by_horizon": {
+        "4h": {
+          "add_to_base": {
+            "accuracy_pp": 3.95,
+            "brier": 0.0004,
+            "log_loss": 0.0007
+          },
+          "remove_from_full": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0001,
+            "log_loss": 0.0003
+          }
+        },
+        "8h": {
+          "add_to_base": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0007,
+            "log_loss": 0.0016
+          },
+          "remove_from_full": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0,
+            "log_loss": 0.0001
+          }
+        }
+      }
+    },
+    {
+      "group": "ORDERFLOW_LICENSED",
+      "label": "MIXED_OR_SMALL_EFFECT",
+      "mean_add_accuracy_pp": 0.0,
+      "mean_remove_accuracy_pp": 0.0,
+      "mean_add_brier_delta": 0.0,
+      "mean_remove_brier_delta": 0.0,
+      "by_horizon": {
+        "4h": {
+          "add_to_base": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0,
+            "log_loss": 0.0
+          },
+          "remove_from_full": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0,
+            "log_loss": 0.0
+          }
+        },
+        "8h": {
+          "add_to_base": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0,
+            "log_loss": 0.0
+          },
+          "remove_from_full": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0,
+            "log_loss": 0.0
+          }
+        }
+      }
+    },
+    {
+      "group": "OPTIONS_LICENSED",
+      "label": "MIXED_OR_SMALL_EFFECT",
+      "mean_add_accuracy_pp": 0.0,
+      "mean_remove_accuracy_pp": 0.0,
+      "mean_add_brier_delta": 0.0,
+      "mean_remove_brier_delta": 0.0,
+      "by_horizon": {
+        "4h": {
+          "add_to_base": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0,
+            "log_loss": 0.0
+          },
+          "remove_from_full": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0,
+            "log_loss": 0.0
+          }
+        },
+        "8h": {
+          "add_to_base": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0,
+            "log_loss": 0.0
+          },
+          "remove_from_full": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0,
+            "log_loss": 0.0
+          }
+        }
+      }
+    },
+    {
+      "group": "ETF_FLOW_LICENSED",
+      "label": "MIXED_OR_SMALL_EFFECT",
+      "mean_add_accuracy_pp": 0.0,
+      "mean_remove_accuracy_pp": 0.0,
+      "mean_add_brier_delta": 0.0,
+      "mean_remove_brier_delta": 0.0,
+      "by_horizon": {
+        "4h": {
+          "add_to_base": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0,
+            "log_loss": 0.0
+          },
+          "remove_from_full": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0,
+            "log_loss": 0.0
+          }
+        },
+        "8h": {
+          "add_to_base": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0,
+            "log_loss": 0.0
+          },
+          "remove_from_full": {
+            "accuracy_pp": 0.0,
+            "brier": 0.0,
+            "log_loss": 0.0
+          }
+        }
+      }
+    },
+    {
+      "group": "LEADERSHIP_SEMIS",
+      "label": "HELPFUL_ON_DEVELOPMENT",
+      "mean_add_accuracy_pp": 2.75,
+      "mean_remove_accuracy_pp": -0.66,
+      "mean_add_brier_delta": -0.0004,
+      "mean_remove_brier_delta": 0.0005,
+      "by_horizon": {
+        "4h": {
+          "add_to_base": {
+            "accuracy_pp": 3.95,
+            "brier": -0.0005,
+            "log_loss": -0.0009
+          },
+          "remove_from_full": {
+            "accuracy_pp": -1.31,
+            "brier": 0.0011,
+            "log_loss": 0.0026
+          }
+        },
+        "8h": {
+          "add_to_base": {
+            "accuracy_pp": 1.56,
+            "brier": -0.0004,
+            "log_loss": -0.0007
+          },
+          "remove_from_full": {
+            "accuracy_pp": 0.0,
+            "brier": -0.0001,
+            "log_loss": -0.0003
+          }
+        }
+      }
+    }
+  ],
+  "candidate_policy": {
+    "status": "DEV_ONLY_RESEARCH_CANDIDATE_NOT_LIVE",
+    "always_include": [
+      "BASE_FIA"
+    ],
+    "candidate_include_groups": [
+      "VOLATILITY",
+      "NEWS_NOVELTY",
+      "FUTURES_BASIS_PROXY",
+      "LEADERSHIP_SEMIS"
+    ],
+    "candidate_exclude_groups": [
+      "CROSS_ASSET",
+      "RATES_REAL_YIELD"
+    ],
+    "rule": "Never deploy from Phase36 alone. Candidate must be frozen and tested on genuinely new unseen data."
+  },
+  "phase35_holdout_used_for_selection": false,
+  "production_weights_changed": false,
+  "rl_live_weight": 0.0,
+  "broker_execution": false,
+  "note": "This lab diagnoses marginal evidence value without reading the Phase35 holdout for selection. It does not claim a new production edge."
+}

@@ -1,0 +1,113 @@
+import csv
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+
+FIELDS = [
+    "prediction_id",
+    "timestamp",
+    "horizon",
+    "symbol",
+    "direction",
+    "bullish_probability",
+    "bearish_probability",
+    "confidence",
+    "entry_price",
+    "future_price",
+    "return_pct",
+    "outcome_direction",
+    "correct",
+    "mfe_pct",
+    "mae_pct",
+]
+
+
+def _value(payload: Dict[str, Any], *keys):
+    for key in keys:
+        if key in payload:
+            return payload[key]
+    return None
+
+
+def build_prediction_record(
+    forecast: Dict[str, Any],
+    entry_price: Optional[float],
+    timestamp: Optional[str] = None,
+) -> Dict[str, Any]:
+
+    if timestamp is None:
+        timestamp = datetime.now(timezone.utc).isoformat()
+
+    prediction_id = (
+        f"NQ-{timestamp.replace(':', '').replace('+00:00', 'Z')}"
+    )
+
+    return {
+        "prediction_id": prediction_id,
+        "timestamp": timestamp,
+        "horizon": _value(
+            forecast,
+            "horizon",
+            "horizon_hours",
+        ),
+        "symbol": _value(
+            forecast,
+            "symbol",
+        ) or "NQ",
+        "direction": _value(
+            forecast,
+            "direction",
+        ),
+        "bullish_probability": _value(
+            forecast,
+            "bullish_probability",
+            "bullish_probability_pct",
+        ),
+        "bearish_probability": _value(
+            forecast,
+            "bearish_probability",
+            "bearish_probability_pct",
+        ),
+        "confidence": _value(
+            forecast,
+            "confidence",
+        ),
+        "entry_price": entry_price,
+        "future_price": None,
+        "return_pct": None,
+        "outcome_direction": None,
+        "correct": None,
+        "mfe_pct": None,
+        "mae_pct": None,
+    }
+
+
+def append_prediction(
+    path: str,
+    record: Dict[str, Any],
+) -> Path:
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    exists = path.exists() and path.stat().st_size > 0
+
+    with path.open(
+        "a",
+        newline="",
+        encoding="utf-8",
+    ) as f:
+
+        writer = csv.DictWriter(
+            f,
+            fieldnames=FIELDS,
+            extrasaction="ignore",
+        )
+
+        if not exists:
+            writer.writeheader()
+
+        writer.writerow(record)
+
+    return path

@@ -1,0 +1,56 @@
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from .recorder import build_prediction_record, append_prediction
+
+
+def record_fia_forecast(
+    forecast: Any,
+    entry_price: Optional[float],
+    output_path,
+) -> Dict[str, Any]:
+    """
+    Convert an existing FIA Forecast object into the standardized
+    historical recorder format.
+
+    This adapter does NOT modify the forecast or FIA calculations.
+    """
+
+    payload = {
+        "symbol": getattr(forecast, "symbol", None),
+        "horizon_hours": getattr(forecast, "horizon_hours", None),
+        "direction": getattr(forecast, "direction", None),
+        "bullish_probability": getattr(
+            forecast,
+            "bullish_probability",
+            None,
+        ),
+        "bearish_probability": getattr(
+            forecast,
+            "bearish_probability",
+            None,
+        ),
+        "confidence": getattr(
+            forecast,
+            "confidence",
+            None,
+        ),
+    }
+
+    generated_at = getattr(
+        forecast,
+        "generated_at",
+        None,
+    )
+
+    record = build_prediction_record(
+        payload,
+        entry_price=entry_price,
+        timestamp=generated_at,
+    )
+
+    return {
+        "record": record,
+        "output_path": str(output_path),
+        "ready": True,
+    }

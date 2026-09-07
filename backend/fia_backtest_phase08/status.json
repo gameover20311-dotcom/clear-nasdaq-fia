@@ -1,0 +1,25 @@
+{
+  "module": "FIA Backtest Lab",
+  "phase": 8,
+  "name": "Signal Attribution",
+  "status": "implemented",
+  "current_capability": "Aggregates historical FIA performance by individual signal and horizon.",
+  "completed": [
+    "Signal-level grouping",
+    "4H/8H separation",
+    "Signal observation count",
+    "Signal-wise accuracy",
+    "Signal-wise average return",
+    "Average signal score",
+    "Directional alignment diagnostic"
+  ],
+  "not_yet_active": [
+    "Causal inference",
+    "Ablation testing",
+    "Walk-forward validation",
+    "Out-of-sample validation",
+    "Final dashboard"
+  ],
+  "next": "Phase 9 — Ablation Testing",
+  "note": "Signal attribution is descriptive and does not change live FIA weights. Actual historical results require historical prediction/outcome records."
+}

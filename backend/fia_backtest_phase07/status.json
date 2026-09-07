@@ -1,0 +1,32 @@
+{
+  "module": "FIA Backtest Lab",
+  "phase": 7,
+  "name": "Session Analysis",
+  "status": "implemented",
+  "current_capability": "Classifies historical FIA observations by UTC trading session and aggregates session-wise performance.",
+  "sessions": [
+    "ASIA",
+    "LONDON",
+    "NEW_YORK",
+    "OFF_SESSION",
+    "UNKNOWN"
+  ],
+  "completed": [
+    "UTC timestamp parsing",
+    "Session classification",
+    "4H/8H session separation",
+    "Session-wise observation count",
+    "Session-wise accuracy",
+    "Session-wise average return",
+    "Session-wise average probability"
+  ],
+  "not_yet_active": [
+    "Signal attribution",
+    "Ablation testing",
+    "Walk-forward validation",
+    "Out-of-sample validation",
+    "Final dashboard"
+  ],
+  "next": "Phase 8 — Signal Attribution",
+  "note": "Phase 7 does not change live FIA weights or live forecast logic. Actual historical results require historical prediction/outcome records."
+}

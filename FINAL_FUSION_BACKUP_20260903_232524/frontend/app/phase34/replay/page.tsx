@@ -1,0 +1,3 @@
+"use client";
+import React,{useState} from "react";
+export default function Replay(){const [speed,setSpeed]=useState(1);const [playing,setPlaying]=useState(false);return <main style={{padding:24,fontFamily:"system-ui"}}><h1>Phase34 Tick / Event Replay Lab</h1><p>Replay UI is wired for timestamped tick/L2/event datasets. It never fabricates missing ticks.</p><button onClick={()=>setPlaying(!playing)}>{playing?"Pause":"Play"}</button> <label>Speed <select value={speed} onChange={e=>setSpeed(Number(e.target.value))}><option>1</option><option>2</option><option>5</option><option>10</option></select>x</label><pre>{JSON.stringify({playing,speed,data_status:"CONNECT_TIMESTAMPED_REPLAY_FILE_OR_FEED"},null,2)}</pre></main>}

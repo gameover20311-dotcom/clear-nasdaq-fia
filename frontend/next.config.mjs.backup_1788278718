@@ -1,0 +1,5 @@
+const nextConfig = {
+  allowedDevOrigins: ["remedies-scripting-going-decades.trycloudflare.com"],
+};
+
+export default nextConfig;

@@ -1,0 +1,98 @@
+{
+  "ok": true,
+  "phase": "PHASE 35 ONE-SHOT INSTITUTIONAL DATA + FULL REPLAY",
+  "frozen_policy": true,
+  "rows": 258,
+  "development_rows": 180,
+  "untouched_holdout_rows": 78,
+  "mean_predictive_feature_coverage": 0.991,
+  "dev": {
+    "4h": {
+      "n": 174,
+      "correct": 84,
+      "incorrect": 90,
+      "accuracy": 48.28,
+      "wilson95": [
+        40.97,
+        55.66
+      ],
+      "binary_probability_n": 154,
+      "brier": 0.2478,
+      "log_loss": 0.6887,
+      "ece": 0.0
+    },
+    "8h": {
+      "n": 143,
+      "correct": 78,
+      "incorrect": 65,
+      "accuracy": 54.55,
+      "wilson95": [
+        46.37,
+        62.48
+      ],
+      "binary_probability_n": 129,
+      "brier": 0.239,
+      "log_loss": 0.6711,
+      "ece": 0.0
+    }
+  },
+  "holdout": {
+    "4h": {
+      "n": 75,
+      "correct": 29,
+      "incorrect": 46,
+      "accuracy": 38.67,
+      "wilson95": [
+        28.46,
+        49.98
+      ],
+      "binary_probability_n": 69,
+      "brier": 0.2583,
+      "log_loss": 0.7098,
+      "ece": 0.1231
+    },
+    "8h": {
+      "n": 61,
+      "correct": 21,
+      "incorrect": 40,
+      "accuracy": 34.43,
+      "wilson95": [
+        23.75,
+        46.95
+      ],
+      "binary_probability_n": 54,
+      "brier": 0.2842,
+      "log_loss": 0.7628,
+      "ece": 0.2159
+    }
+  },
+  "base_holdout": {
+    "4h": {
+      "n": 75,
+      "correct": 40,
+      "incorrect": 35,
+      "accuracy": 53.33,
+      "brier": 0.2466
+    },
+    "8h": {
+      "n": 61,
+      "correct": 30,
+      "incorrect": 31,
+      "accuracy": 49.18,
+      "brier": 0.2793
+    }
+  },
+  "live_probability_approval": false,
+  "approval_rule": "Both 4H and 8H must improve untouched holdout by >=1pp accuracy OR >=0.005 Brier, with n>=40 each.",
+  "licensed_feed_presence": {
+    "l2_l3.csv": false,
+    "options_gamma.csv": false,
+    "etf_flow.csv": false,
+    "volume_delta.csv": false
+  },
+  "rl_live_weight": 0.0,
+  "broker_execution": false,
+  "fake_90_95_claim": false,
+  "no_holdout_threshold_tuning": true,
+  "missing_data_policy": "EXCLUDE_AND_SHRINK_STRENGTH_NOT_ZERO_IMPUTATION"
+}

@@ -1,0 +1,200 @@
+from datetime import datetime, timezone
+
+from .config import Config
+from .models import Signal, Forecast
+
+CFG = Config()
+
+
+def clamp(x, a=-1.0, b=1.0):
+    return max(a, min(b, x))
+
+
+def build_forecast(snapshot: dict) -> Forecast:
+    raw = snapshot.get("data", {})
+
+    signals = []
+
+    def add(name, score, weight, detail, freshness="live"):
+        if score is None:
+            signals.append(
+                Signal(
+                    name=name,
+                    score=0.0,
+                    weight=weight,
+                    detail="Awaiting provider data",
+                    freshness="missing",
+                )
+            )
+            return
+
+        signals.append(
+            Signal(
+                name=name,
+                score=clamp(float(score)),
+                weight=weight,
+                detail=detail,
+                freshness=freshness,
+            )
+        )
+
+    adapters = [
+        (
+            "NQ structure",
+            raw.get("nq_structure"),
+            0.20,
+            "QQQ/NQ intraday structure and momentum",
+        ),
+        (
+            "SPX confirmation",
+            raw.get("spx_confirmation"),
+            0.10,
+            "S&P 500 confirmation / divergence",
+        ),
+        (
+            "DXY",
+            raw.get("dxy"),
+            0.08,
+            "US dollar pressure on NASDAQ risk assets",
+        ),
+        (
+            "US10Y",
+            raw.get("us10y"),
+            0.07,
+            "US 10Y yield / rates pressure",
+        ),
+        (
+            "Mega-cap leadership",
+            raw.get("mega_cap"),
+            0.20,
+            "Impact-weighted NASDAQ mega-cap leadership",
+        ),
+        (
+            "Semiconductors",
+            raw.get("semis"),
+            0.12,
+            "AI / semiconductor leadership",
+        ),
+        (
+            "Breadth",
+            raw.get("breadth"),
+            0.08,
+            "NASDAQ participation and breadth",
+        ),
+        (
+            "News",
+            raw.get("news"),
+            0.07,
+            "Market-moving news sentiment",
+        ),
+        (
+            "Macro calendar",
+            raw.get("macro"),
+            0.04,
+            "Scheduled macro-event risk",
+        ),
+        (
+            "Earnings/guidance",
+            raw.get("earnings"),
+            0.04,
+            "Earnings and guidance impulse",
+        ),
+    ]
+
+    for name, value, weight, detail in adapters:
+        add(name, value, weight, detail)
+
+    total_weight = sum(signal.weight for signal in signals)
+
+    live_weight = sum(
+        signal.weight
+        for signal in signals
+        if signal.freshness != "missing"
+    )
+
+    coverage = live_weight / total_weight if total_weight else 0.0
+
+    score = (
+        sum(signal.score * signal.weight for signal in signals) / total_weight
+        if total_weight
+        else 0.0
+    )
+
+    # Reduce forecast strength when important providers are missing.
+    calibrated_score = score * coverage
+
+    bullish_probability = 50.0 + 40.0 * calibrated_score
+    bullish_probability = clamp(bullish_probability, 5.0, 95.0)
+
+    bearish_probability = 100.0 - bullish_probability
+
+    confidence = abs(bullish_probability - 50.0) * 2.0
+
+    if bullish_probability >= 55:
+        direction = "BULLISH"
+    elif bullish_probability <= 45:
+        direction = "BEARISH"
+    else:
+        direction = "NEUTRAL"
+
+    if abs(calibrated_score) > 0.35:
+        regime = "TREND"
+    elif abs(calibrated_score) < 0.15:
+        regime = "BALANCED"
+    else:
+        regime = "TRANSITION"
+
+    if coverage >= 0.85:
+        status = "LIVE"
+    elif coverage > 0:
+        status = "DEGRADED"
+    else:
+        status = "DEMO"
+
+    invalidation = [
+        "NQ structure flips against forecast",
+        "SPX/NQ confirmation diverges materially",
+        "Mega-cap leadership reverses materially",
+        "Semiconductor leadership loses confirmation",
+        "Major scheduled macro event changes the regime",
+    ]
+
+    source_status = {
+        "market": (
+            "Finnhub live"
+            if raw.get("provider_quotes_available")
+            else "missing"
+        ),
+        "news": (
+            "NewsAPI live"
+            if raw.get("news") is not None
+            else "missing"
+        ),
+        "macro": (
+            "FRED live"
+            if raw.get("us10y") is not None
+            else "missing"
+        ),
+        "earnings": (
+            "Finnhub earnings"
+            if raw.get("earnings") is not None
+            else "missing"
+        ),
+    }
+
+    return Forecast(
+        symbol="NQ",
+        horizon_hours=CFG.horizon_hours,
+        direction=direction,
+        bullish_probability=round(bullish_probability, 1),
+        bearish_probability=round(bearish_probability, 1),
+        confidence=round(confidence, 1),
+        regime=regime,
+        status=status,
+        score=round(calibrated_score, 3),
+        signals=signals,
+        invalidation=invalidation,
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        data_coverage=round(coverage, 3),
+        source_status=source_status,
+    )

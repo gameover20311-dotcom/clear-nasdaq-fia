@@ -1,0 +1,329 @@
+{
+  "window_start": "2025-09-01T17:00:00+00:00",
+  "window_end": "2026-08-31T17:00:00+00:00",
+  "weekday_checkpoints_requested": 261,
+  "forecasts_created": 251,
+  "skipped_stale_entry_count": 10,
+  "skipped_stale_entry": [
+    {
+      "timestamp": "2025-09-01T17:00:00+00:00",
+      "bar_end": "2025-09-01 00:00:00-04:00",
+      "staleness_min": 780.0
+    },
+    {
+      "timestamp": "2025-11-27T17:00:00+00:00",
+      "bar_end": "2025-11-27 00:00:00-05:00",
+      "staleness_min": 720.0
+    },
+    {
+      "timestamp": "2025-12-25T17:00:00+00:00",
+      "bar_end": "2025-12-24 13:30:00-05:00",
+      "staleness_min": 1350.0
+    },
+    {
+      "timestamp": "2026-01-01T17:00:00+00:00",
+      "bar_end": "2025-12-31 17:00:00-05:00",
+      "staleness_min": 1140.0
+    },
+    {
+      "timestamp": "2026-01-19T17:00:00+00:00",
+      "bar_end": "2026-01-19 00:00:00-05:00",
+      "staleness_min": 720.0
+    },
+    {
+      "timestamp": "2026-02-16T17:00:00+00:00",
+      "bar_end": "2026-02-16 00:00:00-05:00",
+      "staleness_min": 720.0
+    },
+    {
+      "timestamp": "2026-04-03T17:00:00+00:00",
+      "bar_end": "2026-04-03 00:00:00-04:00",
+      "staleness_min": 780.0
+    },
+    {
+      "timestamp": "2026-05-25T17:00:00+00:00",
+      "bar_end": "2026-05-22 17:00:00-04:00",
+      "staleness_min": 4080.0
+    },
+    {
+      "timestamp": "2026-06-19T17:00:00+00:00",
+      "bar_end": "2026-06-19 00:00:00-04:00",
+      "staleness_min": 780.0
+    },
+    {
+      "timestamp": "2026-07-03T17:00:00+00:00",
+      "bar_end": "2026-07-03 00:00:00-04:00",
+      "staleness_min": 780.0
+    }
+  ],
+  "errors_count": 0,
+  "errors": [],
+  "neutral_threshold_pct": 0.05,
+  "entry_max_staleness_minutes": 90,
+  "outcome_max_staleness_minutes": 90,
+  "resolved_4h": 249,
+  "correct_4h": 102,
+  "accuracy_4h_pct": 40.963855421686745,
+  "resolved_8h": 200,
+  "correct_8h": 76,
+  "accuracy_8h_pct": 38.0,
+  "brier_4h": 0.2603319318181818,
+  "brier_4h_n": 220,
+  "brier_8h": 0.26468054748603353,
+  "brier_8h_n": 179,
+  "predictions": {
+    "BEARISH": 85,
+    "NEUTRAL": 57,
+    "BULLISH": 109
+  },
+  "regimes": {
+    "TREND": 61,
+    "BALANCED": 67,
+    "TRANSITION": 115,
+    "CONFLICTED": 8
+  },
+  "liquidity_resolutions": {
+    "5m_massive_futures": 251
+  },
+  "liquidity_contracts": {
+    "NQU5": 10,
+    "NQZ5": 63,
+    "NQH6": 61,
+    "NQM6": 63,
+    "NQU6": 54
+  },
+  "news_evidence": {
+    "available": 251
+  },
+  "news_pool_size": 68494,
+  "indexed_news_size": 68494,
+  "news_sources": {
+    "Polygon_cached": 64851,
+    "Finnhub:NVDA": 243,
+    "Finnhub:MSFT": 242,
+    "Finnhub:AAPL": 241,
+    "Finnhub:AMZN": 240,
+    "Finnhub:META": 250,
+    "Finnhub:AVGO": 243,
+    "Finnhub:GOOGL": 246,
+    "Finnhub:GOOG": 250,
+    "Finnhub:TSLA": 242,
+    "Finnhub:NFLX": 244,
+    "Finnhub:AMD": 245,
+    "Finnhub:MU": 239,
+    "Finnhub:INTC": 233,
+    "Finnhub:QCOM": 248,
+    "Finnhub:SMCI": 237,
+    "Polygon_cache_rows": 64851,
+    "Polygon_cache_windows": 92
+  },
+  "earnings_evidence": {
+    "missing": 190,
+    "upcoming_verified_catalyst": 25,
+    "released_verified": 36
+  },
+  "earnings_catalyst_days": 36,
+  "verified_earnings_cache_events": 53,
+  "future_eps_used_count": 0,
+  "monthly_performance": {
+    "2025-09": {
+      "forecasts": 21,
+      "4h": {
+        "resolved": 21,
+        "correct": 5,
+        "accuracy_pct": 23.809523809523807
+      },
+      "8h": {
+        "resolved": 17,
+        "correct": 5,
+        "accuracy_pct": 29.411764705882355
+      }
+    },
+    "2025-10": {
+      "forecasts": 23,
+      "4h": {
+        "resolved": 23,
+        "correct": 10,
+        "accuracy_pct": 43.47826086956522
+      },
+      "8h": {
+        "resolved": 18,
+        "correct": 9,
+        "accuracy_pct": 50.0
+      }
+    },
+    "2025-11": {
+      "forecasts": 19,
+      "4h": {
+        "resolved": 18,
+        "correct": 6,
+        "accuracy_pct": 33.33333333333333
+      },
+      "8h": {
+        "resolved": 15,
+        "correct": 6,
+        "accuracy_pct": 40.0
+      }
+    },
+    "2025-12": {
+      "forecasts": 22,
+      "4h": {
+        "resolved": 21,
+        "correct": 8,
+        "accuracy_pct": 38.095238095238095
+      },
+      "8h": {
+        "resolved": 16,
+        "correct": 5,
+        "accuracy_pct": 31.25
+      }
+    },
+    "2026-01": {
+      "forecasts": 20,
+      "4h": {
+        "resolved": 20,
+        "correct": 5,
+        "accuracy_pct": 25.0
+      },
+      "8h": {
+        "resolved": 15,
+        "correct": 4,
+        "accuracy_pct": 26.666666666666668
+      }
+    },
+    "2026-02": {
+      "forecasts": 19,
+      "4h": {
+        "resolved": 19,
+        "correct": 7,
+        "accuracy_pct": 36.84210526315789
+      },
+      "8h": {
+        "resolved": 15,
+        "correct": 6,
+        "accuracy_pct": 40.0
+      }
+    },
+    "2026-03": {
+      "forecasts": 22,
+      "4h": {
+        "resolved": 22,
+        "correct": 11,
+        "accuracy_pct": 50.0
+      },
+      "8h": {
+        "resolved": 18,
+        "correct": 8,
+        "accuracy_pct": 44.44444444444444
+      }
+    },
+    "2026-04": {
+      "forecasts": 21,
+      "4h": {
+        "resolved": 21,
+        "correct": 11,
+        "accuracy_pct": 52.38095238095239
+      },
+      "8h": {
+        "resolved": 18,
+        "correct": 9,
+        "accuracy_pct": 50.0
+      }
+    },
+    "2026-05": {
+      "forecasts": 20,
+      "4h": {
+        "resolved": 20,
+        "correct": 8,
+        "accuracy_pct": 40.0
+      },
+      "8h": {
+        "resolved": 15,
+        "correct": 5,
+        "accuracy_pct": 33.33333333333333
+      }
+    },
+    "2026-06": {
+      "forecasts": 21,
+      "4h": {
+        "resolved": 21,
+        "correct": 11,
+        "accuracy_pct": 52.38095238095239
+      },
+      "8h": {
+        "resolved": 18,
+        "correct": 7,
+        "accuracy_pct": 38.88888888888889
+      }
+    },
+    "2026-07": {
+      "forecasts": 22,
+      "4h": {
+        "resolved": 22,
+        "correct": 10,
+        "accuracy_pct": 45.45454545454545
+      },
+      "8h": {
+        "resolved": 18,
+        "correct": 6,
+        "accuracy_pct": 33.33333333333333
+      }
+    },
+    "2026-08": {
+      "forecasts": 21,
+      "4h": {
+        "resolved": 21,
+        "correct": 10,
+        "accuracy_pct": 47.61904761904761
+      },
+      "8h": {
+        "resolved": 17,
+        "correct": 6,
+        "accuracy_pct": 35.294117647058826
+      }
+    }
+  },
+  "earnings_event_day_performance": {
+    "earnings_catalyst_days": {
+      "count": 36,
+      "4h": {
+        "resolved": 36,
+        "correct": 21,
+        "accuracy_pct": 58.333333333333336
+      },
+      "8h": {
+        "resolved": 36,
+        "correct": 18,
+        "accuracy_pct": 50.0
+      }
+    },
+    "other_days": {
+      "count": 215,
+      "4h": {
+        "resolved": 213,
+        "correct": 81,
+        "accuracy_pct": 38.028169014084504
+      },
+      "8h": {
+        "resolved": 164,
+        "correct": 58,
+        "accuracy_pct": 35.36585365853659
+      }
+    }
+  },
+  "jul_aug_2026_parity_subset": {
+    "forecasts": 43,
+    "4h": {
+      "resolved": 43,
+      "correct": 20,
+      "accuracy_pct": 46.51162790697674
+    },
+    "8h": {
+      "resolved": 35,
+      "correct": 12,
+      "accuracy_pct": 34.285714285714285
+    }
+  },
+  "polygon_cache_path": "fia_backtest_phase20/data/polygon_news_20250901_20260831.json",
+  "csv_path": "fia_backtest_phase20/results/phase20_full_backtest_1y.csv"
+}

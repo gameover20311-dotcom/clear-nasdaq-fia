@@ -1,0 +1,113 @@
+{
+  "ok": true,
+  "program": "CLEAR_NASDAQ_NEW_FORWARD_OOS_PREMOVE",
+  "campaign_seal": {
+    "ok": true,
+    "seal_hash_valid": true,
+    "model_fingerprint_match": true,
+    "path": "/mnt/data/forward_oos_work/CLEAR_NASDAQ_SOL56_FINAL/backend/fia_forward_oos/FORWARD_OOS_CAMPAIGN_SEAL.json",
+    "campaign_id": "SOL56-NEW-FORWARD-OOS-V1",
+    "sealed_at_utc": "2026-09-03T02:22:20.321414+00:00",
+    "sealed_model_fingerprint": {
+      "algorithm": "sha256",
+      "digest": "84f35288512dc792e388c0448d19a8f82d59b9fb8e69efdc66a3d263855a302f",
+      "files": {
+        "fia/accuracy_engine.py": "8d5dbfe1235c6a94d0074a56e37ae933de423b27740ff5316bb0adbef37160b9",
+        "fia/engine.py": "3d2f67a4df9d0aea6603afbe68f0364eb1630027358ec735f29d5c0d4a1bd70b",
+        "fia/forward_oos.py": "e32170c17bc2f39160291449424859d9f744079fc68c629e35bf031ed9b1bc73",
+        "fia/learning_engine.py": "0799d2896351eb2b505a6a8f98a67667363ea4961fc67c29116bc17e28348d90",
+        "fia/providers.py": "f7656f8d2e4b0f9dce7497d6dcd44367a48c23c2eefb5c3a2f2f72b440669149",
+        "main.py": "71ef51fd7fd099f5ebbe34665e914ab0072f8de9ccece541d35ec5cde6a21ade"
+      }
+    },
+    "current_model_fingerprint": {
+      "algorithm": "sha256",
+      "digest": "84f35288512dc792e388c0448d19a8f82d59b9fb8e69efdc66a3d263855a302f",
+      "files": {
+        "fia/engine.py": "3d2f67a4df9d0aea6603afbe68f0364eb1630027358ec735f29d5c0d4a1bd70b",
+        "fia/providers.py": "f7656f8d2e4b0f9dce7497d6dcd44367a48c23c2eefb5c3a2f2f72b440669149",
+        "fia/accuracy_engine.py": "8d5dbfe1235c6a94d0074a56e37ae933de423b27740ff5316bb0adbef37160b9",
+        "fia/learning_engine.py": "0799d2896351eb2b505a6a8f98a67667363ea4961fc67c29116bc17e28348d90",
+        "fia/forward_oos.py": "e32170c17bc2f39160291449424859d9f744079fc68c629e35bf031ed9b1bc73",
+        "main.py": "71ef51fd7fd099f5ebbe34665e914ab0072f8de9ccece541d35ec5cde6a21ade"
+      }
+    },
+    "policy": {
+      "shadow_candidate": null,
+      "old_observed_holdout_eligible": false,
+      "old_observed_holdout_untouched_rows": 0,
+      "historical_tuning_after_seal_allowed": false,
+      "missed_checkpoint_backfill_allowed": false,
+      "forecast_edit_or_delete_allowed": false,
+      "automatic_model_promotion": false
+    }
+  },
+  "observed_model_fingerprints": [],
+  "mixed_model_versions": false,
+  "schema_version": "SOL56_FORWARD_OOS_V1",
+  "stage": "COLLECTING_NEW_UNSEEN_FORECASTS",
+  "new_forward_forecasts_locked": 0,
+  "fully_resolved_4h_8h": 0,
+  "minimum_report_sample": 30,
+  "target_promotion_sample": 50,
+  "base_fia": {
+    "4h": {
+      "n": 0,
+      "correct": 0,
+      "incorrect": 0,
+      "accuracy": null,
+      "wilson95": null,
+      "brier": null,
+      "ece": null,
+      "calibration_bins": []
+    },
+    "8h": {
+      "n": 0,
+      "correct": 0,
+      "incorrect": 0,
+      "accuracy": null,
+      "wilson95": null,
+      "brier": null,
+      "ece": null,
+      "calibration_bins": []
+    }
+  },
+  "confidence_buckets": {
+    "4h": [],
+    "8h": []
+  },
+  "regime_performance": {
+    "4h": [],
+    "8h": []
+  },
+  "promotion": {
+    "verdict": "NO_PROMOTION",
+    "reason": "NO_SHADOW_CANDIDATE_WAS_LOCKED_PRE_MOVE",
+    "production_model": "BASE_FIA",
+    "minimum_new_forward_resolved_per_horizon": 50,
+    "legacy_observed_holdout_eligible": false
+  },
+  "ledger_integrity": {
+    "ok": true,
+    "schema_version": "SOL56_FORWARD_OOS_V1",
+    "events": 0,
+    "forecast_locks": 0,
+    "resolution_events": 0,
+    "head_event_hash": "GENESIS",
+    "issues": [],
+    "tamper_evident": true,
+    "tamper_proof_against_filesystem_owner": false
+  },
+  "scientific_policy": {
+    "historical_tuning_after_program_start": false,
+    "old_observed_holdout_recycled": false,
+    "old_observed_holdout_untouched_rows": 0,
+    "future_information_for_prediction": false,
+    "loss_deletion_allowed": false,
+    "forecast_edit_allowed": false,
+    "missed_checkpoint_backfill_allowed": false,
+    "base_replaced_automatically": false,
+    "new_forward_oos_required_for_promotion": true
+  },
+  "warning": "Forward forecasts are the only promotion-eligible evidence. Historical/legacy holdouts are reference-only and cannot be relabeled untouched."
+}

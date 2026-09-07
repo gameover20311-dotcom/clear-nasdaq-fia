@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "phase": "PHASE35 DATA BACKFILL",
+  "start": "2025-09-01",
+  "end": "2026-09-01",
+  "public_hourly": "/Users/arslanaziz442/ClearNasdaq/clear_nasdaq_fia-2/backend/fia_phase35/data/public_hourly.json",
+  "fred_daily": "/Users/arslanaziz442/ClearNasdaq/clear_nasdaq_fia-2/backend/fia_phase35/data/fred_daily.json",
+  "existing_futures": "/Users/arslanaziz442/ClearNasdaq/clear_nasdaq_fia-2/backend/fia_phase35/data/existing_futures.json",
+  "licensed": {
+    "l2_l3.csv": {
+      "status": "MISSING_NOT_FAKED",
+      "rows": 0
+    },
+    "options_gamma.csv": {
+      "status": "MISSING_NOT_FAKED",
+      "rows": 0
+    },
+    "etf_flow.csv": {
+      "status": "MISSING_NOT_FAKED",
+      "rows": 0
+    },
+    "volume_delta.csv": {
+      "status": "MISSING_NOT_FAKED",
+      "rows": 0
+    }
+  },
+  "missing_is_never_zero_or_neutral": true,
+  "note": "Public data is fetched on the user's machine. Licensed-only feeds remain explicit MISSING_NOT_FAKED unless genuine timestamped exports are supplied."
+}

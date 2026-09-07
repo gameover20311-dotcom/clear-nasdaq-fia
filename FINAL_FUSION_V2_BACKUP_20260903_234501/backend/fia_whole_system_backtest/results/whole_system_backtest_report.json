@@ -1,0 +1,1481 @@
+{
+  "schema_version": "CLEAR_NASDAQ_WHOLE_SYSTEM_BACKTEST_V2_DUAL_4H_8H",
+  "generated_at_utc": "2026-09-03T20:25:52.646081+00:00",
+  "state": "RUNNING",
+  "final": false,
+  "evaluation_class": "RETROSPECTIVE_TIME_TRAVEL_CURRENT_BUILD_NOT_FORWARD_OOS",
+  "training_overlap_unknown_or_possible": true,
+  "primary_horizon_hours": 8,
+  "secondary_horizon_hours": 4,
+  "evaluation_mode": "ONE_LOCKED_V6_6_WHOLE_SYSTEM_FORECAST__TWO_GENUINE_MARKET_RESOLUTIONS_4H_8H",
+  "progress": {
+    "completed_cases": 3,
+    "total_cases": 258,
+    "pct": 1.16,
+    "reused_brain_records": 3,
+    "new_brain_runs": 0
+  },
+  "horizons": {
+    "4h": {
+      "eligible_outcomes": 3,
+      "directional_resolved_calls": 0,
+      "wins": 0,
+      "losses": 0,
+      "no_edge": 0,
+      "fail_closed": 3,
+      "unresolved": 0,
+      "win_rate": null,
+      "win_rate_denominator": 0,
+      "directional_coverage_pct": 0.0,
+      "effective_wins_over_all_eligible_pct": 0.0,
+      "wilson95_win_rate": null,
+      "brier": null,
+      "brier_n": 0,
+      "calibration": [],
+      "weekly": [
+        {
+          "wins": 0,
+          "losses": 0,
+          "no_edge": 0,
+          "fail_closed": 3,
+          "eligible": 3,
+          "period": "2025-W36",
+          "directional_n": 0,
+          "win_rate": null
+        }
+      ],
+      "monthly": [
+        {
+          "wins": 0,
+          "losses": 0,
+          "no_edge": 0,
+          "fail_closed": 3,
+          "eligible": 3,
+          "period": "2025-09",
+          "directional_n": 0,
+          "win_rate": null
+        }
+      ],
+      "truth_note": "Win rate = wins / (wins + losses) only. NO_EDGE, FAIL_CLOSED and unresolved are shown separately; directional coverage is always displayed to prevent abstention inflation.",
+      "horizon_hours": 4,
+      "forecast_semantics": "SAME_LOCKED_V6_6_WHOLE_SYSTEM_FORECAST_DUAL_GENUINE_RESOLUTION",
+      "outcome_semantics": "GENUINE_4H_MARKET_RESOLUTION"
+    },
+    "8h": {
+      "eligible_outcomes": 3,
+      "directional_resolved_calls": 0,
+      "wins": 0,
+      "losses": 0,
+      "no_edge": 0,
+      "fail_closed": 3,
+      "unresolved": 0,
+      "win_rate": null,
+      "win_rate_denominator": 0,
+      "directional_coverage_pct": 0.0,
+      "effective_wins_over_all_eligible_pct": 0.0,
+      "wilson95_win_rate": null,
+      "brier": null,
+      "brier_n": 0,
+      "calibration": [],
+      "weekly": [
+        {
+          "wins": 0,
+          "losses": 0,
+          "no_edge": 0,
+          "fail_closed": 3,
+          "eligible": 3,
+          "period": "2025-W36",
+          "directional_n": 0,
+          "win_rate": null
+        }
+      ],
+      "monthly": [
+        {
+          "wins": 0,
+          "losses": 0,
+          "no_edge": 0,
+          "fail_closed": 3,
+          "eligible": 3,
+          "period": "2025-09",
+          "directional_n": 0,
+          "win_rate": null
+        }
+      ],
+      "truth_note": "Win rate = wins / (wins + losses) only. NO_EDGE, FAIL_CLOSED and unresolved are shown separately; directional coverage is always displayed to prevent abstention inflation.",
+      "horizon_hours": 8,
+      "forecast_semantics": "SAME_LOCKED_V6_6_WHOLE_SYSTEM_FORECAST_DUAL_GENUINE_RESOLUTION",
+      "outcome_semantics": "GENUINE_8H_MARKET_RESOLUTION"
+    }
+  },
+  "historical_1y_whole_system": {
+    "eligible_outcomes": 3,
+    "directional_resolved_calls": 0,
+    "wins": 0,
+    "losses": 0,
+    "no_edge": 0,
+    "fail_closed": 3,
+    "unresolved": 0,
+    "win_rate": null,
+    "win_rate_denominator": 0,
+    "directional_coverage_pct": 0.0,
+    "effective_wins_over_all_eligible_pct": 0.0,
+    "wilson95_win_rate": null,
+    "brier": null,
+    "brier_n": 0,
+    "calibration": [],
+    "weekly": [
+      {
+        "wins": 0,
+        "losses": 0,
+        "no_edge": 0,
+        "fail_closed": 3,
+        "eligible": 3,
+        "period": "2025-W36",
+        "directional_n": 0,
+        "win_rate": null
+      }
+    ],
+    "monthly": [
+      {
+        "wins": 0,
+        "losses": 0,
+        "no_edge": 0,
+        "fail_closed": 3,
+        "eligible": 3,
+        "period": "2025-09",
+        "directional_n": 0,
+        "win_rate": null
+      }
+    ],
+    "truth_note": "Win rate = wins / (wins + losses) only. NO_EDGE, FAIL_CLOSED and unresolved are shown separately; directional coverage is always displayed to prevent abstention inflation.",
+    "horizon_hours": 8,
+    "forecast_semantics": "SAME_LOCKED_V6_6_WHOLE_SYSTEM_FORECAST_DUAL_GENUINE_RESOLUTION",
+    "outcome_semantics": "GENUINE_8H_MARKET_RESOLUTION"
+  },
+  "brain_layer_completion_counts": {},
+  "factor_importance": {
+    "status": "AVAILABLE",
+    "claim_scope": "Historical deterministic Phase36 factor ablation only; it is not mislabeled as causal importance of GPT-OSS reasoning layers.",
+    "summary": {
+      "ok": true,
+      "phase": "PHASE 36 ROOT-CAUSE + ABLATION LAB",
+      "policy": "DEVELOPMENT_ONLY_WALK_FORWARD",
+      "meta": {
+        "all_rows": 258,
+        "development_rows": 180,
+        "holdout_rows_not_loaded_for_diagnosis": 78
+      },
+      "base_only": {
+        "4h": {
+          "n": 76,
+          "correct": 36,
+          "incorrect": 40,
+          "accuracy": 47.37,
+          "brier": 0.2612,
+          "log_loss": 0.7161,
+          "ece": 0.0694,
+          "wilson95": [
+            36.54,
+            58.45
+          ],
+          "folds": 4,
+          "fold_metrics": [
+            {
+              "n": 19,
+              "correct": 6,
+              "incorrect": 13,
+              "accuracy": 31.58,
+              "brier": 0.2923,
+              "log_loss": 0.7799,
+              "ece": 0.2683,
+              "wilson95": [
+                15.36,
+                53.99
+              ],
+              "fold": 1,
+              "train_n": 78,
+              "test_n": 19
+            },
+            {
+              "n": 19,
+              "correct": 11,
+              "incorrect": 8,
+              "accuracy": 57.89,
+              "brier": 0.2454,
+              "log_loss": 0.684,
+              "ece": 0.0514,
+              "wilson95": [
+                36.28,
+                76.86
+              ],
+              "fold": 2,
+              "train_n": 97,
+              "test_n": 19
+            },
+            {
+              "n": 19,
+              "correct": 8,
+              "incorrect": 11,
+              "accuracy": 42.11,
+              "brier": 0.2642,
+              "log_loss": 0.7218,
+              "ece": 0.1243,
+              "wilson95": [
+                23.14,
+                63.72
+              ],
+              "fold": 3,
+              "train_n": 116,
+              "test_n": 19
+            },
+            {
+              "n": 19,
+              "correct": 11,
+              "incorrect": 8,
+              "accuracy": 57.89,
+              "brier": 0.2429,
+              "log_loss": 0.6789,
+              "ece": 0.2216,
+              "wilson95": [
+                36.28,
+                76.86
+              ],
+              "fold": 4,
+              "train_n": 135,
+              "test_n": 19
+            }
+          ]
+        },
+        "8h": {
+          "n": 64,
+          "correct": 40,
+          "incorrect": 24,
+          "accuracy": 62.5,
+          "brier": 0.2388,
+          "log_loss": 0.6706,
+          "ece": 0.0896,
+          "wilson95": [
+            50.25,
+            73.33
+          ],
+          "folds": 4,
+          "fold_metrics": [
+            {
+              "n": 16,
+              "correct": 8,
+              "incorrect": 8,
+              "accuracy": 50.0,
+              "brier": 0.2465,
+              "log_loss": 0.686,
+              "ece": 0.1049,
+              "wilson95": [
+                28.0,
+                72.0
+              ],
+              "fold": 1,
+              "train_n": 65,
+              "test_n": 16
+            },
+            {
+              "n": 16,
+              "correct": 8,
+              "incorrect": 8,
+              "accuracy": 50.0,
+              "brier": 0.2553,
+              "log_loss": 0.7041,
+              "ece": 0.0787,
+              "wilson95": [
+                28.0,
+                72.0
+              ],
+              "fold": 2,
+              "train_n": 81,
+              "test_n": 16
+            },
+            {
+              "n": 16,
+              "correct": 10,
+              "incorrect": 6,
+              "accuracy": 62.5,
+              "brier": 0.2458,
+              "log_loss": 0.6849,
+              "ece": 0.1135,
+              "wilson95": [
+                38.64,
+                81.52
+              ],
+              "fold": 3,
+              "train_n": 97,
+              "test_n": 16
+            },
+            {
+              "n": 16,
+              "correct": 14,
+              "incorrect": 2,
+              "accuracy": 87.5,
+              "brier": 0.2075,
+              "log_loss": 0.6076,
+              "ece": 0.3819,
+              "wilson95": [
+                63.98,
+                96.5
+              ],
+              "fold": 4,
+              "train_n": 113,
+              "test_n": 16
+            }
+          ]
+        }
+      },
+      "full_available": {
+        "4h": {
+          "n": 76,
+          "correct": 37,
+          "incorrect": 39,
+          "accuracy": 48.68,
+          "brier": 0.261,
+          "log_loss": 0.7161,
+          "ece": 0.0487,
+          "wilson95": [
+            37.78,
+            59.71
+          ],
+          "folds": 4,
+          "fold_metrics": [
+            {
+              "n": 19,
+              "correct": 7,
+              "incorrect": 12,
+              "accuracy": 36.84,
+              "brier": 0.2919,
+              "log_loss": 0.781,
+              "ece": 0.2525,
+              "wilson95": [
+                19.15,
+                58.96
+              ],
+              "fold": 1,
+              "train_n": 78,
+              "test_n": 19
+            },
+            {
+              "n": 19,
+              "correct": 8,
+              "incorrect": 11,
+              "accuracy": 42.11,
+              "brier": 0.258,
+              "log_loss": 0.7092,
+              "ece": 0.1027,
+              "wilson95": [
+                23.14,
+                63.72
+              ],
+              "fold": 2,
+              "train_n": 97,
+              "test_n": 19
+            },
+            {
+              "n": 19,
+              "correct": 8,
+              "incorrect": 11,
+              "accuracy": 42.11,
+              "brier": 0.2528,
+              "log_loss": 0.6988,
+              "ece": 0.0957,
+              "wilson95": [
+                23.14,
+                63.72
+              ],
+              "fold": 3,
+              "train_n": 116,
+              "test_n": 19
+            },
+            {
+              "n": 19,
+              "correct": 14,
+              "incorrect": 5,
+              "accuracy": 73.68,
+              "brier": 0.2411,
+              "log_loss": 0.6753,
+              "ece": 0.2196,
+              "wilson95": [
+                51.21,
+                88.19
+              ],
+              "fold": 4,
+              "train_n": 135,
+              "test_n": 19
+            }
+          ]
+        },
+        "8h": {
+          "n": 64,
+          "correct": 41,
+          "incorrect": 23,
+          "accuracy": 64.06,
+          "brier": 0.241,
+          "log_loss": 0.6752,
+          "ece": 0.1087,
+          "wilson95": [
+            51.82,
+            74.71
+          ],
+          "folds": 4,
+          "fold_metrics": [
+            {
+              "n": 16,
+              "correct": 8,
+              "incorrect": 8,
+              "accuracy": 50.0,
+              "brier": 0.2589,
+              "log_loss": 0.7116,
+              "ece": 0.0729,
+              "wilson95": [
+                28.0,
+                72.0
+              ],
+              "fold": 1,
+              "train_n": 65,
+              "test_n": 16
+            },
+            {
+              "n": 16,
+              "correct": 9,
+              "incorrect": 7,
+              "accuracy": 56.25,
+              "brier": 0.2458,
+              "log_loss": 0.6847,
+              "ece": 0.0074,
+              "wilson95": [
+                33.18,
+                76.9
+              ],
+              "fold": 2,
+              "train_n": 81,
+              "test_n": 16
+            },
+            {
+              "n": 16,
+              "correct": 9,
+              "incorrect": 7,
+              "accuracy": 56.25,
+              "brier": 0.2506,
+              "log_loss": 0.6944,
+              "ece": 0.0076,
+              "wilson95": [
+                33.18,
+                76.9
+              ],
+              "fold": 3,
+              "train_n": 97,
+              "test_n": 16
+            },
+            {
+              "n": 16,
+              "correct": 15,
+              "incorrect": 1,
+              "accuracy": 93.75,
+              "brier": 0.2087,
+              "log_loss": 0.6101,
+              "ece": 0.386,
+              "wilson95": [
+                71.67,
+                98.89
+              ],
+              "fold": 4,
+              "train_n": 113,
+              "test_n": 16
+            }
+          ]
+        }
+      },
+      "diagnosis": [
+        {
+          "group": "CROSS_ASSET",
+          "label": "SUSPECT_HARMFUL_ON_DEVELOPMENT",
+          "mean_add_accuracy_pp": 2.75,
+          "mean_remove_accuracy_pp": 1.32,
+          "mean_add_brier_delta": 0.0018,
+          "mean_remove_brier_delta": -0.0008,
+          "by_horizon": {
+            "4h": {
+              "add_to_base": {
+                "accuracy_pp": 3.95,
+                "brier": 0.0028,
+                "log_loss": 0.0066
+              },
+              "remove_from_full": {
+                "accuracy_pp": 2.64,
+                "brier": -0.0005,
+                "log_loss": -0.001
+              }
+            },
+            "8h": {
+              "add_to_base": {
+                "accuracy_pp": 1.56,
+                "brier": 0.0007,
+                "log_loss": 0.0014
+              },
+              "remove_from_full": {
+                "accuracy_pp": 0.0,
+                "brier": -0.001,
+                "log_loss": -0.0021
+              }
+            }
+          }
+        },
+        {
+          "group": "RATES_REAL_YIELD",
+          "label": "SUSPECT_HARMFUL_ON_DEVELOPMENT",
+          "mean_add_accuracy_pp": -0.37,
+          "mean_remove_accuracy_pp": 1.32,
+          "mean_add_brier_delta": -0.0004,
+          "mean_remove_brier_delta": 0.0009,
+          "by_horizon": {
+            "4h": {
+              "add_to_base": {
+                "accuracy_pp": 3.95,
+                "brier": -0.0027,
+                "log_loss": -0.0055
+              },
+              "remove_from_full": {
+                "accuracy_pp": 2.64,
+                "brier": 0.0011,
+                "log_loss": 0.0023
+              }
+            },
+            "8h": {
+              "add_to_base": {
+                "accuracy_pp": -4.69,
+                "brier": 0.002,
+                "log_loss": 0.004
+              },
+              "remove_from_full": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0007,
+                "log_loss": 0.0016
+              }
+            }
+          }
+        },
+        {
+          "group": "VOLATILITY",
+          "label": "HELPFUL_ON_DEVELOPMENT",
+          "mean_add_accuracy_pp": 3.41,
+          "mean_remove_accuracy_pp": 0.66,
+          "mean_add_brier_delta": 0.0019,
+          "mean_remove_brier_delta": -0.0012,
+          "by_horizon": {
+            "4h": {
+              "add_to_base": {
+                "accuracy_pp": 5.26,
+                "brier": 0.0034,
+                "log_loss": 0.0085
+              },
+              "remove_from_full": {
+                "accuracy_pp": 1.32,
+                "brier": -0.0014,
+                "log_loss": -0.003
+              }
+            },
+            "8h": {
+              "add_to_base": {
+                "accuracy_pp": 1.56,
+                "brier": 0.0004,
+                "log_loss": 0.0009
+              },
+              "remove_from_full": {
+                "accuracy_pp": 0.0,
+                "brier": -0.001,
+                "log_loss": -0.0022
+              }
+            }
+          }
+        },
+        {
+          "group": "NEWS_NOVELTY",
+          "label": "HELPFUL_ON_DEVELOPMENT",
+          "mean_add_accuracy_pp": 1.85,
+          "mean_remove_accuracy_pp": 0.0,
+          "mean_add_brier_delta": 0.0,
+          "mean_remove_brier_delta": -0.0004,
+          "by_horizon": {
+            "4h": {
+              "add_to_base": {
+                "accuracy_pp": 5.26,
+                "brier": 0.0001,
+                "log_loss": 0.0004
+              },
+              "remove_from_full": {
+                "accuracy_pp": 0.0,
+                "brier": -0.0003,
+                "log_loss": -0.0006
+              }
+            },
+            "8h": {
+              "add_to_base": {
+                "accuracy_pp": -1.56,
+                "brier": -0.0001,
+                "log_loss": -0.0001
+              },
+              "remove_from_full": {
+                "accuracy_pp": 0.0,
+                "brier": -0.0005,
+                "log_loss": -0.0011
+              }
+            }
+          }
+        },
+        {
+          "group": "EARNINGS",
+          "label": "MIXED_OR_SMALL_EFFECT",
+          "mean_add_accuracy_pp": 0.66,
+          "mean_remove_accuracy_pp": 0.0,
+          "mean_add_brier_delta": -0.0008,
+          "mean_remove_brier_delta": 0.0001,
+          "by_horizon": {
+            "4h": {
+              "add_to_base": {
+                "accuracy_pp": 1.31,
+                "brier": -0.0015,
+                "log_loss": -0.003
+              },
+              "remove_from_full": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0003,
+                "log_loss": 0.0006
+              }
+            },
+            "8h": {
+              "add_to_base": {
+                "accuracy_pp": 0.0,
+                "brier": -0.0001,
+                "log_loss": -0.0001
+              },
+              "remove_from_full": {
+                "accuracy_pp": 0.0,
+                "brier": -0.0001,
+                "log_loss": -0.0001
+              }
+            }
+          }
+        },
+        {
+          "group": "FUTURES_BASIS_PROXY",
+          "label": "HELPFUL_ON_DEVELOPMENT",
+          "mean_add_accuracy_pp": 1.98,
+          "mean_remove_accuracy_pp": 0.0,
+          "mean_add_brier_delta": 0.0006,
+          "mean_remove_brier_delta": 0.0001,
+          "by_horizon": {
+            "4h": {
+              "add_to_base": {
+                "accuracy_pp": 3.95,
+                "brier": 0.0004,
+                "log_loss": 0.0007
+              },
+              "remove_from_full": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0001,
+                "log_loss": 0.0003
+              }
+            },
+            "8h": {
+              "add_to_base": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0007,
+                "log_loss": 0.0016
+              },
+              "remove_from_full": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0,
+                "log_loss": 0.0001
+              }
+            }
+          }
+        },
+        {
+          "group": "ORDERFLOW_LICENSED",
+          "label": "MIXED_OR_SMALL_EFFECT",
+          "mean_add_accuracy_pp": 0.0,
+          "mean_remove_accuracy_pp": 0.0,
+          "mean_add_brier_delta": 0.0,
+          "mean_remove_brier_delta": 0.0,
+          "by_horizon": {
+            "4h": {
+              "add_to_base": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0,
+                "log_loss": 0.0
+              },
+              "remove_from_full": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0,
+                "log_loss": 0.0
+              }
+            },
+            "8h": {
+              "add_to_base": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0,
+                "log_loss": 0.0
+              },
+              "remove_from_full": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0,
+                "log_loss": 0.0
+              }
+            }
+          }
+        },
+        {
+          "group": "OPTIONS_LICENSED",
+          "label": "MIXED_OR_SMALL_EFFECT",
+          "mean_add_accuracy_pp": 0.0,
+          "mean_remove_accuracy_pp": 0.0,
+          "mean_add_brier_delta": 0.0,
+          "mean_remove_brier_delta": 0.0,
+          "by_horizon": {
+            "4h": {
+              "add_to_base": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0,
+                "log_loss": 0.0
+              },
+              "remove_from_full": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0,
+                "log_loss": 0.0
+              }
+            },
+            "8h": {
+              "add_to_base": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0,
+                "log_loss": 0.0
+              },
+              "remove_from_full": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0,
+                "log_loss": 0.0
+              }
+            }
+          }
+        },
+        {
+          "group": "ETF_FLOW_LICENSED",
+          "label": "MIXED_OR_SMALL_EFFECT",
+          "mean_add_accuracy_pp": 0.0,
+          "mean_remove_accuracy_pp": 0.0,
+          "mean_add_brier_delta": 0.0,
+          "mean_remove_brier_delta": 0.0,
+          "by_horizon": {
+            "4h": {
+              "add_to_base": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0,
+                "log_loss": 0.0
+              },
+              "remove_from_full": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0,
+                "log_loss": 0.0
+              }
+            },
+            "8h": {
+              "add_to_base": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0,
+                "log_loss": 0.0
+              },
+              "remove_from_full": {
+                "accuracy_pp": 0.0,
+                "brier": 0.0,
+                "log_loss": 0.0
+              }
+            }
+          }
+        },
+        {
+          "group": "LEADERSHIP_SEMIS",
+          "label": "HELPFUL_ON_DEVELOPMENT",
+          "mean_add_accuracy_pp": 2.75,
+          "mean_remove_accuracy_pp": -0.66,
+          "mean_add_brier_delta": -0.0004,
+          "mean_remove_brier_delta": 0.0005,
+          "by_horizon": {
+            "4h": {
+              "add_to_base": {
+                "accuracy_pp": 3.95,
+                "brier": -0.0005,
+                "log_loss": -0.0009
+              },
+              "remove_from_full": {
+                "accuracy_pp": -1.31,
+                "brier": 0.0011,
+                "log_loss": 0.0026
+              }
+            },
+            "8h": {
+              "add_to_base": {
+                "accuracy_pp": 1.56,
+                "brier": -0.0004,
+                "log_loss": -0.0007
+              },
+              "remove_from_full": {
+                "accuracy_pp": 0.0,
+                "brier": -0.0001,
+                "log_loss": -0.0003
+              }
+            }
+          }
+        }
+      ],
+      "candidate_policy": {
+        "status": "DEV_ONLY_RESEARCH_CANDIDATE_NOT_LIVE",
+        "always_include": [
+          "BASE_FIA"
+        ],
+        "candidate_include_groups": [
+          "VOLATILITY",
+          "NEWS_NOVELTY",
+          "FUTURES_BASIS_PROXY",
+          "LEADERSHIP_SEMIS"
+        ],
+        "candidate_exclude_groups": [
+          "CROSS_ASSET",
+          "RATES_REAL_YIELD"
+        ],
+        "rule": "Never deploy from Phase36 alone. Candidate must be frozen and tested on genuinely new unseen data."
+      },
+      "phase35_holdout_used_for_selection": false,
+      "production_weights_changed": false,
+      "rl_live_weight": 0.0,
+      "broker_execution": false,
+      "note": "This lab diagnoses marginal evidence value without reading the Phase35 holdout for selection. It does not claim a new production edge."
+    },
+    "group_diagnosis": [
+      {
+        "group": "CROSS_ASSET",
+        "label": "SUSPECT_HARMFUL_ON_DEVELOPMENT",
+        "mean_add_accuracy_pp": "2.75",
+        "mean_remove_accuracy_pp": "1.32",
+        "mean_add_brier_delta": "0.0018",
+        "mean_remove_brier_delta": "-0.0008"
+      },
+      {
+        "group": "RATES_REAL_YIELD",
+        "label": "SUSPECT_HARMFUL_ON_DEVELOPMENT",
+        "mean_add_accuracy_pp": "-0.37",
+        "mean_remove_accuracy_pp": "1.32",
+        "mean_add_brier_delta": "-0.0004",
+        "mean_remove_brier_delta": "0.0009"
+      },
+      {
+        "group": "VOLATILITY",
+        "label": "HELPFUL_ON_DEVELOPMENT",
+        "mean_add_accuracy_pp": "3.41",
+        "mean_remove_accuracy_pp": "0.66",
+        "mean_add_brier_delta": "0.0019",
+        "mean_remove_brier_delta": "-0.0012"
+      },
+      {
+        "group": "NEWS_NOVELTY",
+        "label": "HELPFUL_ON_DEVELOPMENT",
+        "mean_add_accuracy_pp": "1.85",
+        "mean_remove_accuracy_pp": "0.0",
+        "mean_add_brier_delta": "0.0",
+        "mean_remove_brier_delta": "-0.0004"
+      },
+      {
+        "group": "EARNINGS",
+        "label": "MIXED_OR_SMALL_EFFECT",
+        "mean_add_accuracy_pp": "0.66",
+        "mean_remove_accuracy_pp": "0.0",
+        "mean_add_brier_delta": "-0.0008",
+        "mean_remove_brier_delta": "0.0001"
+      },
+      {
+        "group": "FUTURES_BASIS_PROXY",
+        "label": "HELPFUL_ON_DEVELOPMENT",
+        "mean_add_accuracy_pp": "1.98",
+        "mean_remove_accuracy_pp": "0.0",
+        "mean_add_brier_delta": "0.0006",
+        "mean_remove_brier_delta": "0.0001"
+      },
+      {
+        "group": "ORDERFLOW_LICENSED",
+        "label": "MIXED_OR_SMALL_EFFECT",
+        "mean_add_accuracy_pp": "0.0",
+        "mean_remove_accuracy_pp": "0.0",
+        "mean_add_brier_delta": "0.0",
+        "mean_remove_brier_delta": "0.0"
+      },
+      {
+        "group": "OPTIONS_LICENSED",
+        "label": "MIXED_OR_SMALL_EFFECT",
+        "mean_add_accuracy_pp": "0.0",
+        "mean_remove_accuracy_pp": "0.0",
+        "mean_add_brier_delta": "0.0",
+        "mean_remove_brier_delta": "0.0"
+      },
+      {
+        "group": "ETF_FLOW_LICENSED",
+        "label": "MIXED_OR_SMALL_EFFECT",
+        "mean_add_accuracy_pp": "0.0",
+        "mean_remove_accuracy_pp": "0.0",
+        "mean_add_brier_delta": "0.0",
+        "mean_remove_brier_delta": "0.0"
+      },
+      {
+        "group": "LEADERSHIP_SEMIS",
+        "label": "HELPFUL_ON_DEVELOPMENT",
+        "mean_add_accuracy_pp": "2.75",
+        "mean_remove_accuracy_pp": "-0.66",
+        "mean_add_brier_delta": "-0.0004",
+        "mean_remove_brier_delta": "0.0005"
+      }
+    ],
+    "ranked_groups": [
+      {
+        "group": "LEADERSHIP_SEMIS",
+        "label": "HELPFUL_ON_DEVELOPMENT",
+        "diagnostic_score": 3.5,
+        "mean_add_accuracy_pp": 2.75,
+        "mean_remove_accuracy_pp": -0.66,
+        "mean_add_brier_delta": -0.0004,
+        "mean_remove_brier_delta": 0.0005,
+        "claim_scope": "DEVELOPMENT_ONLY_ABLATION_DIAGNOSTIC_NOT_CAUSAL_PROOF"
+      },
+      {
+        "group": "VOLATILITY",
+        "label": "HELPFUL_ON_DEVELOPMENT",
+        "diagnostic_score": 2.44,
+        "mean_add_accuracy_pp": 3.41,
+        "mean_remove_accuracy_pp": 0.66,
+        "mean_add_brier_delta": 0.0019,
+        "mean_remove_brier_delta": -0.0012,
+        "claim_scope": "DEVELOPMENT_ONLY_ABLATION_DIAGNOSTIC_NOT_CAUSAL_PROOF"
+      },
+      {
+        "group": "FUTURES_BASIS_PROXY",
+        "label": "HELPFUL_ON_DEVELOPMENT",
+        "diagnostic_score": 1.93,
+        "mean_add_accuracy_pp": 1.98,
+        "mean_remove_accuracy_pp": 0.0,
+        "mean_add_brier_delta": 0.0006,
+        "mean_remove_brier_delta": 0.0001,
+        "claim_scope": "DEVELOPMENT_ONLY_ABLATION_DIAGNOSTIC_NOT_CAUSAL_PROOF"
+      },
+      {
+        "group": "NEWS_NOVELTY",
+        "label": "HELPFUL_ON_DEVELOPMENT",
+        "diagnostic_score": 1.81,
+        "mean_add_accuracy_pp": 1.85,
+        "mean_remove_accuracy_pp": 0.0,
+        "mean_add_brier_delta": 0.0,
+        "mean_remove_brier_delta": -0.0004,
+        "claim_scope": "DEVELOPMENT_ONLY_ABLATION_DIAGNOSTIC_NOT_CAUSAL_PROOF"
+      },
+      {
+        "group": "CROSS_ASSET",
+        "label": "SUSPECT_HARMFUL_ON_DEVELOPMENT",
+        "diagnostic_score": 1.17,
+        "mean_add_accuracy_pp": 2.75,
+        "mean_remove_accuracy_pp": 1.32,
+        "mean_add_brier_delta": 0.0018,
+        "mean_remove_brier_delta": -0.0008,
+        "claim_scope": "DEVELOPMENT_ONLY_ABLATION_DIAGNOSTIC_NOT_CAUSAL_PROOF"
+      },
+      {
+        "group": "EARNINGS",
+        "label": "MIXED_OR_SMALL_EFFECT",
+        "diagnostic_score": 0.75,
+        "mean_add_accuracy_pp": 0.66,
+        "mean_remove_accuracy_pp": 0.0,
+        "mean_add_brier_delta": -0.0008,
+        "mean_remove_brier_delta": 0.0001,
+        "claim_scope": "DEVELOPMENT_ONLY_ABLATION_DIAGNOSTIC_NOT_CAUSAL_PROOF"
+      },
+      {
+        "group": "ORDERFLOW_LICENSED",
+        "label": "MIXED_OR_SMALL_EFFECT",
+        "diagnostic_score": 0.0,
+        "mean_add_accuracy_pp": 0.0,
+        "mean_remove_accuracy_pp": 0.0,
+        "mean_add_brier_delta": 0.0,
+        "mean_remove_brier_delta": 0.0,
+        "claim_scope": "DEVELOPMENT_ONLY_ABLATION_DIAGNOSTIC_NOT_CAUSAL_PROOF"
+      },
+      {
+        "group": "OPTIONS_LICENSED",
+        "label": "MIXED_OR_SMALL_EFFECT",
+        "diagnostic_score": 0.0,
+        "mean_add_accuracy_pp": 0.0,
+        "mean_remove_accuracy_pp": 0.0,
+        "mean_add_brier_delta": 0.0,
+        "mean_remove_brier_delta": 0.0,
+        "claim_scope": "DEVELOPMENT_ONLY_ABLATION_DIAGNOSTIC_NOT_CAUSAL_PROOF"
+      },
+      {
+        "group": "ETF_FLOW_LICENSED",
+        "label": "MIXED_OR_SMALL_EFFECT",
+        "diagnostic_score": 0.0,
+        "mean_add_accuracy_pp": 0.0,
+        "mean_remove_accuracy_pp": 0.0,
+        "mean_add_brier_delta": 0.0,
+        "mean_remove_brier_delta": 0.0,
+        "claim_scope": "DEVELOPMENT_ONLY_ABLATION_DIAGNOSTIC_NOT_CAUSAL_PROOF"
+      },
+      {
+        "group": "RATES_REAL_YIELD",
+        "label": "SUSPECT_HARMFUL_ON_DEVELOPMENT",
+        "diagnostic_score": -1.56,
+        "mean_add_accuracy_pp": -0.37,
+        "mean_remove_accuracy_pp": 1.32,
+        "mean_add_brier_delta": -0.0004,
+        "mean_remove_brier_delta": 0.0009,
+        "claim_scope": "DEVELOPMENT_ONLY_ABLATION_DIAGNOSTIC_NOT_CAUSAL_PROOF"
+      }
+    ],
+    "ranking_note": "Ranking summarizes the existing Phase36 development-only ablation. It must not be interpreted as live causal importance or as a reason to hide losing factors."
+  },
+  "live_forward_oos": {
+    "historical_backfill_mixed": false,
+    "4h": {
+      "status": "COLLECTING",
+      "horizon_hours": 4,
+      "source": "fia.forward_oos.records() joined immutable FORECAST_LOCK + RESOLUTION_4H events",
+      "resolved_rows_detected": 0,
+      "windows": {
+        "last_7d": {
+          "eligible_outcomes": 0,
+          "directional_resolved_calls": 0,
+          "wins": 0,
+          "losses": 0,
+          "no_edge": 0,
+          "fail_closed": 0,
+          "unresolved": 0,
+          "win_rate": null,
+          "win_rate_denominator": 0,
+          "directional_coverage_pct": null,
+          "effective_wins_over_all_eligible_pct": null,
+          "wilson95_win_rate": null,
+          "brier": null,
+          "brier_n": 0,
+          "calibration": [],
+          "weekly": [],
+          "monthly": [],
+          "truth_note": "Win rate = wins / (wins + losses) only. NO_EDGE, FAIL_CLOSED and unresolved are shown separately; directional coverage is always displayed to prevent abstention inflation."
+        },
+        "last_30d": {
+          "eligible_outcomes": 0,
+          "directional_resolved_calls": 0,
+          "wins": 0,
+          "losses": 0,
+          "no_edge": 0,
+          "fail_closed": 0,
+          "unresolved": 0,
+          "win_rate": null,
+          "win_rate_denominator": 0,
+          "directional_coverage_pct": null,
+          "effective_wins_over_all_eligible_pct": null,
+          "wilson95_win_rate": null,
+          "brier": null,
+          "brier_n": 0,
+          "calibration": [],
+          "weekly": [],
+          "monthly": [],
+          "truth_note": "Win rate = wins / (wins + losses) only. NO_EDGE, FAIL_CLOSED and unresolved are shown separately; directional coverage is always displayed to prevent abstention inflation."
+        },
+        "current_week": {
+          "eligible_outcomes": 0,
+          "directional_resolved_calls": 0,
+          "wins": 0,
+          "losses": 0,
+          "no_edge": 0,
+          "fail_closed": 0,
+          "unresolved": 0,
+          "win_rate": null,
+          "win_rate_denominator": 0,
+          "directional_coverage_pct": null,
+          "effective_wins_over_all_eligible_pct": null,
+          "wilson95_win_rate": null,
+          "brier": null,
+          "brier_n": 0,
+          "calibration": [],
+          "weekly": [],
+          "monthly": [],
+          "truth_note": "Win rate = wins / (wins + losses) only. NO_EDGE, FAIL_CLOSED and unresolved are shown separately; directional coverage is always displayed to prevent abstention inflation."
+        },
+        "previous_week": {
+          "eligible_outcomes": 0,
+          "directional_resolved_calls": 0,
+          "wins": 0,
+          "losses": 0,
+          "no_edge": 0,
+          "fail_closed": 0,
+          "unresolved": 0,
+          "win_rate": null,
+          "win_rate_denominator": 0,
+          "directional_coverage_pct": null,
+          "effective_wins_over_all_eligible_pct": null,
+          "wilson95_win_rate": null,
+          "brier": null,
+          "brier_n": 0,
+          "calibration": [],
+          "weekly": [],
+          "monthly": [],
+          "truth_note": "Win rate = wins / (wins + losses) only. NO_EDGE, FAIL_CLOSED and unresolved are shown separately; directional coverage is always displayed to prevent abstention inflation."
+        },
+        "all_resolved": {
+          "eligible_outcomes": 0,
+          "directional_resolved_calls": 0,
+          "wins": 0,
+          "losses": 0,
+          "no_edge": 0,
+          "fail_closed": 0,
+          "unresolved": 0,
+          "win_rate": null,
+          "win_rate_denominator": 0,
+          "directional_coverage_pct": null,
+          "effective_wins_over_all_eligible_pct": null,
+          "wilson95_win_rate": null,
+          "brier": null,
+          "brier_n": 0,
+          "calibration": [],
+          "weekly": [],
+          "monthly": [],
+          "truth_note": "Win rate = wins / (wins + losses) only. NO_EDGE, FAIL_CLOSED and unresolved are shown separately; directional coverage is always displayed to prevent abstention inflation."
+        }
+      },
+      "integrity": {
+        "ok": true,
+        "schema_version": "SOL56_FORWARD_OOS_V3",
+        "events": 1,
+        "forecast_locks": 1,
+        "resolution_events": 0,
+        "head_event_hash": "83fed6455ba09ab903a3aa34c343040c5ca82f05319b9c9b0946845215ea7ce8",
+        "issues": [],
+        "tamper_evident": true,
+        "tamper_proof_against_filesystem_owner": false
+      },
+      "model_semantics": "Uses only the model actually locked pre-move in each immutable FORECAST_LOCK; no retrospective candidate insertion.",
+      "diagnostic": null
+    },
+    "8h": {
+      "status": "COLLECTING",
+      "horizon_hours": 8,
+      "source": "fia.forward_oos.records() joined immutable FORECAST_LOCK + RESOLUTION_8H events",
+      "resolved_rows_detected": 0,
+      "windows": {
+        "last_7d": {
+          "eligible_outcomes": 0,
+          "directional_resolved_calls": 0,
+          "wins": 0,
+          "losses": 0,
+          "no_edge": 0,
+          "fail_closed": 0,
+          "unresolved": 0,
+          "win_rate": null,
+          "win_rate_denominator": 0,
+          "directional_coverage_pct": null,
+          "effective_wins_over_all_eligible_pct": null,
+          "wilson95_win_rate": null,
+          "brier": null,
+          "brier_n": 0,
+          "calibration": [],
+          "weekly": [],
+          "monthly": [],
+          "truth_note": "Win rate = wins / (wins + losses) only. NO_EDGE, FAIL_CLOSED and unresolved are shown separately; directional coverage is always displayed to prevent abstention inflation."
+        },
+        "last_30d": {
+          "eligible_outcomes": 0,
+          "directional_resolved_calls": 0,
+          "wins": 0,
+          "losses": 0,
+          "no_edge": 0,
+          "fail_closed": 0,
+          "unresolved": 0,
+          "win_rate": null,
+          "win_rate_denominator": 0,
+          "directional_coverage_pct": null,
+          "effective_wins_over_all_eligible_pct": null,
+          "wilson95_win_rate": null,
+          "brier": null,
+          "brier_n": 0,
+          "calibration": [],
+          "weekly": [],
+          "monthly": [],
+          "truth_note": "Win rate = wins / (wins + losses) only. NO_EDGE, FAIL_CLOSED and unresolved are shown separately; directional coverage is always displayed to prevent abstention inflation."
+        },
+        "current_week": {
+          "eligible_outcomes": 0,
+          "directional_resolved_calls": 0,
+          "wins": 0,
+          "losses": 0,
+          "no_edge": 0,
+          "fail_closed": 0,
+          "unresolved": 0,
+          "win_rate": null,
+          "win_rate_denominator": 0,
+          "directional_coverage_pct": null,
+          "effective_wins_over_all_eligible_pct": null,
+          "wilson95_win_rate": null,
+          "brier": null,
+          "brier_n": 0,
+          "calibration": [],
+          "weekly": [],
+          "monthly": [],
+          "truth_note": "Win rate = wins / (wins + losses) only. NO_EDGE, FAIL_CLOSED and unresolved are shown separately; directional coverage is always displayed to prevent abstention inflation."
+        },
+        "previous_week": {
+          "eligible_outcomes": 0,
+          "directional_resolved_calls": 0,
+          "wins": 0,
+          "losses": 0,
+          "no_edge": 0,
+          "fail_closed": 0,
+          "unresolved": 0,
+          "win_rate": null,
+          "win_rate_denominator": 0,
+          "directional_coverage_pct": null,
+          "effective_wins_over_all_eligible_pct": null,
+          "wilson95_win_rate": null,
+          "brier": null,
+          "brier_n": 0,
+          "calibration": [],
+          "weekly": [],
+          "monthly": [],
+          "truth_note": "Win rate = wins / (wins + losses) only. NO_EDGE, FAIL_CLOSED and unresolved are shown separately; directional coverage is always displayed to prevent abstention inflation."
+        },
+        "all_resolved": {
+          "eligible_outcomes": 0,
+          "directional_resolved_calls": 0,
+          "wins": 0,
+          "losses": 0,
+          "no_edge": 0,
+          "fail_closed": 0,
+          "unresolved": 0,
+          "win_rate": null,
+          "win_rate_denominator": 0,
+          "directional_coverage_pct": null,
+          "effective_wins_over_all_eligible_pct": null,
+          "wilson95_win_rate": null,
+          "brier": null,
+          "brier_n": 0,
+          "calibration": [],
+          "weekly": [],
+          "monthly": [],
+          "truth_note": "Win rate = wins / (wins + losses) only. NO_EDGE, FAIL_CLOSED and unresolved are shown separately; directional coverage is always displayed to prevent abstention inflation."
+        }
+      },
+      "integrity": {
+        "ok": true,
+        "schema_version": "SOL56_FORWARD_OOS_V3",
+        "events": 1,
+        "forecast_locks": 1,
+        "resolution_events": 0,
+        "head_event_hash": "83fed6455ba09ab903a3aa34c343040c5ca82f05319b9c9b0946845215ea7ce8",
+        "issues": [],
+        "tamper_evident": true,
+        "tamper_proof_against_filesystem_owner": false
+      },
+      "model_semantics": "Uses only the model actually locked pre-move in each immutable FORECAST_LOCK; no retrospective candidate insertion.",
+      "diagnostic": null
+    },
+    "note": "4H and 8H live metrics are resolved independently from immutable pre-move forecast locks. Historical replay is never mixed into these windows."
+  },
+  "provenance": {
+    "historical_rows_path": "/Users/arslanaziz442/ClearNasdaq/clear_nasdaq_fia-2/backend/fia_phase35/data/enriched_pti.jsonl",
+    "historical_rows_sha256": "39744602baf10b214491481c680b6a25952548852bb8d99e2872658bbbdee1fe",
+    "brain_root": "/Users/arslanaziz442/Downloads/CLEAR_NASDAQ_FIA_BRAIN_V6_CAUSAL_TWIN",
+    "brain_config_sha256": "3ecdf11ae1e48ff6e5dea1984a9792eeee6ce365e375953955cf099bb74f54e5",
+    "brain_fingerprint": {
+      "algorithm": "sha256",
+      "digest": "350a1064467bb532e52ffbb02c9dd52361ac9de85320805476384fd6c3d7d298",
+      "files": [
+        {
+          "path": "fia_brain/__init__.py",
+          "sha256": "e0e829c1379e402f9f0be21bc9d8dcbb84ca3bc3f034650069740f84a3d1da98"
+        },
+        {
+          "path": "fia_brain/benchmark.py",
+          "sha256": "638fabc399e6078c0df27a0dd6e4dc88929bcb789063e169125836823251c79b"
+        },
+        {
+          "path": "fia_brain/calibration.py",
+          "sha256": "481da1e05b8cbb57083f6541db66747c961fdf90c29310f6f20d481cb15ecd7e"
+        },
+        {
+          "path": "fia_brain/cases.py",
+          "sha256": "8a6724bee8e6e35bd1eec142bfaaae2466146ae61d88c5d09a3ef27e6428063b"
+        },
+        {
+          "path": "fia_brain/causal.py",
+          "sha256": "c61e4c96b2365caf651b7fc22b143c73c7781405fed45047b747485f3349ac96"
+        },
+        {
+          "path": "fia_brain/config.py",
+          "sha256": "0a9b660ce12f0ac335b173eb533fc720d6557d58ab6150e3a2400a009bfa57a7"
+        },
+        {
+          "path": "fia_brain/domains.py",
+          "sha256": "016d86c3b756533d2d207a4bbcc81cf3d49e79acd53d01cb4b815dd3db473823"
+        },
+        {
+          "path": "fia_brain/ensemble.py",
+          "sha256": "ae4bb321c5343a70135f0bbb21126ffec0c3e9fc369e62648daed8f055087f12"
+        },
+        {
+          "path": "fia_brain/evidence.py",
+          "sha256": "5e3f2907365fc7606467b925ea68ac060df6f204691d1be2dd2297fc3f5ea538"
+        },
+        {
+          "path": "fia_brain/evidence_genome.py",
+          "sha256": "74cbf9bf0d790aff50960406dcf5a1604a6333e0e7f6c8e396d580f4a10d48c8"
+        },
+        {
+          "path": "fia_brain/evidence_intelligence.py",
+          "sha256": "7580289b5c01a49a8be9f3ae083bb93337b10baadaac9aa09ca6c9d54c7f7fea"
+        },
+        {
+          "path": "fia_brain/failure_memory.py",
+          "sha256": "be1fd874949d4b46b413ac778fc8ab2e0bb4295c724a3515c3945f1e3c170814"
+        },
+        {
+          "path": "fia_brain/guardrails.py",
+          "sha256": "0ef8872cd60ba3579bd335b54671f20c72b74ebb9c495c820372281521d5acc8"
+        },
+        {
+          "path": "fia_brain/hypotheses.py",
+          "sha256": "104548f5284cf3b7a6343c3cc5820204bf6a34db3fa978f083754772e537bd08"
+        },
+        {
+          "path": "fia_brain/interventions.py",
+          "sha256": "4a76728f82373b84ad598129c818079675271967c8c73caca34adeb7e5973ce9"
+        },
+        {
+          "path": "fia_brain/invariants.py",
+          "sha256": "6cc2a1542d33d7224fa0fe281e16fd1618b5ed230c485ab432c6a88cbaad9b20"
+        },
+        {
+          "path": "fia_brain/judge.py",
+          "sha256": "532d66e06628274ee482d20174981ef637af2de66fe4487bd19a8dedb7a00d1f"
+        },
+        {
+          "path": "fia_brain/ledger.py",
+          "sha256": "f964d655eae5345e2fcc2867494a2f126cc966f9cc231ebe1b78950134d69c6f"
+        },
+        {
+          "path": "fia_brain/local_llm.py",
+          "sha256": "2b2388cecdc5081e6871e420652d2068fccd89692360248fff0a475fcdd420c5"
+        },
+        {
+          "path": "fia_brain/market_twin.py",
+          "sha256": "7ab802ece3d38d2e2fa831f8e74ec86d6200ee6d98bb28fdb584a7b28e6ae9e8"
+        },
+        {
+          "path": "fia_brain/network.py",
+          "sha256": "1702e7d58975e5a95b2e0db7643fbb89f732cf3bb622ee7dee2c2bbbdfc92d89"
+        },
+        {
+          "path": "fia_brain/orchestrator.py",
+          "sha256": "35e6537cc4fac998af5cdec9b36c6a1fbf55081c75ef8254d37c9296d4d7fcd3"
+        },
+        {
+          "path": "fia_brain/parity_v6.py",
+          "sha256": "eabf4e3d8efa23a7db74d6e0c8cdbaab9f93eeab597cc560275ad02aacc0393e"
+        },
+        {
+          "path": "fia_brain/precommitment.py",
+          "sha256": "996808a769b157eaebdd922620c6c4e1a879457206736e151abe4f2b3ef6a369"
+        },
+        {
+          "path": "fia_brain/prompts.py",
+          "sha256": "ee5f7877af5572d9dde9d6d4a483874451d13149a6e6f2a20e195a08613898ee"
+        },
+        {
+          "path": "fia_brain/quality.py",
+          "sha256": "b4b92836aa36ac27fa8551f0e7c66eb373e88e3d70afac2ab53c523edcdd6af7"
+        },
+        {
+          "path": "fia_brain/regime_memory.py",
+          "sha256": "8156253401b020170c14f9e227e6aeead1dca37da962f68759e3d9db1d38df5f"
+        },
+        {
+          "path": "fia_brain/response_schemas.py",
+          "sha256": "b7df4aeb7ccaa41d87073cef528e7c6c1708ced0d42aa424000adee71ddba3ad"
+        },
+        {
+          "path": "fia_brain/scenarios.py",
+          "sha256": "1b1e2c664d56cf2510343afb4040994b3567dcf9cf3b2ed9df03dcf244cf8d28"
+        },
+        {
+          "path": "fia_brain/schema.py",
+          "sha256": "f490739803777f232a755932895ce5d4084477505d2c81dc34694d0fa29fbed5"
+        },
+        {
+          "path": "fia_brain/sidecar.py",
+          "sha256": "e459330d5e6f1979c6936a5da5dcb2dc6bcdaa9c8aaaf191cead0c0690644934"
+        },
+        {
+          "path": "fia_brain/tribunal.py",
+          "sha256": "6436f265c5d65366f93162040cd25be33a3334cedf778d9fd4f9aa8e9c7330e9"
+        },
+        {
+          "path": "fia_brain/util.py",
+          "sha256": "d5e8afc9300ee5647e7a30cb8b98750607a7e36324c4cd6079b73aca83400e9d"
+        },
+        {
+          "path": "config.json",
+          "sha256": "3ecdf11ae1e48ff6e5dea1984a9792eeee6ce365e375953955cf099bb74f54e5"
+        }
+      ]
+    },
+    "brain_checkpoint_records_path": "/Users/arslanaziz442/ClearNasdaq/clear_nasdaq_fia-2/backend/fia_whole_system_backtest/results/v6_6_historical_8h_350a1064467b.jsonl",
+    "brain_checkpoint_records_sha256": "6c86c83e8f96c9d95ead4a1d11d0ada9d3d98c36f88afd398399dd5ec3ed9afa",
+    "brain_checkpoint_chain": {
+      "ok": true,
+      "records": 3,
+      "head": "90694e072f1dfd81ca6492331b5efe2e0b1001742b986358fe5a9be9046a8fc9",
+      "tail_repaired": false
+    },
+    "dual_resolution_records_path": "/Users/arslanaziz442/ClearNasdaq/clear_nasdaq_fia-2/backend/fia_whole_system_backtest/results/v6_6_dual_resolution_4h_8h_350a1064467b.jsonl",
+    "dual_resolution_records_sha256": "a0a074d48c9418cb9f26002ad06c270cde3fb2b53217b48afe19c6517d58ef1c",
+    "dual_resolution_chain": {
+      "ok": true,
+      "records": 3,
+      "head": "d6d36fb522ddc5650beba30709035003b9b376ce33978d5b26e0c09ba3726e01",
+      "tail_repaired": false
+    },
+    "existing_master_backtest": {
+      "status": "SKIPPED_BY_FLAG"
+    }
+  },
+  "truth_policy": {
+    "no_future_leakage_by_design": true,
+    "outcome_fields_removed_before_v6_6": true,
+    "missing_data_never_zero_or_neutral_imputed": true,
+    "same_locked_prediction_scored_at_4h_and_8h": true,
+    "separate_4h_model_call_claimed": false,
+    "4h_outcome_is_genuine_market_resolution": true,
+    "8h_outcome_is_genuine_market_resolution": true,
+    "no_edge_counted_separately": true,
+    "fail_closed_counted_separately": true,
+    "unresolved_counted_separately": true,
+    "historical_and_forward_oos_never_mixed": true,
+    "partial_run_never_labeled_final": true,
+    "checkpoint_hash_chain_required": true,
+    "brain_fingerprint_bound_to_case_identity": true,
+    "win_rate_formula": "wins/(wins+losses) for resolved directional calls at each horizon; coverage and abstentions are always shown."
+  },
+  "known_historical_limitations": [
+    "Historical inputs without genuine point-in-time archives remain explicitly unavailable and are never synthesized.",
+    "The 4H metric is an early genuine market resolution of the same locked V6.6 4–8H research forecast; it is not mislabeled as a second independent 4H Brain run.",
+    "Phase36 factor importance remains a development-only ablation diagnostic, not live causal proof.",
+    "Retrospective current-build replay is not the same as genuinely unseen Forward-OOS evidence and does not guarantee future market performance."
+  ],
+  "report_sha256": "bf28f907ce59c093d166933bfa86f8ab50b25fc4b4a6038201f71061157adfd8",
+  "history_mode": "PHASE35_PTI"
+}

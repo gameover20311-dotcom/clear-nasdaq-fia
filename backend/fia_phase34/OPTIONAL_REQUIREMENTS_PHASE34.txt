@@ -1,0 +1,10 @@
+# Optional Phase34 research dependencies
+numpy>=1.24
+scipy>=1.10
+scikit-learn>=1.2
+hmmlearn>=0.3
+torch>=2.0
+yfinance>=0.2.65
+requests>=2.31
+websockets>=11
+# stable-baselines3>=2.3  # only if running PPO/SAC research adapter

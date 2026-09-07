@@ -1,0 +1,30 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node / Next
+node_modules/
+.next/
+
+# Runtime
+.runtime/
+runtime_logs/
+*.log
+*.pid
+*.sock
+
+# macOS
+.DS_Store
+
+# Large local dataset
+backend/fia_backtest_phase20/data/polygon_news_20250901_20260831.json

@@ -1,0 +1,485 @@
+{
+  "method": "SEC 8-K Item 2.02 acceptance timestamp + Finnhub quarterly EPS surprise. Polygon historical news is used only to resolve ambiguous SEC-event matches.",
+  "events": [
+    {
+      "symbol": "NFLX",
+      "period": "2026-06-30",
+      "year": 2026,
+      "quarter": 2,
+      "actual": 0.8,
+      "estimate": 0.8042,
+      "surprise_percent": -0.5223,
+      "surprise_direction": "BEARISH",
+      "reveal_at": "2026-07-16T20:03:19+00:00",
+      "filing_date": "2026-07-16",
+      "report_date": "2026-07-16",
+      "sec_accession": "0001065280-26-000211",
+      "sec_primary_document": "nflx-20260716.htm",
+      "sec_items": "2.02,9.01",
+      "quarter_end_to_sec_days": 16,
+      "nearby_company_articles": 2,
+      "nearby_earnings_articles": 1,
+      "actual_eps_seen_in_news": false,
+      "sample_titles": [
+        "Netflix Reported Record Quarterly Revenue of $12.6 Billion, but Guidance Came in Below Expectations. Here’s What It Means for Investors."
+      ],
+      "verification": "SEC Item 2.02 acceptance timestamp gates Finnhub actual/estimate; actual is never active before reveal_at."
+    },
+    {
+      "symbol": "ALPHABET",
+      "period": "2026-06-30",
+      "year": 2026,
+      "quarter": 2,
+      "actual": 2.85,
+      "estimate": 2.9798,
+      "surprise_percent": -4.356,
+      "surprise_direction": "BEARISH",
+      "reveal_at": "2026-07-22T20:01:36+00:00",
+      "filing_date": "2026-07-22",
+      "report_date": "2026-07-22",
+      "sec_accession": "0001652044-26-000066",
+      "sec_primary_document": "goog-20260722.htm",
+      "sec_items": "2.02,9.01",
+      "quarter_end_to_sec_days": 22,
+      "nearby_company_articles": 10,
+      "nearby_earnings_articles": 5,
+      "actual_eps_seen_in_news": false,
+      "sample_titles": [
+        "Should You Buy SpaceX Stock Before Aug. 4?",
+        "What History Says About Stocks That Join the Nasdaq-100 and What It Means for SpaceX",
+        "Stock Market Midday, July 22: Markets Brace for Alphabet Earnings as Hyperscaler's AI Debt Comes Into Focus",
+        "Alphabet Reports Q2 Results After the Bell Today. The Number That Decides the Stock Isn't Revenue or Earnings -- It's Capex.",
+        "Alphabet Just Delivered 82% Cloud Growth. Why It Wasn't Enough"
+      ],
+      "verification": "SEC Item 2.02 acceptance timestamp gates Finnhub actual/estimate; actual is never active before reveal_at."
+    },
+    {
+      "symbol": "TSLA",
+      "period": "2026-06-30",
+      "year": 2026,
+      "quarter": 2,
+      "actual": 0.33,
+      "estimate": 0.5191,
+      "surprise_percent": -36.4284,
+      "surprise_direction": "BEARISH",
+      "reveal_at": "2026-07-22T20:35:52+00:00",
+      "filing_date": "2026-07-22",
+      "report_date": "2026-07-22",
+      "sec_accession": "0001628280-26-049213",
+      "sec_primary_document": "tsla-20260722.htm",
+      "sec_items": "2.02,9.01",
+      "quarter_end_to_sec_days": 22,
+      "nearby_company_articles": 4,
+      "nearby_earnings_articles": 3,
+      "actual_eps_seen_in_news": false,
+      "sample_titles": [
+        "Tesla Beat Wall Street's Delivery Estimate by Nearly 74,000 Vehicles Under Elon Musk",
+        "Stock Market Midday, July 22: Markets Brace for Alphabet Earnings as Hyperscaler's AI Debt Comes Into Focus",
+        "Predicting SpaceX's Valuation at the End of 2026"
+      ],
+      "verification": "SEC Item 2.02 acceptance timestamp gates Finnhub actual/estimate; actual is never active before reveal_at."
+    },
+    {
+      "symbol": "INTC",
+      "period": "2026-06-30",
+      "year": 2026,
+      "quarter": 2,
+      "actual": 0.42,
+      "estimate": 0.2177,
+      "surprise_percent": 92.926,
+      "surprise_direction": "BULLISH",
+      "reveal_at": "2026-07-23T20:09:00+00:00",
+      "filing_date": "2026-07-23",
+      "report_date": "2026-07-23",
+      "sec_accession": "0000050863-26-000155",
+      "sec_primary_document": "intc-20260723.htm",
+      "sec_items": "2.02,9.01",
+      "quarter_end_to_sec_days": 23,
+      "nearby_company_articles": 2,
+      "nearby_earnings_articles": 1,
+      "actual_eps_seen_in_news": false,
+      "sample_titles": [
+        "Stock Market Today, July 23: Tesla Drops 15%, Leading Tech Stock Slide"
+      ],
+      "verification": "SEC Item 2.02 acceptance timestamp gates Finnhub actual/estimate; actual is never active before reveal_at."
+    },
+    {
+      "symbol": "QCOM",
+      "period": "2026-06-30",
+      "year": 2026,
+      "quarter": 3,
+      "actual": 2.21,
+      "estimate": 2.2724,
+      "surprise_percent": -2.746,
+      "surprise_direction": "BEARISH",
+      "reveal_at": "2026-07-29T20:01:35+00:00",
+      "filing_date": "2026-07-29",
+      "report_date": "2026-07-29",
+      "sec_accession": "0000804328-26-000085",
+      "sec_primary_document": "qcom-20260729.htm",
+      "sec_items": "2.02,9.01",
+      "quarter_end_to_sec_days": 29,
+      "nearby_company_articles": 0,
+      "nearby_earnings_articles": 0,
+      "actual_eps_seen_in_news": false,
+      "sample_titles": [],
+      "verification": "SEC Item 2.02 acceptance timestamp gates Finnhub actual/estimate; actual is never active before reveal_at."
+    },
+    {
+      "symbol": "META",
+      "period": "2026-06-30",
+      "year": 2026,
+      "quarter": 2,
+      "actual": 6.18,
+      "estimate": 7.3594,
+      "surprise_percent": -16.0258,
+      "surprise_direction": "BEARISH",
+      "reveal_at": "2026-07-29T20:03:23+00:00",
+      "filing_date": "2026-07-29",
+      "report_date": "2026-07-29",
+      "sec_accession": "0001628280-26-050596",
+      "sec_primary_document": "meta-20260729.htm",
+      "sec_items": "2.02,9.01",
+      "quarter_end_to_sec_days": 29,
+      "nearby_company_articles": 7,
+      "nearby_earnings_articles": 5,
+      "actual_eps_seen_in_news": false,
+      "sample_titles": [
+        "Prediction: Meta Stock Will Pop After Q2 Earnings. 3 Reasons Why",
+        "Oklo vs. Plug Power: Which Utilities Stock Is a Better Buy in 2026?",
+        "Is Microsoft a Buy After Its Latest Earnings Report?",
+        "Nvidia vs. AMD vs. Intel: Which Stock Is the Better Buy for the Server CPU Boom?",
+        "Here's Why Caterpillar Is a Buy Before Earnings"
+      ],
+      "verification": "SEC Item 2.02 acceptance timestamp gates Finnhub actual/estimate; actual is never active before reveal_at."
+    },
+    {
+      "symbol": "MSFT",
+      "period": "2026-06-30",
+      "year": 2026,
+      "quarter": 4,
+      "actual": 4.74,
+      "estimate": 4.3274,
+      "surprise_percent": 9.5346,
+      "surprise_direction": "BULLISH",
+      "reveal_at": "2026-07-29T20:04:53+00:00",
+      "filing_date": "2026-07-29",
+      "report_date": "2026-07-29",
+      "sec_accession": "0001193125-26-323632",
+      "sec_primary_document": "msft-20260729.htm",
+      "sec_items": "2.02,9.01",
+      "quarter_end_to_sec_days": 29,
+      "nearby_company_articles": 7,
+      "nearby_earnings_articles": 1,
+      "actual_eps_seen_in_news": false,
+      "sample_titles": [
+        "Is Microsoft a Buy After Its Latest Earnings Report?"
+      ],
+      "verification": "SEC Item 2.02 acceptance timestamp gates Finnhub actual/estimate; actual is never active before reveal_at."
+    },
+    {
+      "symbol": "AMZN",
+      "period": "2026-06-30",
+      "year": 2026,
+      "quarter": 2,
+      "actual": 1.97,
+      "estimate": 1.8563,
+      "surprise_percent": 6.1251,
+      "surprise_direction": "BULLISH",
+      "reveal_at": "2026-07-30T20:06:23+00:00",
+      "filing_date": "2026-07-30",
+      "report_date": "2026-07-30",
+      "sec_accession": "0001018724-26-000024",
+      "sec_primary_document": "amzn-20260730.htm",
+      "sec_items": "2.02,9.01",
+      "quarter_end_to_sec_days": 30,
+      "nearby_company_articles": 10,
+      "nearby_earnings_articles": 7,
+      "actual_eps_seen_in_news": false,
+      "sample_titles": [
+        "Here's Why Caterpillar Is a Buy Before Earnings",
+        "Prediction: Apple Will Become a $5 Trillion Company on July 30",
+        "Nasdaq Posts Best Day Since June on Microsoft Azure Revenue Surge",
+        "Meet the Super Semiconductor Stock Crushing Nvidia With a 12-Month Return of 129%",
+        "Is Amazon a Buy After Its Latest Earnings Report?"
+      ],
+      "verification": "SEC Item 2.02 acceptance timestamp gates Finnhub actual/estimate; actual is never active before reveal_at."
+    },
+    {
+      "symbol": "AAPL",
+      "period": "2026-06-30",
+      "year": 2026,
+      "quarter": 3,
+      "actual": 1.91,
+      "estimate": 1.9271,
+      "surprise_percent": -0.8873,
+      "surprise_direction": "BEARISH",
+      "reveal_at": "2026-07-30T20:30:28+00:00",
+      "filing_date": "2026-07-30",
+      "report_date": "2026-07-30",
+      "sec_accession": "0000320193-26-000018",
+      "sec_primary_document": "aapl-20260730.htm",
+      "sec_items": "2.02,9.01",
+      "quarter_end_to_sec_days": 30,
+      "nearby_company_articles": 9,
+      "nearby_earnings_articles": 6,
+      "actual_eps_seen_in_news": false,
+      "sample_titles": [
+        "Prediction: Apple Will Become a $5 Trillion Company on July 30",
+        "Nasdaq Posts Best Day Since June on Microsoft Azure Revenue Surge",
+        "Meet the Super Semiconductor Stock Crushing Nvidia With a 12-Month Return of 129%",
+        "Archer Aviation vs. MP Materials: Which Stock Is a Better Buy in 2026?",
+        "Apple iPhone Sales Surge 22%. Here’s What Investors Need to Know."
+      ],
+      "verification": "SEC Item 2.02 acceptance timestamp gates Finnhub actual/estimate; actual is never active before reveal_at."
+    },
+    {
+      "symbol": "AMD",
+      "period": "2026-06-30",
+      "year": 2026,
+      "quarter": 2,
+      "actual": 1.66,
+      "estimate": 1.6313,
+      "surprise_percent": 1.7593,
+      "surprise_direction": "BULLISH",
+      "reveal_at": "2026-08-04T20:16:24+00:00",
+      "filing_date": "2026-08-04",
+      "report_date": "2026-08-04",
+      "sec_accession": "0000002488-26-000121",
+      "sec_primary_document": "amd-20260804.htm",
+      "sec_items": "2.02,7.01,9.01",
+      "quarter_end_to_sec_days": 35,
+      "nearby_company_articles": 2,
+      "nearby_earnings_articles": 1,
+      "actual_eps_seen_in_news": false,
+      "sample_titles": [
+        "AMD's Data Center Business Doubled to $6.7 Billion. The Stock Fell 9% Because of What That Growth Costs."
+      ],
+      "verification": "SEC Item 2.02 acceptance timestamp gates Finnhub actual/estimate; actual is never active before reveal_at."
+    },
+    {
+      "symbol": "SMCI",
+      "period": "2026-06-30",
+      "year": 2026,
+      "quarter": 4,
+      "actual": 1.7,
+      "estimate": 0.9767,
+      "surprise_percent": 74.0555,
+      "surprise_direction": "BULLISH",
+      "reveal_at": "2026-08-11T20:06:16+00:00",
+      "filing_date": "2026-08-11",
+      "report_date": "2026-08-11",
+      "sec_accession": "0001375365-26-000021",
+      "sec_primary_document": "smci-20260811.htm",
+      "sec_items": "2.02,9.01",
+      "quarter_end_to_sec_days": 42,
+      "nearby_company_articles": 0,
+      "nearby_earnings_articles": 0,
+      "actual_eps_seen_in_news": false,
+      "sample_titles": [],
+      "verification": "SEC Item 2.02 acceptance timestamp gates Finnhub actual/estimate; actual is never active before reveal_at."
+    }
+  ],
+  "unmatched": [
+    {
+      "symbol": "NVDA",
+      "period": "2025-12-31",
+      "quarter": 3,
+      "actual": 1.3,
+      "estimate": 1.2746,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "NVDA",
+      "period": "2026-03-31",
+      "quarter": 4,
+      "actual": 1.62,
+      "estimate": 1.5634,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "MSFT",
+      "period": "2025-09-30",
+      "quarter": 1,
+      "actual": 4.13,
+      "estimate": 3.7391,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "MSFT",
+      "period": "2025-12-31",
+      "quarter": 2,
+      "actual": 4.14,
+      "estimate": 4.0345,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "MSFT",
+      "period": "2026-03-31",
+      "quarter": 3,
+      "actual": 4.27,
+      "estimate": 4.1432,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "AAPL",
+      "period": "2025-12-31",
+      "quarter": 1,
+      "actual": 2.84,
+      "estimate": 2.7257,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "AAPL",
+      "period": "2026-03-31",
+      "quarter": 2,
+      "actual": 2.01,
+      "estimate": 1.9884,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "AMZN",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 1.61,
+      "estimate": 1.6679,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "META",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 7.31,
+      "estimate": 6.923,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "AVGO",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 2.05,
+      "estimate": 2.068,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "AVGO",
+      "period": "2026-06-30",
+      "quarter": 2,
+      "actual": 2.44,
+      "estimate": 2.4458,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "GOOGL",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 2.62,
+      "estimate": 2.7051,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "GOOG",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 2.62,
+      "estimate": 2.7051,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "TSLA",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 0.41,
+      "estimate": 0.3773,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "NFLX",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 0.7,
+      "estimate": 0.7791,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "AMD",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 1.37,
+      "estimate": 1.3074,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "MU",
+      "period": "2025-12-31",
+      "quarter": 1,
+      "actual": 4.78,
+      "estimate": 4.072,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "MU",
+      "period": "2026-03-31",
+      "quarter": 2,
+      "actual": 12.2,
+      "estimate": 9.5849,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "MU",
+      "period": "2026-06-30",
+      "quarter": 3,
+      "actual": 25.11,
+      "estimate": 21.4019,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "INTC",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 0.29,
+      "estimate": 0.014,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "QCOM",
+      "period": "2025-12-31",
+      "quarter": 1,
+      "actual": 3.5,
+      "estimate": 3.48,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "QCOM",
+      "period": "2026-03-31",
+      "quarter": 2,
+      "actual": 2.65,
+      "estimate": 2.6128,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "SMCI",
+      "period": "2025-09-30",
+      "quarter": 1,
+      "actual": 0.35,
+      "estimate": 0.4112,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "SMCI",
+      "period": "2025-12-31",
+      "quarter": 2,
+      "actual": 0.69,
+      "estimate": 0.4976,
+      "reason": "no_plausible_sec_item_2_02"
+    },
+    {
+      "symbol": "SMCI",
+      "period": "2026-03-31",
+      "quarter": 3,
+      "actual": 0.84,
+      "estimate": 0.6349,
+      "reason": "no_plausible_sec_item_2_02"
+    }
+  ]
+}

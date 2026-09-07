@@ -1,0 +1,25 @@
+{
+  "module": "FIA Backtest Lab",
+  "phase": 10,
+  "name": "Walk-Forward Validation",
+  "status": "implemented",
+  "current_capability": "Creates chronological rolling train and validation windows without allowing future observations into earlier windows.",
+  "completed": [
+    "Chronological timestamp ordering",
+    "Rolling train/validation windows",
+    "Configurable train size",
+    "Configurable validation size",
+    "Configurable step size",
+    "Validation accuracy",
+    "Validation average return",
+    "Walk-forward summary"
+  ],
+  "not_yet_active": [
+    "Actual FIA model retraining inside each window",
+    "Out-of-sample validation",
+    "Statistical significance testing",
+    "Final dashboard"
+  ],
+  "next": "Phase 11 — Out-of-Sample Validation",
+  "note": "This phase does not modify live FIA weights or forecast logic. Actual conclusions require real historical prediction/outcome records."
+}

@@ -1,0 +1,57 @@
+{
+  "version": "phase33-platt-1",
+  "approved": false,
+  "a": 0.239028,
+  "b": 0.247697,
+  "fit_partition": "development_first_70_percent_only",
+  "holdout_used_for_fit": false,
+  "approval_rule": "must improve both horizons under strict rule",
+  "holdout_metrics": {
+    "4h": {
+      "n": 75,
+      "correct": 28,
+      "incorrect": 47,
+      "accuracy": 37.33,
+      "wilson95": [
+        27.26,
+        48.65
+      ],
+      "binary_probability_n": 69,
+      "brier": 0.2539,
+      "log_loss": 0.701,
+      "ece": 0.1219
+    },
+    "8h": {
+      "n": 62,
+      "correct": 24,
+      "incorrect": 38,
+      "accuracy": 38.71,
+      "wilson95": [
+        27.58,
+        51.15
+      ],
+      "binary_probability_n": 55,
+      "brier": 0.2719,
+      "log_loss": 0.738,
+      "ece": 0.1569
+    }
+  },
+  "base_holdout": {
+    "4h": {
+      "n": 75,
+      "correct": 40,
+      "incorrect": 35,
+      "accuracy": 53.33,
+      "brier": 0.2466,
+      "binary_probability_n": 69
+    },
+    "8h": {
+      "n": 62,
+      "correct": 30,
+      "incorrect": 32,
+      "accuracy": 48.39,
+      "brier": 0.2804,
+      "binary_probability_n": 55
+    }
+  }
+}

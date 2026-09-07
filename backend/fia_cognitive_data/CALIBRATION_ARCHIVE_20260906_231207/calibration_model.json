@@ -1,0 +1,27 @@
+{
+  "available": true,
+  "created_at": "2026-09-03T18:35:12.513368+00:00",
+  "dataset_split": {
+    "development": "2025-09-01T00:00:00Z..2026-04-30T23:59:59Z",
+    "holdout": "2026-05-01T00:00:00Z..2026-08-31T23:59:59Z",
+    "holdout_used_for_fitting": false
+  },
+  "horizons": {
+    "4h": {
+      "available": true,
+      "a": 0.22732908,
+      "b": 0.10794294,
+      "n": 146,
+      "method": "Platt scaling on logit(probability)",
+      "regularization": 0.015
+    },
+    "8h": {
+      "available": true,
+      "a": 0.52734566,
+      "b": 0.29091559,
+      "n": 122,
+      "method": "Platt scaling on logit(probability)",
+      "regularization": 0.015
+    }
+  }
+}

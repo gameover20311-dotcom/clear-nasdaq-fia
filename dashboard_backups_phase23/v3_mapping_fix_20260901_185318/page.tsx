@@ -1,0 +1,262 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+const API = process.env.NEXT_PUBLIC_FIA_API || ("http:" + "//127.0.0.1:8001");
+
+type AnyObj = Record<string, any>;
+
+const num = (v: any): number | null => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+const fmt = (v: any, d = 1) => {
+  const n = num(v);
+  return n === null ? (v ?? "—") : n.toFixed(d);
+};
+const pct = (v: any, d = 1) => {
+  const n = num(v);
+  return n === null ? "—" : `${n.toFixed(d)}%`;
+};
+const titleize = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+const entries = (v: any) => v && typeof v === "object" && !Array.isArray(v) ? Object.entries(v) : [];
+const arr = (v: any) => Array.isArray(v) ? v : [];
+const pick = (o: AnyObj, ...keys: string[]) => {
+  for (const k of keys) if (o?.[k] !== undefined && o?.[k] !== null) return o[k];
+  return undefined;
+};
+
+function Pill({ children, tone = "neutral" }: { children: React.ReactNode; tone?: string }) {
+  return <span className={`pill ${tone}`}>{children}</span>;
+}
+function Panel({ title, eyebrow, children, className = "" }: { title: string; eyebrow?: string; children: React.ReactNode; className?: string }) {
+  return <section className={`panel ${className}`}>
+    <div className="panelHead">
+      <div>{eyebrow ? <div className="eyebrow">{eyebrow}</div> : null}<h2>{title}</h2></div>
+    </div>
+    {children}
+  </section>;
+}
+function Stat({ label, value, sub }: { label: string; value: React.ReactNode; sub?: React.ReactNode }) {
+  return <div className="stat"><div className="statLabel">{label}</div><div className="statValue">{value}</div>{sub ? <div className="statSub">{sub}</div> : null}</div>;
+}
+function Bar({ label, value, max = 100 }: { label: string; value: any; max?: number }) {
+  const n = Math.max(0, Math.min(max, num(value) ?? 0));
+  const width = max ? (n / max) * 100 : 0;
+  return <div className="barRow"><div className="barMeta"><span>{label}</span><strong>{fmt(n, 1)}</strong></div><div className="barTrack"><div className="barFill" style={{ width: `${width}%` }} /></div></div>;
+}
+
+export default function Home() {
+  const [d, setD] = useState<AnyObj | null>(null);
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`${API}/api/dashboard`, { cache: "no-store" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const next = await r.json();
+      setD(next);
+      setErr("");
+    } catch (e: any) {
+      setErr(e?.message || "Dashboard API unavailable");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const live = d?.live || {};
+  const snap = live.snapshot || {};
+  const data = snap.data || snap || {};
+  const fc = live.forecast || {};
+  const liq = live.liquidity || {};
+  const bt = d?.backtest || {};
+  const upcoming = arr(live.upcoming_earnings?.events || live.upcoming_earnings);
+  const signals = arr(fc.signals);
+  const bullish = arr(fc.bullish_evidence);
+  const bearish = arr(fc.bearish_evidence);
+  const mega = data.mega_cap_details || {};
+  const news = arr(data.news_scored_articles || data.news_articles || data.news);
+
+  const direction = String(fc.direction || "—").toUpperCase();
+  const dirTone = direction === "BULLISH" ? "bull" : direction === "BEARISH" ? "bear" : "neutral";
+  const generated = d?.generated_at || fc.generated_at || data.timestamp || "—";
+
+  const btFile = pick(bt, "source_file", "backtest_file", "file") || "—";
+  const acc4 = pick(bt, "accuracy_4h", "four_hour_accuracy", "4h_accuracy");
+  const acc8 = pick(bt, "accuracy_8h", "eight_hour_accuracy", "8h_accuracy");
+  const brier4 = pick(bt, "brier_4h", "four_hour_brier", "4h_brier");
+  const brier8 = pick(bt, "brier_8h", "eight_hour_brier", "8h_brier");
+  const forecasts = pick(bt, "forecasts", "forecast_count", "total_forecasts");
+  const futureEps = pick(bt, "future_eps_used", "future_eps_rows", "lookahead_eps_used");
+  const contracts = pick(bt, "contracts", "contract_counts") || {};
+  const liquidityQuality = pick(bt, "liquidity_resolutions", "liquidity", "liquidity_quality") || {};
+  const newsQuality = pick(bt, "news_evidence", "news", "news_quality") || {};
+  const earningsQuality = pick(bt, "earnings_evidence", "earnings", "earnings_quality") || {};
+  const confidenceRows = arr(pick(bt, "confidence_accuracy", "confidence_bands"));
+  const monthlyRows = arr(pick(bt, "monthly", "monthly_performance"));
+  const earningsVsOther = pick(bt, "earnings_vs_other", "earnings_day_vs_other") || {};
+
+  const coverage = num(fc.data_coverage);
+  const intelCoverage = num(fc.intelligence_coverage);
+
+  const contractTotal = useMemo(() => entries(contracts).reduce((a, [, v]) => a + (num(v) || 0), 0), [contracts]);
+
+  return <main className="appShell">
+    <header className="topbar">
+      <div>
+        <div className="brandLine"><span className="brandDot" /> CLEAR NASDAQ — FIA</div>
+        <div className="brandSub">Autonomous NASDAQ intelligence terminal · 4–8 hour horizon</div>
+      </div>
+      <div className="topActions">
+        <div className="statusBox"><span className={`statusDot ${err ? "bad" : "good"}`} />{err ? `Backend ${err}` : "Backend connected"}</div>
+        <button className="refreshBtn" onClick={load} disabled={loading}>{loading ? "Refreshing…" : "Refresh data"}</button>
+      </div>
+    </header>
+
+    <section className="heroGrid">
+      <div className={`heroCard ${dirTone}`}>
+        <div className="eyebrow">CURRENT FIA FORECAST</div>
+        <div className="heroDirection">{direction}</div>
+        <div className="probRow">
+          <div><span>BULLISH</span><strong>{pct(fc.bullish_probability)}</strong></div>
+          <div><span>BEARISH</span><strong>{pct(fc.bearish_probability)}</strong></div>
+        </div>
+        <div className="heroFoot">NQ / NASDAQ-100 · Next {fc.horizon_hours || "4–8"} hours</div>
+      </div>
+      <div className="heroMetrics">
+        <Stat label="Confidence" value={pct(fc.confidence)} sub={fc.status || "—"} />
+        <Stat label="Regime" value={String(fc.regime || "—")} sub={`Score ${fmt(fc.score, 3)}`} />
+        <Stat label="Data coverage" value={coverage === null ? "—" : pct(coverage)} sub="Live evidence availability" />
+        <Stat label="Intelligence coverage" value={intelCoverage === null ? "—" : pct(intelCoverage)} sub="Active FIA signals" />
+      </div>
+    </section>
+
+    <section className="grid2">
+      <Panel title="Bullish Evidence" eyebrow="WHY FIA CAN GO HIGHER">
+        <div className="evidenceList">{bullish.length ? bullish.map((x, i) => <div className="evidence bullBorder" key={i}>{typeof x === "string" ? x : x?.name || x?.detail || JSON.stringify(x)}</div>) : <div className="empty">No bullish evidence returned.</div>}</div>
+      </Panel>
+      <Panel title="Bearish Evidence" eyebrow="WHY FIA CAN GO LOWER">
+        <div className="evidenceList">{bearish.length ? bearish.map((x, i) => <div className="evidence bearBorder" key={i}>{typeof x === "string" ? x : x?.name || x?.detail || JSON.stringify(x)}</div>) : <div className="empty">No bearish evidence returned.</div>}</div>
+      </Panel>
+    </section>
+
+    <Panel title="Signal Breakdown" eyebrow="FIA DECISION ENGINE">
+      <div className="signalGrid">
+        {signals.length ? signals.map((s: AnyObj, i) => {
+          const score = num(s?.score) ?? 0;
+          return <div className="signalCard" key={i}>
+            <div className="signalTop"><strong>{s?.name || `Signal ${i + 1}`}</strong><Pill tone={score > 0 ? "bull" : score < 0 ? "bear" : "neutral"}>{score > 0 ? "+" : ""}{fmt(score, 3)}</Pill></div>
+            <div className="signalMeta"><span>Weight {fmt(s?.weight, 2)}</span><span>{s?.detail || s?.status || ""}</span></div>
+          </div>;
+        }) : <div className="empty">No signal data.</div>}
+      </div>
+    </Panel>
+
+    <section className="grid3">
+      <Panel title="Market Structure" eyebrow="INDEX / PRICE ACTION">
+        <div className="miniStats">
+          <Stat label="QQQ" value={data.price ? fmt(data.price, 2) : "—"} sub={`${pct(data.change_percent)} change`} />
+          <Stat label="SPY" value={data.spx_price ? fmt(data.spx_price, 2) : "—"} sub={`${pct(data.spx_change_percent)} change`} />
+          <Stat label="NQ Structure" value={fmt(data.nq_structure, 2)} />
+          <Stat label="SPX Confirm" value={fmt(data.spx_confirmation, 2)} />
+        </div>
+      </Panel>
+      <Panel title="Semis & Breadth" eyebrow="INTERNAL CONFIRMATION">
+        <div className="miniStats">
+          <Stat label="Semiconductors" value={fmt(data.semis, 2)} />
+          <Stat label="Breadth" value={fmt(data.breadth, 2)} />
+          <Stat label="Mega-cap" value={fmt(data.mega_cap, 2)} />
+          <Stat
+            label="Price action"
+            value={
+              data.price_action && typeof data.price_action === "object"
+                ? `${data.price_action.status ?? data.price_action.type ?? "AVAILABLE"} · ${Array.isArray(data.price_action.events) ? data.price_action.events.length : 0} events`
+                : fmt(data.price_action, 2)
+            }
+          />
+        </div>
+      </Panel>
+      <Panel title="Macro & Rates" eyebrow="EXTERNAL PRESSURE">
+        <div className="miniStats">
+          <Stat label="US10Y" value={fmt(data.us10y_value, 3)} sub={`Signal ${fmt(data.us10y, 2)}`} />
+          <Stat label="Fed Funds" value={data.fed_funds_rate !== undefined ? `${fmt(data.fed_funds_rate, 2)}%` : "—"} />
+          <Stat label="DXY / Rate Proxy" value={fmt(data.dxy, 2)} sub="Not a direct DXY feed" />
+          <Stat label="Macro" value={fmt(data.macro, 2)} sub={data.macro_status || "—"} />
+        </div>
+      </Panel>
+    </section>
+
+    <Panel title="Mega-cap Leadership" eyebrow="INDEX WEIGHTED LEADERS">
+      <div className="tickerGrid">
+        {entries(mega).length ? entries(mega).map(([sym, raw]: any) => {
+          const v: AnyObj = raw || {};
+          const ch = num(v.change_percent);
+          return <div className="ticker" key={sym}><div className="tickerTop"><strong>{sym}</strong><Pill tone={(ch || 0) > 0 ? "bull" : (ch || 0) < 0 ? "bear" : "neutral"}>{ch === null ? "—" : pct(ch)}</Pill></div><div className="tickerBottom"><span>{titleize(String(v.signal || "neutral"))}</span><span>wt {fmt(v.weight, 2)}</span></div></div>;
+        }) : <div className="empty">Mega-cap detail unavailable.</div>}
+      </div>
+    </Panel>
+
+    <section className="grid2">
+      <Panel title="Liquidity Map" eyebrow="SWEEPS / RECLAIMS / KEY LEVELS">
+        <div className="kvList">
+          {entries(liq).length ? entries(liq).slice(0, 14).map(([k, v]) => <div className="kv" key={k}><span>{titleize(k)}</span><strong>{typeof v === "object" ? (Array.isArray(v) ? `${v.length} items` : `${Object.keys(v || {}).length} fields`) : fmt(v, 2)}</strong></div>) : <div className="empty">Liquidity data unavailable.</div>}
+        </div>
+      </Panel>
+      <Panel title="Risk & Invalidation" eyebrow="WHAT BREAKS THE THESIS">
+        <div className="riskBox">{fc.invalidation || "No invalidation text returned."}</div>
+        <div className="thesisBox"><div className="eyebrow">THESIS</div>{fc.thesis || "No thesis text returned."}</div>
+      </Panel>
+    </section>
+
+    <section className="grid2">
+      <Panel title="News Intelligence" eyebrow="CURRENT CATALYSTS">
+        <div className="newsList">{news.length ? news.slice(0, 8).map((n: AnyObj, i) => <div className="newsItem" key={i}><div className="newsTitle">{n?.headline || n?.title || String(n)}</div><div className="newsMeta">{n?.source || n?.publisher || "News"}{n?.sentiment !== undefined ? ` · sentiment ${fmt(n.sentiment, 2)}` : ""}</div></div>) : <div className="empty">No news articles returned.</div>}</div>
+      </Panel>
+      <Panel title="Upcoming Earnings" eyebrow="NEXT 7 DAYS · TRACKED NAMES">
+        <div className="eventList">{upcoming.length ? upcoming.map((e: AnyObj, i) => <div className="event" key={i}><div><strong>{e.symbol || "—"}</strong><span>{e.date || e.datetime || e.time || "—"}</span></div><div><span>EPS est.</span><strong>{e.eps_estimate ?? e.estimate ?? "—"}</strong></div></div>) : <div className="empty">No tracked earnings returned for the next window.</div>}</div>
+      </Panel>
+    </section>
+
+    <div className="sectionDivider"><span>PHASE 21 · VALIDATION</span><strong>Historical performance</strong></div>
+
+    <section className="backtestHero">
+      <Stat label="1Y forecasts" value={forecasts ?? "—"} sub="Chronological checkpoints" />
+      <Stat label="4H accuracy" value={pct(acc4, 2)} sub="Resolved outcomes" />
+      <Stat label="8H accuracy" value={pct(acc8, 2)} sub="Resolved outcomes" />
+      <Stat label="4H Brier" value={fmt(typeof brier4 === "object" ? brier4?.brier : brier4, 4)} sub="Probability calibration" />
+      <Stat label="8H Brier" value={fmt(typeof brier8 === "object" ? brier8?.brier : brier8, 4)} sub="Probability calibration" />
+      <Stat label="Future EPS used" value={futureEps ?? "0"} sub="No-lookahead control" />
+    </section>
+
+    <section className="grid2">
+      <Panel title="Backtest Data Quality" eyebrow="AUDIT TRAIL">
+        <div className="qualityBlock">
+          <div className="qualityFile"><span>Backtest file</span><code>{String(btFile).split("/").slice(-3).join("/")}</code></div>
+          <div className="qualityGroup"><h3>Liquidity</h3>{entries(liquidityQuality).length ? entries(liquidityQuality).map(([k,v]) => <div className="qualityRow" key={k}><span>{titleize(k)}</span><strong>{String(v)}</strong></div>) : <div className="empty">No liquidity audit data.</div>}</div>
+          <div className="qualityGroup"><h3>Futures contracts</h3><div className="contractGrid">{entries(contracts).map(([k,v]) => <div className="contract" key={k}><strong>{k}</strong><span>{String(v)} days</span><div className="microTrack"><div className="microFill" style={{width:`${contractTotal ? ((num(v)||0)/contractTotal)*100 : 0}%`}} /></div></div>)}</div></div>
+          <div className="qualitySplit">
+            <div className="qualityGroup"><h3>News evidence</h3>{entries(newsQuality).map(([k,v]) => <div className="qualityRow" key={k}><span>{titleize(k)}</span><strong>{String(v)}</strong></div>)}</div>
+            <div className="qualityGroup"><h3>Earnings evidence</h3>{entries(earningsQuality).map(([k,v]) => <div className="qualityRow" key={k}><span>{titleize(k)}</span><strong>{String(v)}</strong></div>)}</div>
+          </div>
+        </div>
+      </Panel>
+
+      <Panel title="Confidence Accuracy" eyebrow="DOES HIGHER CONFIDENCE HELP?">
+        <div className="barStack">{confidenceRows.length ? confidenceRows.map((r: AnyObj, i) => <Bar key={i} label={r.label || r.band || r.confidence || `Band ${i+1}`} value={r.accuracy_4h ?? r.accuracy ?? 0} />) : <div className="empty">Confidence-band data unavailable.</div>}</div>
+        <div className="qualityGroup spaced"><h3>Earnings-day vs other-day</h3>{entries(earningsVsOther).length ? entries(earningsVsOther).map(([k,v]) => <div className="qualityRow" key={k}><span>{titleize(k)}</span><strong>{typeof v === "object" ? Object.entries(v as AnyObj).map(([a,b])=>`${titleize(a)} ${typeof b === 'number' ? fmt(b,2) : b}`).join(" · ") : String(v)}</strong></div>) : <div className="empty">Comparison data unavailable.</div>}</div>
+      </Panel>
+    </section>
+
+    <Panel title="Monthly Performance" eyebrow="ROLLING ROBUSTNESS">
+      <div className="tableWrap"><table><thead><tr><th>Month</th><th>Forecasts</th><th>4H Accuracy</th><th>8H Accuracy</th></tr></thead><tbody>
+        {monthlyRows.length ? monthlyRows.map((r: AnyObj, i) => <tr key={i}><td>{r.month || r.period || "—"}</td><td>{r.forecasts ?? r.count ?? "—"}</td><td>{pct(r.accuracy_4h ?? r.four_hour_accuracy, 2)}</td><td>{pct(r.accuracy_8h ?? r.eight_hour_accuracy, 2)}</td></tr>) : <tr><td colSpan={4} className="emptyCell">Monthly performance data unavailable.</td></tr>}
+      </tbody></table></div>
+    </Panel>
+
+    <footer className="footer"><span>Generated: {String(generated)}</span><span>Manual refresh · stable UI · no auto-flicker</span></footer>
+  </main>;
+}

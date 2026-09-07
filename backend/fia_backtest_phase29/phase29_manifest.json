@@ -1,0 +1,23 @@
+{
+  "phase": 29,
+  "marker": "PHASE29_AUTHENTICITY_FOUNDATION_V1",
+  "created_at": "2026-09-02T14:31:04.765692+00:00",
+  "changed_files": {
+    "fia_backtest_phase28/truth_metrics.py": "4b470190fa53acd6c87e5671da3c081574e219968c61da789ea2f71656191f09",
+    "fia_backtest_phase28/phase28_data.py": "f9542f846faf2a8da370e20b36ec7967576063caffc15f4ade9ed1532eecaaf3",
+    "fia_backtest_phase28/historical_chart.py": "5d92f15ca8a6635b9b1b75148bdc5d8ddb597c0e4699c77529f3071f1c9d9070",
+    "fia_backtest_phase28/phase28_market_grade_replay.py": "52a7dd959ae2963c177d0de8b01d019a876f876dd16dc882274d7f889105caa9",
+    "fia_backtest_phase29/phase29_revalidate_predictions.py": "ba35de05ec5f7b68548913e34130b88cbcab260599a88a7903dffb6ddf4b6000",
+    "fia_backtest_phase29/phase29_truth_test.py": "243680c66327a21ea7674bd5cdd958435a2153b0e753156c425555ef7ff976d3",
+    "fia/dashboard_api.py": "c6a21d08d48ccdefe60cb09d561677d72c04c05ed2f17ea235256e44ac41d815"
+  },
+  "forecast_weights_changed": false,
+  "frozen_predictions_changed": false,
+  "outcome_provider": "Massive Futures",
+  "outcome_contract_policy": "entry-time contract frozen",
+  "chart_detection_uses_forecast_direction": false,
+  "legacy_phase28_100_percent_claim": "REJECTED",
+  "official_market_grade_claim_eligible": false,
+  "broker_execution_added": false,
+  "research_only": true
+}

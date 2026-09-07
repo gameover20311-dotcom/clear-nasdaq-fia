@@ -1,0 +1,10 @@
+{
+  "completed": 0,
+  "final": false,
+  "new_brain_runs": 0,
+  "reason": "fresh audited rerun required",
+  "reused_brain_records": 0,
+  "state": "INVALIDATED_REQUIRES_FULL_RERUN_AFTER_DEEP_TRUTH_AUDIT",
+  "total": 258,
+  "updated_at_utc": "2026-09-04T01:43:19.056140+00:00"
+}

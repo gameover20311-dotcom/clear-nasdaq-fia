@@ -1,0 +1,315 @@
+{
+  "method": "STRICT: company identity + earnings-release language + Finnhub actual EPS numeric confirmation in Polygon article. No event is used before reveal_at.",
+  "events": [
+    {
+      "symbol": "INTC",
+      "year": 2026,
+      "quarter": 2,
+      "period": "2026-06-30",
+      "actual": 0.42,
+      "estimate": 0.2177,
+      "surprise_percent": 92.926,
+      "surprise_direction": "BULLISH",
+      "release_date": "2026-07-24",
+      "reveal_at": "2026-07-24T18:03:35+00:00",
+      "strict_match_score": 5,
+      "estimate_number_confirmed": false,
+      "guidance_direction": "NEUTRAL",
+      "guidance_bull_matches": 0,
+      "guidance_bear_matches": 0,
+      "nearby_company_articles_36h": 2,
+      "release_title": "Why Did Intel Stock Drop Friday?",
+      "release_source": "The Motley Fool"
+    }
+  ],
+  "unmatched": [
+    {
+      "symbol": "NVDA",
+      "period": "2026-03-31",
+      "quarter": 4,
+      "actual": 1.62,
+      "estimate": 1.5634,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "NVDA",
+      "period": "2025-12-31",
+      "quarter": 3,
+      "actual": 1.3,
+      "estimate": 1.2746,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "MSFT",
+      "period": "2026-06-30",
+      "quarter": 4,
+      "actual": 4.74,
+      "estimate": 4.3274,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "MSFT",
+      "period": "2026-03-31",
+      "quarter": 3,
+      "actual": 4.27,
+      "estimate": 4.1432,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "MSFT",
+      "period": "2025-12-31",
+      "quarter": 2,
+      "actual": 4.14,
+      "estimate": 4.0345,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "MSFT",
+      "period": "2025-09-30",
+      "quarter": 1,
+      "actual": 4.13,
+      "estimate": 3.7391,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "AAPL",
+      "period": "2026-06-30",
+      "quarter": 3,
+      "actual": 1.91,
+      "estimate": 1.9271,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "AAPL",
+      "period": "2026-03-31",
+      "quarter": 2,
+      "actual": 2.01,
+      "estimate": 1.9884,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "AAPL",
+      "period": "2025-12-31",
+      "quarter": 1,
+      "actual": 2.84,
+      "estimate": 2.7257,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "AMZN",
+      "period": "2026-06-30",
+      "quarter": 2,
+      "actual": 1.97,
+      "estimate": 1.8563,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "AMZN",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 1.61,
+      "estimate": 1.6679,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "META",
+      "period": "2026-06-30",
+      "quarter": 2,
+      "actual": 6.18,
+      "estimate": 7.3594,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "META",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 7.31,
+      "estimate": 6.923,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "AVGO",
+      "period": "2026-06-30",
+      "quarter": 2,
+      "actual": 2.44,
+      "estimate": 2.4458,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "AVGO",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 2.05,
+      "estimate": 2.068,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "GOOGL",
+      "period": "2026-06-30",
+      "quarter": 2,
+      "actual": 2.85,
+      "estimate": 2.9798,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "GOOGL",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 2.62,
+      "estimate": 2.7051,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "GOOG",
+      "period": "2026-06-30",
+      "quarter": 2,
+      "actual": 2.85,
+      "estimate": 2.9798,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "GOOG",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 2.62,
+      "estimate": 2.7051,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "TSLA",
+      "period": "2026-06-30",
+      "quarter": 2,
+      "actual": 0.33,
+      "estimate": 0.5191,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "TSLA",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 0.41,
+      "estimate": 0.3773,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "NFLX",
+      "period": "2026-06-30",
+      "quarter": 2,
+      "actual": 0.8,
+      "estimate": 0.8042,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "NFLX",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 0.7,
+      "estimate": 0.7791,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "AMD",
+      "period": "2026-06-30",
+      "quarter": 2,
+      "actual": 1.66,
+      "estimate": 1.6313,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "AMD",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 1.37,
+      "estimate": 1.3074,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "MU",
+      "period": "2026-06-30",
+      "quarter": 3,
+      "actual": 25.11,
+      "estimate": 21.4019,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "MU",
+      "period": "2026-03-31",
+      "quarter": 2,
+      "actual": 12.2,
+      "estimate": 9.5849,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "MU",
+      "period": "2025-12-31",
+      "quarter": 1,
+      "actual": 4.78,
+      "estimate": 4.072,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "INTC",
+      "period": "2026-03-31",
+      "quarter": 1,
+      "actual": 0.29,
+      "estimate": 0.014,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "QCOM",
+      "period": "2026-06-30",
+      "quarter": 3,
+      "actual": 2.21,
+      "estimate": 2.2724,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "QCOM",
+      "period": "2026-03-31",
+      "quarter": 2,
+      "actual": 2.65,
+      "estimate": 2.6128,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "QCOM",
+      "period": "2025-12-31",
+      "quarter": 1,
+      "actual": 3.5,
+      "estimate": 3.48,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "SMCI",
+      "period": "2026-06-30",
+      "quarter": 4,
+      "actual": 1.7,
+      "estimate": 0.9767,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "SMCI",
+      "period": "2026-03-31",
+      "quarter": 3,
+      "actual": 0.84,
+      "estimate": 0.6349,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "SMCI",
+      "period": "2025-12-31",
+      "quarter": 2,
+      "actual": 0.69,
+      "estimate": 0.4976,
+      "reason": "no_strict_release_match"
+    },
+    {
+      "symbol": "SMCI",
+      "period": "2025-09-30",
+      "quarter": 1,
+      "actual": 0.35,
+      "estimate": 0.4112,
+      "reason": "no_strict_release_match"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{"decision_strength_0_100":55.2,"direction":"BULLISH","ensemble_agreement":1.0,"fragility":0.053,"persistence_ratio":1.0,"session":"NY_MIDDAY","state":"PREMOVE_THESIS","timestamp":"2026-09-02T17:56:01.262110+00:00"}
+{"decision_strength_0_100":53.5,"direction":"BULLISH","ensemble_agreement":1.0,"fragility":0.053,"persistence_ratio":1.0,"session":"NY_PM_POWER","state":"PREMOVE_THESIS","timestamp":"2026-09-02T18:02:26.280254+00:00"}
+{"decision_strength_0_100":56.9,"direction":"BULLISH","ensemble_agreement":1.0,"fragility":0.053,"persistence_ratio":1.0,"session":"NY_PM_POWER","state":"PREMOVE_THESIS","timestamp":"2026-09-02T18:07:34.963903+00:00"}
+{"decision_strength_0_100":53.0,"direction":"BULLISH","ensemble_agreement":0.857,"fragility":0.053,"persistence_ratio":1.0,"session":"NY_PM_POWER","state":"PREMOVE_THESIS","timestamp":"2026-09-02T18:12:44.994763+00:00"}
+{"decision_strength_0_100":54.7,"direction":"BULLISH","ensemble_agreement":0.857,"fragility":0.053,"persistence_ratio":1.0,"session":"NY_PM_POWER","state":"PREMOVE_THESIS","timestamp":"2026-09-02T18:17:52.763751+00:00"}
+{"decision_strength_0_100":56.8,"direction":"BULLISH","ensemble_agreement":0.857,"fragility":0.053,"persistence_ratio":1.0,"session":"NY_PM_POWER","state":"PREMOVE_THESIS","timestamp":"2026-09-02T18:23:02.884461+00:00"}
+{"decision_strength_0_100":71.2,"direction":"BULLISH","ensemble_agreement":0.875,"fragility":0.053,"persistence_ratio":1.0,"session":"NY_PM_POWER","state":"PREMOVE_THESIS","timestamp":"2026-09-02T18:28:31.417288+00:00"}
+{"decision_strength_0_100":57.2,"direction":"BULLISH","ensemble_agreement":0.875,"fragility":0.053,"persistence_ratio":1.0,"session":"NY_PM_POWER","state":"PREMOVE_THESIS","timestamp":"2026-09-02T18:33:38.969754+00:00"}
+{"decision_strength_0_100":69.8,"direction":"BULLISH","ensemble_agreement":1.0,"fragility":0.053,"persistence_ratio":1.0,"session":"NY_PM_POWER","state":"PREMOVE_THESIS","timestamp":"2026-09-02T18:38:46.867454+00:00"}

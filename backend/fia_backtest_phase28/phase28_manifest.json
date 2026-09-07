@@ -1,0 +1,18 @@
+{
+  "phase": 28,
+  "marker": "PHASE28_MARKET_GRADE_REPLAY_V1",
+  "created_at": "2026-09-02T16:50:36.306444",
+  "frozen_files": {
+    "fia/engine.py": "3d2f67a4df9d0aea6603afbe68f0364eb1630027358ec735f29d5c0d4a1bd70b",
+    "fia/accuracy_engine.py": "f0ead6ebd9ac7d0ea7c426bdd6f7a587d7db8025438de9cf5c8226459c85b03b",
+    "fia/confluence_engine.py": "da676df495f23e81593b375690e4868506f7dd76fd60ce77aab5c4185ec761e8",
+    "fia/learning_engine.py": "0799d2896351eb2b505a6a8f98a67667363ea4961fc67c29116bc17e28348d90",
+    "main.py": "a9b176341d4dfeadc79ef0629d26af167812f3fe545a0cb3cf605e3b4bf7061e"
+  },
+  "forecast_weights_changed": false,
+  "phase24_logic_changed": false,
+  "phase25_logic_changed": false,
+  "phase26_logic_changed": false,
+  "broker_execution_added": false,
+  "research_only": true
+}

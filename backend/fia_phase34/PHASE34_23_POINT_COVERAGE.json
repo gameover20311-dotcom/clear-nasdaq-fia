@@ -1,0 +1,192 @@
+{
+  "phase": 34,
+  "points": [
+    {
+      "id": 1,
+      "name": "LLM News/Sentiment Brain",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase33_llm.py + phase34_news_primary.py",
+      "note": "Primary-source verification, dedupe, novelty; LLM review remains evidence-only"
+    },
+    {
+      "id": 2,
+      "name": "RL PPO/SAC Research Agent",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_rl_lab.py",
+      "note": "PPO/SAC adapters; offline research only; production weight 0 until OOS approval"
+    },
+    {
+      "id": 3,
+      "name": "L2/L3 Order Flow",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_orderflow.py",
+      "note": "Depth imbalance, microprice, L3 cancel/spoof diagnostics; requires real feed"
+    },
+    {
+      "id": 4,
+      "name": "HMM/Wavelet Regime",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase33_regime.py + phase34_regime.py",
+      "note": "HMM optional + Haar wavelet + change-point"
+    },
+    {
+      "id": 5,
+      "name": "Smart Order Routing",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_risk_execution.py",
+      "note": "Simulation/ranking only; no broker execution"
+    },
+    {
+      "id": 6,
+      "name": "Kelly + Monte Carlo",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_risk_execution.py",
+      "note": "Fractional Kelly and MC research diagnostics only"
+    },
+    {
+      "id": 7,
+      "name": "3D Volatility / Heatmap UI",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "frontend/app/phase34/page.tsx",
+      "note": "Raw WebGL surface shell, live stream connected"
+    },
+    {
+      "id": 8,
+      "name": "Tick-by-Tick Replay",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "frontend/app/phase34/replay/page.tsx",
+      "note": "Replay UI; requires timestamped tick/L2 dataset"
+    },
+    {
+      "id": 9,
+      "name": "AI Voice/Chat Copilot",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "frontend/app/phase34/page.tsx + phase34_api.py",
+      "note": "Web Speech input + structured copilot endpoint"
+    },
+    {
+      "id": 10,
+      "name": "Rust/C++ High-Speed Core",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "fia_phase33/rust_core + fia_phase34/cpp_core",
+      "note": "Native source supplied with Python fallback; compilation optional"
+    },
+    {
+      "id": 11,
+      "name": "WebSocket Streaming",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_api.py",
+      "note": "1-second research stream endpoint"
+    },
+    {
+      "id": 12,
+      "name": "Black Swan / Flash Crash Shield",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_shields.py",
+      "note": "Fail-closed alert freeze; no automatic close/hedge"
+    },
+    {
+      "id": 13,
+      "name": "Prop-Firm Guardrail",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_shields.py",
+      "note": "Rule breach blocks alert escalation; no orders"
+    },
+    {
+      "id": 14,
+      "name": "VIX/VXN Brain",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_public_data.py + phase34_rates_vol.py",
+      "note": "Live/public adapter with opt-in; historical PTI required for replay"
+    },
+    {
+      "id": 15,
+      "name": "US2Y+US10Y+Real Yield",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_public_data.py + phase34_rates_vol.py",
+      "note": "FRED adapter + curve context; historical PTI required"
+    },
+    {
+      "id": 16,
+      "name": "SOX/SMH Semiconductor Breadth",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_public_data.py + phase34_leadership.py",
+      "note": "Live adapter + component breadth when available"
+    },
+    {
+      "id": 17,
+      "name": "Mega-Cap Index Impact",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_leadership.py",
+      "note": "Versioned weights required; no stale hard-coded weights"
+    },
+    {
+      "id": 18,
+      "name": "NQ/ES/SPX/QQQ Lead-Lag",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_causal.py + phase33_crossasset.py",
+      "note": "Lagged correlation research; not causal proof"
+    },
+    {
+      "id": 19,
+      "name": "Options Skew + Gamma Regime",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_options.py",
+      "note": "Chain-derived skew/GEX regime when timestamped chain exists"
+    },
+    {
+      "id": 20,
+      "name": "Event Surprise Brain",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_event_surprise.py",
+      "note": "Actual vs consensus standardized surprise with event semantics"
+    },
+    {
+      "id": 21,
+      "name": "Historical Nearest-State Analogs",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_analogs.py",
+      "note": "Multidimensional PTI nearest-state retrieval"
+    },
+    {
+      "id": 22,
+      "name": "Multi-Model Pre-Move Ensemble",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_engine.py",
+      "note": "Availability-aware ensemble; missing inputs never vote neutral"
+    },
+    {
+      "id": 23,
+      "name": "OOS Calibration + NO_EDGE",
+      "code_status": "IMPLEMENTED",
+      "runtime_status": "ACTIVE_OR_WAITING_FOR_REAL_SOURCE",
+      "implementation": "phase34_calibration.py + phase34_engine.py",
+      "note": "Probability blocked until approved untouched OOS calibration; NO_EDGE allowed"
+    }
+  ],
+  "all_points_code_complete": true,
+  "broker_execution": false,
+  "truth_rule": "Data-dependent points can be code-complete while runtime data remains WAITING_FOR_REAL_SOURCE; missing data is never fabricated."
+}

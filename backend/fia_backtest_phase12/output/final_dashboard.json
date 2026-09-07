@@ -1,0 +1,81 @@
+{
+  "module": "FIA Backtest Lab",
+  "dashboard": "Final Dashboard",
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Historical Data Foundation",
+      "directory": "fia_backtest_module",
+      "status": null
+    },
+    {
+      "phase": 2,
+      "name": "Historical FIA Replay",
+      "directory": "fia_backtest_phase02_tmp",
+      "status": null
+    },
+    {
+      "phase": 3,
+      "name": "Future Outcome Engine",
+      "directory": "fia_backtest_phase03",
+      "status": null
+    },
+    {
+      "phase": 4,
+      "name": "Accuracy + Metrics",
+      "directory": "fia_backtest_phase04",
+      "status": "complete"
+    },
+    {
+      "phase": 5,
+      "name": "Probability Calibration",
+      "directory": "fia_backtest_phase05",
+      "status": "complete"
+    },
+    {
+      "phase": 6,
+      "name": "Regime Analysis",
+      "directory": "fia_backtest_phase06",
+      "status": "implemented"
+    },
+    {
+      "phase": 7,
+      "name": "Session Analysis",
+      "directory": "fia_backtest_phase07",
+      "status": "implemented"
+    },
+    {
+      "phase": 8,
+      "name": "Signal Attribution",
+      "directory": "fia_backtest_phase08",
+      "status": "implemented"
+    },
+    {
+      "phase": 9,
+      "name": "Ablation Testing",
+      "directory": "fia_backtest_phase09",
+      "status": "implemented"
+    },
+    {
+      "phase": 10,
+      "name": "Walk-Forward Validation",
+      "directory": "fia_backtest_phase10",
+      "status": "implemented"
+    },
+    {
+      "phase": 11,
+      "name": "Out-of-Sample Validation",
+      "directory": "fia_backtest_phase11",
+      "status": "implemented"
+    },
+    {
+      "phase": 12,
+      "name": "Final Dashboard",
+      "directory": "fia_backtest_phase12",
+      "status": "implemented"
+    }
+  ],
+  "historical_data_available": false,
+  "real_performance_available": false,
+  "warning": "No historical prediction/outcome dataset was found. Performance values must not be fabricated."
+}

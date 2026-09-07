@@ -1,0 +1,1094 @@
+{
+  "phase": "PHASE 30 - COGNITIVE EVIDENCE INTELLIGENCE",
+  "status": "COMPLETED_RESEARCH_VALIDATION",
+  "source": "/Users/arslanaziz442/ClearNasdaq/clear_nasdaq_fia-2/backend/fia_backtest_phase29/results/phase29_outcome_revalidated_1y.csv",
+  "rows": 258,
+  "development_rows": 171,
+  "holdout_rows": 87,
+  "calibration_models": {
+    "available": true,
+    "created_at": "2026-09-03T18:35:12.513368+00:00",
+    "dataset_split": {
+      "development": "2025-09-01T00:00:00Z..2026-04-30T23:59:59Z",
+      "holdout": "2026-05-01T00:00:00Z..2026-08-31T23:59:59Z",
+      "holdout_used_for_fitting": false
+    },
+    "horizons": {
+      "4h": {
+        "available": true,
+        "a": 0.22732908,
+        "b": 0.10794294,
+        "n": 146,
+        "method": "Platt scaling on logit(probability)",
+        "regularization": 0.015
+      },
+      "8h": {
+        "available": true,
+        "a": 0.52734566,
+        "b": 0.29091559,
+        "n": 122,
+        "method": "Platt scaling on logit(probability)",
+        "regularization": 0.015
+      }
+    }
+  },
+  "development": {
+    "cognitive_4h": {
+      "n": 146,
+      "correct": 79,
+      "accuracy": 54.11,
+      "wilson_95": {
+        "low": 46.02,
+        "high": 61.98
+      },
+      "brier": 0.2504,
+      "log_loss": 0.694
+    },
+    "cognitive_8h": {
+      "n": 122,
+      "correct": 74,
+      "accuracy": 60.66,
+      "wilson_95": {
+        "low": 51.79,
+        "high": 68.87
+      },
+      "brier": 0.2416,
+      "log_loss": 0.6763
+    },
+    "base_4h": {
+      "n": 146,
+      "correct": 69,
+      "accuracy": 47.26,
+      "wilson_95": {
+        "low": 39.34,
+        "high": 55.32
+      },
+      "brier": 0.2766,
+      "log_loss": 0.7526
+    },
+    "base_8h": {
+      "n": 122,
+      "correct": 60,
+      "accuracy": 49.18,
+      "wilson_95": {
+        "low": 40.47,
+        "high": 57.94
+      },
+      "brier": 0.263,
+      "log_loss": 0.7227
+    },
+    "naive_4h": {
+      "n": 146,
+      "correct": 78,
+      "accuracy": 53.42,
+      "wilson_95": {
+        "low": 45.35,
+        "high": 61.32
+      },
+      "brier": 0.25,
+      "log_loss": 0.6931
+    },
+    "naive_8h": {
+      "n": 122,
+      "correct": 72,
+      "accuracy": 59.02,
+      "wilson_95": {
+        "low": 50.14,
+        "high": 67.34
+      },
+      "brier": 0.25,
+      "log_loss": 0.6931
+    },
+    "momentum_4h": {
+      "n": 146,
+      "correct": 67,
+      "accuracy": 45.89,
+      "wilson_95": {
+        "low": 38.02,
+        "high": 53.98
+      },
+      "brier": 0.2566,
+      "log_loss": 0.7064
+    },
+    "momentum_8h": {
+      "n": 122,
+      "correct": 63,
+      "accuracy": 51.64,
+      "wilson_95": {
+        "low": 42.86,
+        "high": 60.32
+      },
+      "brier": 0.2509,
+      "log_loss": 0.6949
+    },
+    "calibration_4h": {
+      "n": 146,
+      "ece": 0.0056,
+      "bands": [
+        {
+          "range": "0.375-0.500",
+          "n": 21,
+          "mean_probability": 48.69,
+          "bullish_frequency": 47.62,
+          "gap": 1.07
+        },
+        {
+          "range": "0.500-0.625",
+          "n": 125,
+          "mean_probability": 53.93,
+          "bullish_frequency": 54.4,
+          "gap": 0.47
+        }
+      ]
+    },
+    "calibration_8h": {
+      "n": 122,
+      "ece": 0.0455,
+      "bands": [
+        {
+          "range": "0.375-0.500",
+          "n": 14,
+          "mean_probability": 47.41,
+          "bullish_frequency": 42.86,
+          "gap": 4.55
+        },
+        {
+          "range": "0.500-0.625",
+          "n": 78,
+          "mean_probability": 57.59,
+          "bullish_frequency": 61.54,
+          "gap": 3.95
+        },
+        {
+          "range": "0.625-0.750",
+          "n": 30,
+          "mean_probability": 66.11,
+          "bullish_frequency": 60.0,
+          "gap": 6.11
+        }
+      ]
+    }
+  },
+  "holdout": {
+    "cognitive_4h": {
+      "n": 77,
+      "correct": 40,
+      "accuracy": 51.95,
+      "wilson_95": {
+        "low": 40.96,
+        "high": 62.75
+      },
+      "brier": 0.2496,
+      "log_loss": 0.6923
+    },
+    "cognitive_8h": {
+      "n": 62,
+      "correct": 29,
+      "accuracy": 46.77,
+      "wilson_95": {
+        "low": 34.91,
+        "high": 59.02
+      },
+      "brier": 0.27,
+      "log_loss": 0.7346
+    },
+    "base_4h": {
+      "n": 77,
+      "correct": 44,
+      "accuracy": 57.14,
+      "wilson_95": {
+        "low": 46.01,
+        "high": 67.6
+      },
+      "brier": 0.2466,
+      "log_loss": 0.6896
+    },
+    "base_8h": {
+      "n": 62,
+      "correct": 34,
+      "accuracy": 54.84,
+      "wilson_95": {
+        "low": 42.53,
+        "high": 66.58
+      },
+      "brier": 0.2777,
+      "log_loss": 0.7572
+    },
+    "naive_4h": {
+      "n": 77,
+      "correct": 35,
+      "accuracy": 45.45,
+      "wilson_95": {
+        "low": 34.81,
+        "high": 56.53
+      },
+      "brier": 0.25,
+      "log_loss": 0.6931
+    },
+    "naive_8h": {
+      "n": 62,
+      "correct": 28,
+      "accuracy": 45.16,
+      "wilson_95": {
+        "low": 33.42,
+        "high": 57.47
+      },
+      "brier": 0.25,
+      "log_loss": 0.6931
+    },
+    "momentum_4h": {
+      "n": 77,
+      "correct": 43,
+      "accuracy": 55.84,
+      "wilson_95": {
+        "low": 44.74,
+        "high": 66.39
+      },
+      "brier": 0.2467,
+      "log_loss": 0.6864
+    },
+    "momentum_8h": {
+      "n": 62,
+      "correct": 29,
+      "accuracy": 46.77,
+      "wilson_95": {
+        "low": 34.91,
+        "high": 59.02
+      },
+      "brier": 0.2557,
+      "log_loss": 0.7046
+    },
+    "calibration_4h": {
+      "n": 77,
+      "ece": 0.0732,
+      "bands": [
+        {
+          "range": "0.375-0.500",
+          "n": 15,
+          "mean_probability": 48.26,
+          "bullish_frequency": 33.33,
+          "gap": 14.92
+        },
+        {
+          "range": "0.500-0.625",
+          "n": 62,
+          "mean_probability": 53.87,
+          "bullish_frequency": 48.39,
+          "gap": 5.48
+        }
+      ]
+    },
+    "calibration_8h": {
+      "n": 62,
+      "ece": 0.1275,
+      "bands": [
+        {
+          "range": "0.375-0.500",
+          "n": 11,
+          "mean_probability": 47.75,
+          "bullish_frequency": 45.45,
+          "gap": 2.3
+        },
+        {
+          "range": "0.500-0.625",
+          "n": 34,
+          "mean_probability": 57.46,
+          "bullish_frequency": 44.12,
+          "gap": 13.34
+        },
+        {
+          "range": "0.625-0.750",
+          "n": 17,
+          "mean_probability": 65.39,
+          "bullish_frequency": 47.06,
+          "gap": 18.33
+        }
+      ]
+    }
+  },
+  "all": {
+    "cognitive_4h": {
+      "n": 223,
+      "correct": 119,
+      "accuracy": 53.36,
+      "wilson_95": {
+        "low": 46.81,
+        "high": 59.8
+      },
+      "brier": 0.2501,
+      "log_loss": 0.6934
+    },
+    "cognitive_8h": {
+      "n": 184,
+      "correct": 103,
+      "accuracy": 55.98,
+      "wilson_95": {
+        "low": 48.76,
+        "high": 62.96
+      },
+      "brier": 0.2512,
+      "log_loss": 0.6959
+    },
+    "base_4h": {
+      "n": 223,
+      "correct": 113,
+      "accuracy": 50.67,
+      "wilson_95": {
+        "low": 44.16,
+        "high": 57.17
+      },
+      "brier": 0.2662,
+      "log_loss": 0.7309
+    },
+    "base_8h": {
+      "n": 184,
+      "correct": 94,
+      "accuracy": 51.09,
+      "wilson_95": {
+        "low": 43.92,
+        "high": 58.21
+      },
+      "brier": 0.268,
+      "log_loss": 0.7344
+    },
+    "naive_4h": {
+      "n": 223,
+      "correct": 113,
+      "accuracy": 50.67,
+      "wilson_95": {
+        "low": 44.16,
+        "high": 57.17
+      },
+      "brier": 0.25,
+      "log_loss": 0.6931
+    },
+    "naive_8h": {
+      "n": 184,
+      "correct": 100,
+      "accuracy": 54.35,
+      "wilson_95": {
+        "low": 47.14,
+        "high": 61.38
+      },
+      "brier": 0.25,
+      "log_loss": 0.6931
+    },
+    "momentum_4h": {
+      "n": 223,
+      "correct": 110,
+      "accuracy": 49.33,
+      "wilson_95": {
+        "low": 42.83,
+        "high": 55.84
+      },
+      "brier": 0.2532,
+      "log_loss": 0.6995
+    },
+    "momentum_8h": {
+      "n": 184,
+      "correct": 92,
+      "accuracy": 50.0,
+      "wilson_95": {
+        "low": 42.85,
+        "high": 57.15
+      },
+      "brier": 0.2525,
+      "log_loss": 0.6982
+    },
+    "calibration_4h": {
+      "n": 223,
+      "ece": 0.0236,
+      "bands": [
+        {
+          "range": "0.375-0.500",
+          "n": 36,
+          "mean_probability": 48.51,
+          "bullish_frequency": 41.67,
+          "gap": 6.84
+        },
+        {
+          "range": "0.500-0.625",
+          "n": 187,
+          "mean_probability": 53.91,
+          "bullish_frequency": 52.41,
+          "gap": 1.5
+        }
+      ]
+    },
+    "calibration_8h": {
+      "n": 184,
+      "ece": 0.0396,
+      "bands": [
+        {
+          "range": "0.375-0.500",
+          "n": 25,
+          "mean_probability": 47.56,
+          "bullish_frequency": 44.0,
+          "gap": 3.56
+        },
+        {
+          "range": "0.500-0.625",
+          "n": 112,
+          "mean_probability": 57.55,
+          "bullish_frequency": 56.25,
+          "gap": 1.3
+        },
+        {
+          "range": "0.625-0.750",
+          "n": 47,
+          "mean_probability": 65.85,
+          "bullish_frequency": 55.32,
+          "gap": 10.53
+        }
+      ]
+    }
+  },
+  "monthly_4h": [
+    {
+      "month": "2025-09",
+      "n": 16,
+      "correct": 10,
+      "accuracy": 62.5,
+      "wilson_95": {
+        "low": 38.64,
+        "high": 81.52
+      },
+      "brier": 0.2477,
+      "log_loss": 0.6886
+    },
+    {
+      "month": "2025-10",
+      "n": 22,
+      "correct": 13,
+      "accuracy": 59.09,
+      "wilson_95": {
+        "low": 38.73,
+        "high": 76.74
+      },
+      "brier": 0.2448,
+      "log_loss": 0.6828
+    },
+    {
+      "month": "2025-11",
+      "n": 16,
+      "correct": 7,
+      "accuracy": 43.75,
+      "wilson_95": {
+        "low": 23.1,
+        "high": 66.82
+      },
+      "brier": 0.2577,
+      "log_loss": 0.7086
+    },
+    {
+      "month": "2025-12",
+      "n": 18,
+      "correct": 9,
+      "accuracy": 50.0,
+      "wilson_95": {
+        "low": 29.03,
+        "high": 70.97
+      },
+      "brier": 0.2516,
+      "log_loss": 0.6963
+    },
+    {
+      "month": "2026-01",
+      "n": 16,
+      "correct": 7,
+      "accuracy": 43.75,
+      "wilson_95": {
+        "low": 23.1,
+        "high": 66.82
+      },
+      "brier": 0.2588,
+      "log_loss": 0.7108
+    },
+    {
+      "month": "2026-02",
+      "n": 18,
+      "correct": 8,
+      "accuracy": 44.44,
+      "wilson_95": {
+        "low": 24.56,
+        "high": 66.28
+      },
+      "brier": 0.2547,
+      "log_loss": 0.7026
+    },
+    {
+      "month": "2026-03",
+      "n": 20,
+      "correct": 11,
+      "accuracy": 55.0,
+      "wilson_95": {
+        "low": 34.21,
+        "high": 74.18
+      },
+      "brier": 0.2529,
+      "log_loss": 0.6989
+    },
+    {
+      "month": "2026-04",
+      "n": 20,
+      "correct": 14,
+      "accuracy": 70.0,
+      "wilson_95": {
+        "low": 48.1,
+        "high": 85.45
+      },
+      "brier": 0.239,
+      "log_loss": 0.6712
+    },
+    {
+      "month": "2026-05",
+      "n": 17,
+      "correct": 9,
+      "accuracy": 52.94,
+      "wilson_95": {
+        "low": 30.96,
+        "high": 73.84
+      },
+      "brier": 0.2382,
+      "log_loss": 0.6695
+    },
+    {
+      "month": "2026-06",
+      "n": 20,
+      "correct": 11,
+      "accuracy": 55.0,
+      "wilson_95": {
+        "low": 34.21,
+        "high": 74.18
+      },
+      "brier": 0.2505,
+      "log_loss": 0.6942
+    },
+    {
+      "month": "2026-07",
+      "n": 22,
+      "correct": 11,
+      "accuracy": 50.0,
+      "wilson_95": {
+        "low": 30.72,
+        "high": 69.28
+      },
+      "brier": 0.2582,
+      "log_loss": 0.7097
+    },
+    {
+      "month": "2026-08",
+      "n": 18,
+      "correct": 9,
+      "accuracy": 50.0,
+      "wilson_95": {
+        "low": 29.03,
+        "high": 70.97
+      },
+      "brier": 0.2487,
+      "log_loss": 0.6904
+    }
+  ],
+  "monthly_8h": [
+    {
+      "month": "2025-09",
+      "n": 12,
+      "correct": 8,
+      "accuracy": 66.67,
+      "wilson_95": {
+        "low": 39.06,
+        "high": 86.19
+      },
+      "brier": 0.2359,
+      "log_loss": 0.6656
+    },
+    {
+      "month": "2025-10",
+      "n": 17,
+      "correct": 12,
+      "accuracy": 70.59,
+      "wilson_95": {
+        "low": 46.87,
+        "high": 86.72
+      },
+      "brier": 0.1933,
+      "log_loss": 0.5756
+    },
+    {
+      "month": "2025-11",
+      "n": 16,
+      "correct": 9,
+      "accuracy": 56.25,
+      "wilson_95": {
+        "low": 33.18,
+        "high": 76.9
+      },
+      "brier": 0.2484,
+      "log_loss": 0.6893
+    },
+    {
+      "month": "2025-12",
+      "n": 13,
+      "correct": 7,
+      "accuracy": 53.85,
+      "wilson_95": {
+        "low": 29.14,
+        "high": 76.79
+      },
+      "brier": 0.2715,
+      "log_loss": 0.7381
+    },
+    {
+      "month": "2026-01",
+      "n": 14,
+      "correct": 6,
+      "accuracy": 42.86,
+      "wilson_95": {
+        "low": 21.38,
+        "high": 67.41
+      },
+      "brier": 0.2789,
+      "log_loss": 0.7522
+    },
+    {
+      "month": "2026-02",
+      "n": 15,
+      "correct": 8,
+      "accuracy": 53.33,
+      "wilson_95": {
+        "low": 30.12,
+        "high": 75.19
+      },
+      "brier": 0.2476,
+      "log_loss": 0.6885
+    },
+    {
+      "month": "2026-03",
+      "n": 18,
+      "correct": 9,
+      "accuracy": 50.0,
+      "wilson_95": {
+        "low": 29.03,
+        "high": 70.97
+      },
+      "brier": 0.2632,
+      "log_loss": 0.7203
+    },
+    {
+      "month": "2026-04",
+      "n": 17,
+      "correct": 15,
+      "accuracy": 88.24,
+      "wilson_95": {
+        "low": 65.66,
+        "high": 96.71
+      },
+      "brier": 0.2059,
+      "log_loss": 0.605
+    },
+    {
+      "month": "2026-05",
+      "n": 16,
+      "correct": 8,
+      "accuracy": 50.0,
+      "wilson_95": {
+        "low": 28.0,
+        "high": 72.0
+      },
+      "brier": 0.2455,
+      "log_loss": 0.6838
+    },
+    {
+      "month": "2026-06",
+      "n": 16,
+      "correct": 7,
+      "accuracy": 43.75,
+      "wilson_95": {
+        "low": 23.1,
+        "high": 66.82
+      },
+      "brier": 0.2909,
+      "log_loss": 0.7792
+    },
+    {
+      "month": "2026-07",
+      "n": 16,
+      "correct": 7,
+      "accuracy": 43.75,
+      "wilson_95": {
+        "low": 23.1,
+        "high": 66.82
+      },
+      "brier": 0.2786,
+      "log_loss": 0.7519
+    },
+    {
+      "month": "2026-08",
+      "n": 14,
+      "correct": 7,
+      "accuracy": 50.0,
+      "wilson_95": {
+        "low": 26.8,
+        "high": 73.2
+      },
+      "brier": 0.2643,
+      "log_loss": 0.7218
+    }
+  ],
+  "holdout_regime_4h": {
+    "TRANSITION": {
+      "n": 25,
+      "correct": 9,
+      "accuracy": 36.0,
+      "wilson_95": {
+        "low": 20.25,
+        "high": 55.48
+      },
+      "brier": 0.2646,
+      "log_loss": 0.7225
+    },
+    "CONFLICTED": {
+      "n": 24,
+      "correct": 13,
+      "accuracy": 54.17,
+      "wilson_95": {
+        "low": 35.07,
+        "high": 72.11
+      },
+      "brier": 0.2469,
+      "log_loss": 0.687
+    },
+    "TREND": {
+      "n": 26,
+      "correct": 17,
+      "accuracy": 65.38,
+      "wilson_95": {
+        "low": 46.22,
+        "high": 80.59
+      },
+      "brier": 0.2386,
+      "log_loss": 0.6704
+    },
+    "EARNINGS_LED": {
+      "n": 2,
+      "correct": 1,
+      "accuracy": 50.0,
+      "wilson_95": {
+        "low": 9.45,
+        "high": 90.55
+      },
+      "brier": 0.235,
+      "log_loss": 0.663
+    }
+  },
+  "holdout_regime_8h": {
+    "TRANSITION": {
+      "n": 21,
+      "correct": 7,
+      "accuracy": 33.33,
+      "wilson_95": {
+        "low": 17.19,
+        "high": 54.63
+      },
+      "brier": 0.3045,
+      "log_loss": 0.8048
+    },
+    "CONFLICTED": {
+      "n": 19,
+      "correct": 10,
+      "accuracy": 52.63,
+      "wilson_95": {
+        "low": 31.71,
+        "high": 72.67
+      },
+      "brier": 0.2501,
+      "log_loss": 0.6934
+    },
+    "TREND": {
+      "n": 20,
+      "correct": 11,
+      "accuracy": 55.0,
+      "wilson_95": {
+        "low": 34.21,
+        "high": 74.18
+      },
+      "brier": 0.2591,
+      "log_loss": 0.7132
+    },
+    "EARNINGS_LED": {
+      "n": 2,
+      "correct": 1,
+      "accuracy": 50.0,
+      "wilson_95": {
+        "low": 9.45,
+        "high": 90.55
+      },
+      "brier": 0.2062,
+      "log_loss": 0.6024
+    }
+  },
+  "ablation_holdout_8h_raw": {
+    "Breadth/Internals AI": {
+      "n": 62,
+      "correct": 29,
+      "accuracy": 46.77,
+      "wilson_95": {
+        "low": 34.91,
+        "high": 59.02
+      },
+      "brier": 0.2692,
+      "log_loss": 0.7344
+    },
+    "Earnings & Guidance AI": {
+      "n": 62,
+      "correct": 30,
+      "accuracy": 48.39,
+      "wilson_95": {
+        "low": 36.41,
+        "high": 60.55
+      },
+      "brier": 0.2682,
+      "log_loss": 0.7324
+    },
+    "Fed Communication AI": {
+      "n": 62,
+      "correct": 29,
+      "accuracy": 46.77,
+      "wilson_95": {
+        "low": 34.91,
+        "high": 59.02
+      },
+      "brier": 0.2693,
+      "log_loss": 0.7348
+    },
+    "Genuine Dollar/DXY AI": {
+      "n": 62,
+      "correct": 30,
+      "accuracy": 48.39,
+      "wilson_95": {
+        "low": 36.41,
+        "high": 60.55
+      },
+      "brier": 0.2712,
+      "log_loss": 0.7391
+    },
+    "Liquidity & Session AI": {
+      "n": 62,
+      "correct": 29,
+      "accuracy": 46.77,
+      "wilson_95": {
+        "low": 34.91,
+        "high": 59.02
+      },
+      "brier": 0.2691,
+      "log_loss": 0.7346
+    },
+    "Macro Surprise AI": {
+      "n": 62,
+      "correct": 29,
+      "accuracy": 46.77,
+      "wilson_95": {
+        "low": 34.91,
+        "high": 59.02
+      },
+      "brier": 0.2693,
+      "log_loss": 0.7348
+    },
+    "Market Regime AI": {
+      "n": 62,
+      "correct": 29,
+      "accuracy": 46.77,
+      "wilson_95": {
+        "low": 34.91,
+        "high": 59.02
+      },
+      "brier": 0.2687,
+      "log_loss": 0.7334
+    },
+    "Mega-cap Leadership AI": {
+      "n": 62,
+      "correct": 30,
+      "accuracy": 48.39,
+      "wilson_95": {
+        "low": 36.41,
+        "high": 60.55
+      },
+      "brier": 0.2714,
+      "log_loss": 0.7387
+    },
+    "Multi-timeframe Trend AI": {
+      "n": 62,
+      "correct": 30,
+      "accuracy": 48.39,
+      "wilson_95": {
+        "low": 36.41,
+        "high": 60.55
+      },
+      "brier": 0.268,
+      "log_loss": 0.7319
+    },
+    "NQ/ES/SPX Confirmation AI": {
+      "n": 62,
+      "correct": 28,
+      "accuracy": 45.16,
+      "wilson_95": {
+        "low": 33.42,
+        "high": 57.47
+      },
+      "brier": 0.2713,
+      "log_loss": 0.7389
+    },
+    "News Event AI": {
+      "n": 62,
+      "correct": 29,
+      "accuracy": 46.77,
+      "wilson_95": {
+        "low": 34.91,
+        "high": 59.02
+      },
+      "brier": 0.2729,
+      "log_loss": 0.7429
+    },
+    "Price Structure AI": {
+      "n": 62,
+      "correct": 30,
+      "accuracy": 48.39,
+      "wilson_95": {
+        "low": 36.41,
+        "high": 60.55
+      },
+      "brier": 0.2668,
+      "log_loss": 0.7289
+    },
+    "Rates & Yield AI": {
+      "n": 62,
+      "correct": 29,
+      "accuracy": 46.77,
+      "wilson_95": {
+        "low": 34.91,
+        "high": 59.02
+      },
+      "brier": 0.2702,
+      "log_loss": 0.7376
+    },
+    "Semiconductor AI": {
+      "n": 62,
+      "correct": 30,
+      "accuracy": 48.39,
+      "wilson_95": {
+        "low": 36.41,
+        "high": 60.55
+      },
+      "brier": 0.2655,
+      "log_loss": 0.7266
+    },
+    "Volatility & Options AI": {
+      "n": 62,
+      "correct": 29,
+      "accuracy": 46.77,
+      "wilson_95": {
+        "low": 34.91,
+        "high": 59.02
+      },
+      "brier": 0.2693,
+      "log_loss": 0.7348
+    }
+  },
+  "mistake_attribution_4h": {
+    "horizon": "4h",
+    "counts": {
+      "unresolved_or_invalid": 35,
+      "valid_evidence_market_moved_opposite": 104,
+      "correct": 113,
+      "overconfidence": 2,
+      "ignored_contradiction_or_overconfidence": 4
+    },
+    "errors": 110,
+    "examples": {
+      "unresolved_or_invalid": {
+        "timestamp": "2025-09-01T17:00:00+00:00",
+        "predicted": "BEARISH",
+        "actual": ""
+      },
+      "valid_evidence_market_moved_opposite": {
+        "timestamp": "2025-09-02T17:00:00+00:00",
+        "predicted": "BEARISH",
+        "actual": "BULLISH"
+      },
+      "overconfidence": {
+        "timestamp": "2025-10-13T17:00:00+00:00",
+        "predicted": "BULLISH",
+        "actual": "BEARISH"
+      },
+      "ignored_contradiction_or_overconfidence": {
+        "timestamp": "2025-10-30T17:00:00+00:00",
+        "predicted": "BEARISH",
+        "actual": "BULLISH"
+      }
+    },
+    "policy": "Mistakes are attributed first. No live weight is changed unless a development hypothesis improves untouched out-of-sample validation."
+  },
+  "mistake_attribution_8h": {
+    "horizon": "8h",
+    "counts": {
+      "correct": 94,
+      "valid_evidence_market_moved_opposite": 85,
+      "unresolved_or_invalid": 74,
+      "ignored_contradiction_or_overconfidence": 4,
+      "overconfidence": 1
+    },
+    "errors": 90,
+    "examples": {
+      "valid_evidence_market_moved_opposite": {
+        "timestamp": "2025-09-02T17:00:00+00:00",
+        "predicted": "BEARISH",
+        "actual": "BULLISH"
+      },
+      "unresolved_or_invalid": {
+        "timestamp": "2025-09-05T17:00:00+00:00",
+        "predicted": "BULLISH",
+        "actual": ""
+      },
+      "ignored_contradiction_or_overconfidence": {
+        "timestamp": "2025-10-30T17:00:00+00:00",
+        "predicted": "BEARISH",
+        "actual": "BULLISH"
+      },
+      "overconfidence": {
+        "timestamp": "2026-06-15T17:00:00+00:00",
+        "predicted": "BULLISH",
+        "actual": "BEARISH"
+      }
+    },
+    "policy": "Mistakes are attributed first. No live weight is changed unless a development hypothesis improves untouched out-of-sample validation."
+  },
+  "traceability": {
+    "all_rows_traceable": true,
+    "forecast_ids_unique": true
+  },
+  "integrity": {
+    "no_known_future_leakage": true,
+    "missing_not_neutral": true,
+    "analogy_prior_only": true,
+    "calibration_holdout_used_for_fitting": false,
+    "outcome_source": "Massive Futures inherited from Phase29"
+  },
+  "research_only": true,
+  "broker_execution": false,
+  "generated_at": "2026-09-03T18:35:12.709247+00:00",
+  "acceptance": {
+    "status": "WITHHELD",
+    "checks": {
+      "traceable_predictions": true,
+      "no_known_future_leakage": true,
+      "missing_not_neutral": true,
+      "holdout_sample_present": true,
+      "holdout_beats_50pct_accuracy": false,
+      "holdout_brier_below_naive": false,
+      "holdout_not_worse_than_base_brier": true,
+      "calibration_ece_acceptable": false
+    },
+    "rule": "Market-grade intelligence claim remains WITHHELD unless integrity gates pass and untouched holdout shows useful probability quality; no accuracy guarantee is implied."
+  },
+  "result_digest": "d5c9c691e37249b27a96aee0ee57bd90893698b9143619a6d4f9ab62dfbfcc3c"
+}

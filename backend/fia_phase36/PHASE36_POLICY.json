@@ -1,0 +1,15 @@
+{
+  "phase": "PHASE36_ROOT_CAUSE_ABLATION_LAB",
+  "version": "36.0",
+  "purpose": "Diagnose which Phase35 evidence groups help or hurt before any new tuning.",
+  "development_only_diagnosis": true,
+  "development_partition": "first 70 percent chronological, inherited from Phase35",
+  "rolling_walk_forward_inside_development": true,
+  "minimum_folds": 3,
+  "phase35_holdout_used_for_selection": false,
+  "phase35_holdout_threshold_tuning": false,
+  "production_weights_changed": false,
+  "rl_live_weight": 0.0,
+  "broker_execution": false,
+  "fake_accuracy_claims": false
+}

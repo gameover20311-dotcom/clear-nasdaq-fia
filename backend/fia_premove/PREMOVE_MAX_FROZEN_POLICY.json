@@ -1,0 +1,15 @@
+{
+  "phase": 32,
+  "name": "PRE-MOVE MAX RIGOR",
+  "policy": "freeze_before_validation",
+  "high_alignment_strength_min": 0.72,
+  "high_alignment_ensemble_min": 0.75,
+  "high_alignment_persistence_min": 0.70,
+  "thesis_strength_min": 0.52,
+  "early_warning_strength_min": 0.34,
+  "event_high_risk_penalty": 0.82,
+  "data_guard_fail_penalty": 0.45,
+  "holdout_tuning_allowed": false,
+  "broker_execution": false,
+  "research_only": true
+}

@@ -1,0 +1,157 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+type Signal = { name:string; score:number; weight:number; detail:string; freshness?:string };
+type Forecast = {
+  symbol:string; horizon_hours:number; direction:string; bullish_probability:number;
+  bearish_probability:number; confidence:number; regime:string; status:string; score:number;
+  signals:Signal[]; invalidation:string[]; generated_at:string; data_coverage:number;
+  source_status:Record<string,string>; thesis:string; bullish_evidence:string[];
+  bearish_evidence:string[]; intelligence_coverage:number;
+};
+type LiquidityLevel = {
+  name:string; timeframe:string; price:number|null; status:string; side:string;
+  distance_pct:number|null; detail:string;
+};
+type LiquidityResponse = { status:string; provider:string; timestamp:number; levels:Record<string,LiquidityLevel> };
+
+const liquidityKeys = [
+  "daily_high","daily_low","asia_high","asia_low","london_high","london_low",
+  "new_york_high","new_york_low","weekly_high","weekly_low","monthly_high","monthly_low"
+];
+
+const pct = (v:number|undefined) => `${(v ?? 0).toFixed(1)}%`;
+const scoreClass = (v:number) => v >= 0 ? "positive" : "negative";
+const parseEvidence = (text:string) => (text.split(" | ")[0] || text).replace(/^.*?:\s*/, "");
+
+function SignalRow({signal}:{signal:Signal}) {
+  return <div className="signal-row">
+    <div className="signal-main">
+      <div className="signal-name-line">
+        <span className={`signal-dot ${scoreClass(signal.score)}`} />
+        <strong>{signal.name}</strong><span className="weight">W {signal.weight.toFixed(2)}</span>
+      </div>
+      <small>{signal.detail}</small>
+    </div>
+    <b className={`signal-score ${scoreClass(signal.score)}`}>{signal.score >= 0 ? "+" : ""}{signal.score.toFixed(2)}</b>
+  </div>;
+}
+
+function LiquidityCard({level}:{level:LiquidityLevel}) {
+  const high = level.side === "HIGH";
+  return <div className={`liquidity-card ${high ? "high" : "low"}`}>
+    <div className="liq-top"><span>{level.timeframe}</span><span className="side-badge">{level.side}</span></div>
+    <strong>{level.name}</strong>
+    <div className="liq-price">{level.price == null ? "—" : level.price.toLocaleString()}</div>
+    <div className="liq-bottom"><span>{level.status || "UNTAPPED"}</span>{level.distance_pct != null && <span>{level.distance_pct.toFixed(2)}%</span>}</div>
+  </div>;
+}
+
+export default function Page() {
+  const [forecast,setForecast] = useState<Forecast|null>(null);
+  const [liquidity,setLiquidity] = useState<LiquidityResponse|null>(null);
+  const [health,setHealth] = useState<any>(null);
+  const [loading,setLoading] = useState(true);
+  const [lastRefresh,setLastRefresh] = useState<Date|null>(null);
+  const [error,setError] = useState("");
+
+  const load = useCallback(async() => {
+    try {
+      setError("");
+      const [f,l,h] = await Promise.all([
+        fetch("/api/forecast",{cache:"no-store"}).then(r=>r.json()),
+        fetch("/api/liquidity",{cache:"no-store"}).then(r=>r.json()),
+        fetch("/api/health",{cache:"no-store"}).then(r=>r.json())
+      ]);
+      setForecast(f); setLiquidity(l); setHealth(h); setLastRefresh(new Date());
+    } catch { setError("API connection unavailable"); }
+    finally { setLoading(false); }
+  },[]);
+
+  useEffect(()=>{ load(); const t=setInterval(load,15000); return()=>clearInterval(t); },[load]);
+
+  const bullish = useMemo(()=>forecast?.signals.filter(s=>s.score>=0) ?? [],[forecast]);
+  const bearish = useMemo(()=>forecast?.signals.filter(s=>s.score<0) ?? [],[forecast]);
+
+  if(loading && !forecast) return <main className="shell"><div className="loading">INITIALIZING FIA ENGINE…</div></main>;
+
+  const f=forecast;
+
+  return <main className="shell">
+    <header className="topbar">
+      <div className="brand">
+        <div className="fia-mark">FIA</div>
+        <div><div className="brand-title">CLEAR NASDAQ</div><div className="brand-sub">FORECAST INTELLIGENCE ENGINE</div></div>
+      </div>
+      <div className="header-status">
+        <span className="status-pill live"><i/> LIVE DATA</span>
+        <span className="status-pill">API {health?.ok ? "ONLINE" : "OFFLINE"}</span>
+        <button onClick={load} className="refresh-btn">↻ REFRESH</button>
+      </div>
+    </header>
+
+    {error && <div className="error-banner">{error}</div>}
+
+    <section className="hero-grid">
+      <div className="hero-copy">
+        <div className="eyebrow">NASDAQ FORECAST · {f?.symbol ?? "NQ"}</div>
+        <div className="direction">{f?.direction ?? "NEUTRAL"}</div>
+        <div className="hero-meta">{f?.horizon_hours ?? 8}H HORIZON <span>•</span> {f?.regime ?? "BALANCED"}</div>
+        <div className="score-line">MODEL SCORE <b>{f?.score != null ? `${f.score>=0?"+":""}${f.score.toFixed(2)}` : "—"}</b></div>
+        <div className="probabilities">
+          <div><span>BULLISH</span><b>{pct(f?.bullish_probability)}</b></div>
+          <div><span>BEARISH</span><b>{pct(f?.bearish_probability)}</b></div>
+        </div>
+        <div className="probability-bar"><span style={{width:`${f?.bullish_probability ?? 50}%`}}/></div>
+      </div>
+      <div className="hero-stats">
+        <div className="stat-card"><span>CONFIDENCE</span><strong>{pct(f?.confidence)}</strong></div>
+        <div className="stat-card"><span>DATA COVERAGE</span><strong>{pct((f?.data_coverage ?? 0)*100)}</strong></div>
+        <div className="stat-card"><span>INTELLIGENCE</span><strong>{pct((f?.intelligence_coverage ?? 0)*100)}</strong></div>
+        <div className={`stat-card status ${f?.status?.toLowerCase()}`}><span>MODEL STATUS</span><strong>{f?.status ?? "—"}</strong></div>
+      </div>
+    </section>
+
+    <section className="thesis-card">
+      <div className="section-label">FIA MARKET THESIS</div>
+      <p>{f?.thesis ?? "Waiting for forecast intelligence…"}</p>
+      <div className="generated">GENERATED {lastRefresh ? "LIVE" : "—"}</div>
+    </section>
+
+    <section className="section">
+      <div className="section-heading"><div><div className="section-kicker">MARKET COMPONENTS</div><h2>Signal Matrix</h2></div><div className="count-badge">{f?.signals.length ?? 0} SIGNALS</div></div>
+      <div className="signal-layout">
+        <div className="signal-panel"><div className="panel-title positive">↑ BULLISH PRESSURE</div>{bullish.length ? bullish.map(s=><SignalRow key={s.name} signal={s}/>) : <div className="empty">No bullish signals detected.</div>}</div>
+        <div className="signal-panel"><div className="panel-title negative">↓ BEARISH PRESSURE</div>{bearish.length ? bearish.map(s=><SignalRow key={s.name} signal={s}/>) : <div className="empty">No bearish signals detected.</div>}</div>
+      </div>
+    </section>
+
+    <section className="section">
+      <div className="section-kicker">EVIDENCE INTELLIGENCE</div><h2>Why FIA Has This Bias</h2>
+      <div className="coverage-row"><span>{pct((f?.intelligence_coverage ?? 0)*100)} COVERAGE</span><div className="coverage-track"><span style={{width:`${(f?.intelligence_coverage ?? 0)*100}%`}}/></div></div>
+      <div className="evidence-grid">
+        <div><div className="evidence-title positive">↑ BULLISH EVIDENCE</div>{(f?.bullish_evidence ?? []).map((e,i)=><div className="evidence-item" key={i}><span>↑</span><p>{parseEvidence(e)}<small>{e}</small></p></div>)}</div>
+        <div><div className="evidence-title negative">↓ BEARISH / CONFLICTING EVIDENCE</div>{(f?.bearish_evidence ?? []).map((e,i)=><div className="evidence-item" key={i}><span>↓</span><p>{parseEvidence(e)}<small>{e}</small></p></div>)}</div>
+      </div>
+    </section>
+
+    <section className="section">
+      <div className="section-kicker">LIQUIDITY MAP</div>
+      <div className="section-heading liquidity-heading"><h2>Key Market Levels</h2><div className="provider">{liquidity?.status ?? "—"} · {liquidity?.provider ?? "Finnhub"}</div></div>
+      <div className="liq-group-title">INTRADAY</div>
+      <div className="liquidity-grid">{liquidityKeys.slice(0,2).map(k=>liquidity?.levels?.[k] && <LiquidityCard key={k} level={liquidity.levels[k]}/>)}</div>
+      <div className="liq-group-title">GLOBAL SESSIONS</div>
+      <div className="liquidity-grid">{liquidityKeys.slice(2,8).map(k=>liquidity?.levels?.[k] && <LiquidityCard key={k} level={liquidity.levels[k]}/>)}</div>
+      <div className="liq-group-title">HIGHER TIMEFRAME</div>
+      <div className="liquidity-grid">{liquidityKeys.slice(8).map(k=>liquidity?.levels?.[k] && <LiquidityCard key={k} level={liquidity.levels[k]}/>)}</div>
+    </section>
+
+    <section className="bottom-grid">
+      <div className="info-card"><div className="section-kicker">DATA SOURCES</div>{Object.entries(f?.source_status ?? {}).map(([k,v])=><div className="source-row" key={k}><span>{k.toUpperCase()}</span><b>{v}</b></div>)}</div>
+      <div className="info-card"><div className="section-kicker">THESIS INVALIDATION</div><p className="muted">Conditions that would materially change the current forecast.</p>{(f?.invalidation ?? []).map((x,i)=><div className="invalidation" key={i}><b>{String(i+1).padStart(2,"0")}</b><span>{x}</span></div>)}</div>
+    </section>
+
+    <footer><span>CLEAR NASDAQ — FIA v{health?.version ?? "2.0.0"}</span><span>FORECAST ENGINE · EVIDENCE INTELLIGENCE · LIVE MARKET DATA</span><span>AUTO REFRESH 15s</span></footer>
+  </main>;
+}

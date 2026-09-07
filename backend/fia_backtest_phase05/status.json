@@ -1,0 +1,11 @@
+{
+  "module": "FIA Backtest Lab",
+  "phase": 5,
+  "name": "Probability Calibration",
+  "status": "complete",
+  "current_capability": "Measures whether FIA directional probabilities are calibrated to realized outcomes.",
+  "completed": ["Probability normalization", "4H/8H reliability buckets", "ECE", "MCE", "Brier score", "Log loss", "Confidence vs empirical accuracy"],
+  "not_yet_active": ["Regime analysis", "Session analysis", "Signal attribution", "Ablation testing", "Walk-forward validation", "Out-of-sample validation", "Final dashboard"],
+  "next": "Phase 6 — Regime Analysis",
+  "note": "Calibration measures the existing FIA probabilities and does not change live FIA weights."
+}

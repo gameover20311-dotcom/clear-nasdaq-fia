@@ -1,0 +1,16 @@
+{
+  "phase": "PHASE 26",
+  "installed_at": "2026-09-02T15:57:59.955182",
+  "engine_sha256_before": "3d2f67a4df9d0aea6603afbe68f0364eb1630027358ec735f29d5c0d4a1bd70b",
+  "accuracy_sha256_before": "f0ead6ebd9ac7d0ea7c426bdd6f7a587d7db8025438de9cf5c8226459c85b03b",
+  "confluence_sha256_before": "da676df495f23e81593b375690e4868506f7dd76fd60ce77aab5c4185ec761e8",
+  "forecast_weights_changed": false,
+  "phase24_accuracy_logic_changed": false,
+  "phase25_confluence_logic_changed": false,
+  "broker_execution_added": false,
+  "forward_only": true,
+  "outcome_horizons": [
+    4,
+    8
+  ]
+}

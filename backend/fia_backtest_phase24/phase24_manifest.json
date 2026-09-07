@@ -1,0 +1,10 @@
+{
+  "phase": "PHASE 24",
+  "installed_at": "2026-09-02T15:31:46.070048",
+  "engine_sha256_before": "3d2f67a4df9d0aea6603afbe68f0364eb1630027358ec735f29d5c0d4a1bd70b",
+  "forecast_weights_changed": false,
+  "forecast_direction_policy_changed": false,
+  "broker_execution_added": false,
+  "primary_validated_gate": "TREND + confidence >= 65",
+  "high_confidence_gate": "TREND + confidence >= 70"
+}

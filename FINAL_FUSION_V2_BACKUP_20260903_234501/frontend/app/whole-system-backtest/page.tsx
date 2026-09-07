@@ -1,0 +1,23 @@
+"use client";
+import { useEffect, useState } from "react";
+
+function Box({label,value,sub}:{label:string,value:any,sub?:string}){
+  return <div style={{padding:16,border:"1px solid #1e293b",borderRadius:14,background:"#0f172a"}}><small style={{color:"#94a3b8"}}>{label}</small><div style={{fontSize:28,fontWeight:800}}>{value ?? "—"}</div>{sub?<div style={{fontSize:11,color:"#94a3b8"}}>{sub}</div>:null}</div>
+}
+export default function WholeSystemBacktestPage(){
+ const [d,setD]=useState<any>(null);
+ useEffect(()=>{const f=()=>fetch("/api/fia/whole-system-backtest",{cache:"no-store"}).then(r=>r.json()).then(setD).catch(()=>{});f();const i=setInterval(f,30000);return()=>clearInterval(i)},[]);
+ if(!d)return <main style={{padding:28,color:"#e2e8f0",background:"#020617",minHeight:"100vh"}}>Loading final backtest…</main>;
+ const h4=d?.horizons?.["4h"]||{}; const h8=d?.horizons?.["8h"]||{}; const ranked=d?.factor_importance?.ranked_groups||[];
+ return <main style={{padding:28,color:"#e2e8f0",background:"#020617",minHeight:"100vh",fontFamily:"ui-sans-serif,system-ui"}}><div style={{maxWidth:1280,margin:"0 auto"}}>
+  <a href="/" style={{color:"#94a3b8"}}>← Dashboard</a><h1>CLEAR NASDAQ — Final Whole-System 4H + 8H Validation</h1>
+  <p style={{color:"#94a3b8"}}>State: <b>{d.state}</b> · Progress: {d?.progress?.pct ?? 0}% · one locked V6.6 whole-system forecast, independently resolved on genuine 4H and 8H market outcomes.</p>
+  <h2>4H genuine market resolution</h2><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12}}>{[["WIN RATE",h4.win_rate==null?"—":h4.win_rate+"%"],["WINS",h4.wins],["LOSSES",h4.losses],["NO EDGE",h4.no_edge],["FAIL CLOSED",h4.fail_closed],["COVERAGE",h4.directional_coverage_pct==null?"—":h4.directional_coverage_pct+"%"],["BRIER",h4.brier]].map(([a,b])=><Box key={String(a)} label={String(a)} value={b}/>)}</div>
+  <h2 style={{marginTop:28}}>8H primary resolution</h2><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12}}>{[["WIN RATE",h8.win_rate==null?"—":h8.win_rate+"%"],["WINS",h8.wins],["LOSSES",h8.losses],["NO EDGE",h8.no_edge],["FAIL CLOSED",h8.fail_closed],["COVERAGE",h8.directional_coverage_pct==null?"—":h8.directional_coverage_pct+"%"],["BRIER",h8.brier]].map(([a,b])=><Box key={String(a)} label={String(a)} value={b}/>)}</div>
+  <p style={{color:"#94a3b8",marginTop:14}}>4H is not mislabeled as a second Brain run: it is the genuine 4H market resolution of the same locked V6.6 4–8H forecast. NO_EDGE, FAIL_CLOSED and unresolved cases remain visible.</p>
+  <h2 style={{marginTop:28}}>Weekly 4H / 8H retrospective</h2><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>{["Period","4H W/L","4H WR","8H W/L","8H WR"].map(x=><th key={x} style={{textAlign:"left",padding:8,borderBottom:"1px solid #334155"}}>{x}</th>)}</tr></thead><tbody>{Array.from(new Set([...(h4.weekly||[]).map((x:any)=>x.period),...(h8.weekly||[]).map((x:any)=>x.period)])).sort().map((period:any)=>{const a=(h4.weekly||[]).find((x:any)=>x.period===period)||{};const b=(h8.weekly||[]).find((x:any)=>x.period===period)||{};return <tr key={period}><td style={{padding:8}}>{period}</td><td>{a.wins??0}/{a.losses??0}</td><td>{a.win_rate==null?"—":a.win_rate+"%"}</td><td>{b.wins??0}/{b.losses??0}</td><td>{b.win_rate==null?"—":b.win_rate+"%"}</td></tr>})}</tbody></table></div>
+  <h2 style={{marginTop:28}}>Factor importance · Phase36 diagnostic</h2><p style={{color:"#94a3b8"}}>Development-only ablation diagnostic — not causal proof.</p><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>{["Rank","Group","Label","Diagnostic score","Add accuracy pp","Remove accuracy pp"].map(x=><th key={x} style={{textAlign:"left",padding:8,borderBottom:"1px solid #334155"}}>{x}</th>)}</tr></thead><tbody>{ranked.map((r:any,i:number)=><tr key={r.group}><td style={{padding:8}}>{i+1}</td><td>{r.group}</td><td>{r.label||"—"}</td><td>{r.diagnostic_score}</td><td>{r.mean_add_accuracy_pp ?? "—"}</td><td>{r.mean_remove_accuracy_pp ?? "—"}</td></tr>)}</tbody></table></div>
+  <h2>Live Forward-OOS 4H + 8H</h2><pre style={{whiteSpace:"pre-wrap",background:"#0f172a",padding:16,borderRadius:12,overflow:"auto",maxHeight:550}}>{JSON.stringify(d.live_forward_oos,null,2)}</pre>
+  <h2>Truth policy</h2><pre style={{whiteSpace:"pre-wrap",background:"#0f172a",padding:16,borderRadius:12,overflow:"auto"}}>{JSON.stringify(d.truth_policy,null,2)}</pre>
+ </div></main>
+}
