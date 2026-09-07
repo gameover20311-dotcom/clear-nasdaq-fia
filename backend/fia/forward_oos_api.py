@@ -6,6 +6,8 @@ import os
 import fcntl
 from typing import Any, Callable, Optional
 
+from fastapi import Body, Header, HTTPException
+
 from .forward_oos import (
     DEFAULT_ROOT,
     checkpoint_state,
@@ -157,6 +159,55 @@ def install_forward_oos_routes(app: Any, hub: Any, build_forecast: Callable[[dic
         # Evidence snapshots are preserved on disk by hash. This endpoint returns
         # derived records, not a mutation surface and not raw secret-bearing env.
         return {"ok": True, "records": records(DEFAULT_ROOT)}
+
+    @app.get("/api/forward-oos/durability")
+    async def forward_oos_durability():
+        """What the ledger's storage actually is. Public, carries no secret."""
+        from fia.forward_oos_durable import durability_status
+        return durability_status(DEFAULT_ROOT)
+
+    @app.post("/api/forward-oos/durability/test-fixture")
+    async def forward_oos_durability_fixture(
+        marker: str = Body(..., embed=True),
+        authorization: Optional[str] = Header(default=None),
+    ):
+        """Write an ISOLATED TEST durability record. Authenticated.
+
+        This is deliberately not a forecast: it carries is_test=TRUE, a
+        TEST_DURABILITY_PROBE event type and a negative sequence number, so it
+        can never enter the directional record or collide with a real seq. It is
+        the only mechanism permitted to create or remove a fixture, and the
+        delete path refuses any row that is not flagged is_test.
+        """
+        from fia.auth_api import _bearer, decode_session_token
+        try:
+            decode_session_token(_bearer(authorization))
+        except Exception as exc:
+            raise HTTPException(status_code=401, detail="AUTH_REQUIRED") from exc
+        clean = "".join(ch for ch in str(marker) if ch.isalnum() or ch in "-_")[:64]
+        if not clean:
+            raise HTTPException(status_code=400, detail="INVALID_MARKER")
+        from fia.forward_oos_durable import write_test_fixture
+        return write_test_fixture(DEFAULT_ROOT, clean)
+
+    @app.get("/api/forward-oos/durability/test-fixture/{marker}")
+    async def forward_oos_durability_fixture_read(marker: str):
+        from fia.forward_oos_durable import read_test_fixture
+        clean = "".join(ch for ch in str(marker) if ch.isalnum() or ch in "-_")[:64]
+        return read_test_fixture(DEFAULT_ROOT, clean)
+
+    @app.delete("/api/forward-oos/durability/test-fixture/{marker}")
+    async def forward_oos_durability_fixture_delete(
+        marker: str, authorization: Optional[str] = Header(default=None),
+    ):
+        from fia.auth_api import _bearer, decode_session_token
+        try:
+            decode_session_token(_bearer(authorization))
+        except Exception as exc:
+            raise HTTPException(status_code=401, detail="AUTH_REQUIRED") from exc
+        clean = "".join(ch for ch in str(marker) if ch.isalnum() or ch in "-_")[:64]
+        from fia.forward_oos_durable import delete_test_fixture
+        return delete_test_fixture(DEFAULT_ROOT, clean)
 
     @app.post("/api/forward-oos/run-once")
     async def forward_oos_run_once():

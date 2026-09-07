@@ -384,8 +384,29 @@ def _write_head(root: Path, events: int, head_event_hash: str, now: datetime) ->
         pass
 
 
+def _restore_from_durable_if_empty(root: Path) -> None:
+    """If local storage came back empty after a redeploy, rebuild from Postgres.
+
+    Only ever writes files that are absent, so a live ledger cannot be clobbered.
+    """
+    try:
+        events_dir = root / "events"
+        if events_dir.exists() and any(events_dir.glob("*.json")):
+            return
+        from fia.forward_oos_durable import enabled as _durable_enabled, restore_missing
+        if not _durable_enabled():
+            return
+        result = restore_missing(root)
+        if result.get("restored"):
+            print("Forward-OOS ledger restored from durable store: %s event(s)"
+                  % result["restored"])
+    except Exception as exc:                                         # noqa: BLE001
+        print("Forward-OOS durable restore skipped -> %s" % type(exc).__name__)
+
+
 def verify_ledger(root: Path | str = DEFAULT_ROOT) -> Dict[str, Any]:
     root = Path(root)
+    _restore_from_durable_if_empty(root)
     files = _event_files(root)
     prev = "GENESIS"
     expected_seq = 1
@@ -529,6 +550,18 @@ def _append_event(root: Path, event_type: str, forecast_id: str, payload: Dict[s
             except OSError:
                 pass
             _write_head(root, seq, event["event_hash"], now)
+            # V6.6.8 DURABLE MIRROR.
+            # The file above lives on ephemeral deploy storage. Observed on
+            # 2026-09-07: a real abstention observation was written, then erased
+            # by the next deploy. The event is copied to Postgres byte-for-byte
+            # so it can be restored. This never alters the event, the chain or
+            # the file; a mirror failure is loud and leaves the file intact.
+            try:
+                from fia.forward_oos_durable import mirror_event as _mirror
+                _mirror(root, event, canonical_bytes(event) + b"\n", path.name)
+            except Exception as _exc:                                # noqa: BLE001
+                print("Forward-OOS durable mirror unavailable -> %s"
+                      % type(_exc).__name__)
             return event
         finally:
             fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
