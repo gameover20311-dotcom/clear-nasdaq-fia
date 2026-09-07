@@ -227,9 +227,38 @@ export default function Cockpit() {
     : Object.entries(sourceHealth).filter(([, v]) => upper(asObj(v).status) === "DELAYED").map(([k]) => k);
   const criticalMissing = asList(provider.critical_missing);
 
-  const bull8 = finite(h8.bullish_probability);
-  const bear8 = finite(h8.bearish_probability);
-  const bull4 = finite(h4.bullish_probability);
+  // V6.6.7 FRONTEND TRUTH GATE (restored).
+  // The backend already fails closed, but the display must fail closed too: a
+  // probability rendered while the provider layer is ERROR/critical-missing/stale
+  // reads to the user as a tradeable number. When the truth composition is not
+  // satisfied every probability and confidence resolves to null and renders as
+  // "—", never as 0 and never as a neutral 50.
+  const forecastStatus = upper(forecast.status || "UNKNOWN");
+  const snapshotStatus = upper(snapshot.status || "UNKNOWN");
+  const providerOverall = upper(provider.overall || "UNKNOWN");
+  const truthReady =
+    finalCockpit.truth_ready === true &&
+    forecastStatus === "LIVE" &&
+    snapshotStatus === "LIVE" &&
+    providerOverall === "LIVE" &&
+    criticalMissing.length === 0 &&
+    staleSources.length === 0;
+
+  const bull8 = truthReady ? finite(h8.bullish_probability) : null;
+  const bear8 = truthReady ? finite(h8.bearish_probability) : null;
+  const bull4 = truthReady ? finite(h4.bullish_probability) : null;
+  const bear4 = truthReady ? finite(h4.bearish_probability) : null;
+  const confidence8 = truthReady ? finite(h8.confidence) : null;
+  const confidence4 = truthReady ? finite(h4.confidence) : null;
+  const truthBlockedReason = truthReady
+    ? null
+    : finalCockpit.truth_ready !== true
+      ? "cockpit truth gate not READY"
+      : criticalMissing.length
+        ? `critical evidence missing: ${criticalMissing.join(", ")}`
+        : staleSources.length
+          ? `stale sources: ${staleSources.join(", ")}`
+          : `forecast=${forecastStatus} snapshot=${snapshotStatus} provider=${providerOverall}`;
 
   const Acc = ({ id, idx, title, sub, right, children }: any) => (
     <div className={`acc-i ${openAcc[id] ? "open" : ""}`} id={`acc-${id}`}>
@@ -264,10 +293,11 @@ export default function Cockpit() {
           <Link href="/chart-lab" className="nav-item" style={{ textDecoration: "none" }}>
             <span className="idx">↗</span><span className="lbl">Chart Lab</span><span className="sub">Upload · vision · confluence</span>
           </Link>
-          <Link href="/whole-system-backtest" className="nav-item" style={{ textDecoration: "none" }}>
-            <span className="idx">↗</span><span className="lbl">Backtest</span><span className="sub">Whole-system validation</span>
-          </Link>
-          {/* Phase 33 / Phase 34 are deliberately NOT in trader navigation.
+          {/* Phase 33 / Phase 34 / Backtest are deliberately NOT in trader navigation.
+              Backtest (/whole-system-backtest) is RETROSPECTIVE measurement, not a
+              forecast surface. Its route and data are untouched and it remains
+              reachable directly for validation and audit; only the trader-facing
+              link is removed so historical fit is never mistaken for live edge.
               Phase 33 was validated on 78 untouched holdout rows and LOST to BASE_FIA
               (4H 37.33% vs 53.33%, 8H 38.71% vs 48.39%); its own gate reports
               calibration_approved_for_live_probability: false.
@@ -404,6 +434,16 @@ export default function Cockpit() {
 
                   {forecast.thesis && <p className="thesis">{String(forecast.thesis)}</p>}
 
+                  {!truthReady && (
+                    <div className="degraded">
+                      <span className="k">DO NOT TRUST BIAS</span>
+                      <span className="v">
+                        Probabilities are withheld and shown as “—” because the truth gate is
+                        not satisfied ({truthBlockedReason}). No neutral 50% is substituted.
+                      </span>
+                    </div>
+                  )}
+
                   {(missingEvidence.length > 0 || staleSources.length > 0) && (
                     <div className="degraded">
                       <span className="k">DEGRADED</span>
@@ -428,7 +468,7 @@ export default function Cockpit() {
                       <div className="fig bull"><span className="v num">{bull8 === null ? "—" : bull8.toFixed(2)}<span style={{ fontSize: ".4em" }}>%</span></span><span className="k">BULLISH</span></div>
                       <div className="fig bear"><span className="v num">{bear8 === null ? "—" : bear8.toFixed(2)}<span style={{ fontSize: ".4em" }}>%</span></span><span className="k">BEARISH</span></div>
                       <div className="fig sm" style={{ marginLeft: "auto" }}>
-                        <span className="v num" style={{ color: (finite(h8.confidence) ?? 0) < 20 ? "var(--warn)" : "var(--t-hi)" }}>{pct(h8.confidence, 2)}</span>
+                        <span className="v num" style={{ color: (confidence8 ?? 0) < 20 ? "var(--warn)" : "var(--t-hi)" }}>{pct(confidence8, 2)}</span>
                         <span className="k">CONFIDENCE</span>
                       </div>
                     </div>
@@ -458,7 +498,7 @@ export default function Cockpit() {
                             <span className="v">
                               Raw evidence probability is <b>{pct(h8.raw_probability, 2)}</b>. Calibration moved it to {pct(bull8, 2)}, and the fitted
                               intercept alone contributes <b>{signed(h8cal.no_information_tilt_points, 2)} points</b>. That portion is an unconditional
-                              base rate, <b>not evidence about today</b>. Confidence is {pct(h8.confidence, 2)}.
+                              base rate, <b>not evidence about today</b>. Confidence is {pct(confidence8, 2)}.
                             </span>
                           </div>
                         )}
@@ -477,7 +517,7 @@ export default function Cockpit() {
                       <div className="mini"><i style={{ width: `${bull4 === null ? 0 : Math.max(0, Math.min(100, bull4))}%` }} /></div>
                       <div style={{ textAlign: "right", flex: "none" }}>
                         <div className="eyebrow">Conf</div>
-                        <span className="num" style={{ fontSize: ".95rem", fontWeight: 600, color: (finite(h4.confidence) ?? 0) < 20 ? "var(--warn)" : "var(--t-hi)" }}>{pct(h4.confidence, 2)}</span>
+                        <span className="num" style={{ fontSize: ".95rem", fontWeight: 600, color: (confidence4 ?? 0) < 20 ? "var(--warn)" : "var(--t-hi)" }}>{pct(confidence4, 2)}</span>
                       </div>
                       <div style={{ textAlign: "right", flex: "none" }}>
                         <div className="eyebrow">Raw → tilt</div>
@@ -514,13 +554,15 @@ export default function Cockpit() {
                       return (
                         <div key={i} className={`drv ${score > 0 ? "pos" : score < 0 ? "neg" : "mix"} ${opposes ? "conflict" : ""}`}>
                           <div className="drv-h">
-                            <span className="drv-n">{String(d.name ?? "—").toUpperCase()} <span>{score > 0 ? "↑" : score < 0 ? "↓" : "→"}</span></span>
+                            <span className="drv-n">{String(d.display_name ?? d.name ?? "—").toUpperCase()} <span>{score > 0 ? "↑" : score < 0 ? "↓" : "→"}</span></span>
                             {opposes ? <span className="drv-flag">Opposes direction</span> : <span className={`badge ${score > 0 ? "good" : "bad"}`}>{signed(score, 3)}</span>}
+                            {d.is_proxy ? <span className="badge mid" title={`Measures ${d.measures}. NOT ${d.not}.`}>PROXY</span> : null}
                           </div>
                           <p className="drv-why">
                             {opposes
                               ? `Weight ${num(w, 3)} — this driver argues against the published ${stateDir.toLowerCase()} direction.`
                               : `Score ${signed(score, 3)} at effective weight ${num(w, 3)}.`}
+                            {d.is_proxy ? <> <b style={{ color: "var(--warn)" }}>PROXY:</b> measures {String(d.measures)}, <b style={{ color: "var(--t-hi)" }}>not {String(d.not)}</b>.</> : null}
                           </p>
                           <div className="drv-w">
                             <div className="drv-wt"><i style={{ width: `${Math.min(100, (Math.abs(w) / maxW) * 100)}%` }} /></div>
@@ -614,11 +656,11 @@ export default function Cockpit() {
 
               <div className="panel tap" role="button" tabIndex={0} onClick={() => { setPage("intelligence"); setOpenAcc((s) => ({ ...s, brains: true })); }}>
                 <div className="panel-h">
-                  <div><h3>Reasoning Layers</h3><p className="hint" style={{ marginTop: 1 }}>Bull, Bear and Disconfirming Critic.</p></div>
+                  <div><h3>Reasoning Layers</h3><p className="hint" style={{ marginTop: 1 }}>Bull, Bear and Disconfirming Critic — <b style={{ color: "var(--warn)" }}>research only</b>.</p></div>
                   <span className="cue">Reasoning →</span>
                 </div>
                 <div className="panel-b">
-                  <div className="isolated"><span className="k">INDEPENDENT</span><span className="v">Hypotheses generated separately; the Critic never sees a preferred answer.</span></div>
+                  <div className="degraded"><span className="k">RESEARCH ONLY</span><span className="v">These layers do <b style={{ color: "var(--t-hi)" }}>NOT affect the published 4H/8H probability or confidence</b>. Verified: driving them from maximally bullish to maximally bearish — including a Critic hard-hold — leaves the published values byte-identical. They are shown as reasoning context, never as an input to the number above.</span></div>
                   <div className="brains" style={{ marginTop: 10 }}>
                     <div className="brain b"><div className="brain-h"><span className="brain-n">BULL</span></div><div className="brain-v num">{num(asObj(hypotheses.bullish_hypothesis).strength, 2)}</div><p className="brain-c">Hypothesis strength.</p></div>
                     <div className="brain r"><div className="brain-h"><span className="brain-n">BEAR</span></div><div className="brain-v num">{num(asObj(hypotheses.bearish_hypothesis).strength, 2)}</div><p className="brain-c">Hypothesis strength.</p></div>
@@ -673,7 +715,7 @@ export default function Cockpit() {
               <p style={{ fontSize: 12.5, lineHeight: 1.6, maxWidth: "76ch", color: "var(--t-mid)" }}>{forecast.thesis ? String(forecast.thesis) : "Live thesis unavailable."}</p>
               <div className="recon" style={{ marginTop: 11 }}>
                 <span className="k">8H</span><span className="v" style={{ color: dirColor(h8.direction) }}>{pct(bull8, 2)} / {pct(bear8, 2)}</span>
-                <span className="k">4H</span><span className="v" style={{ color: dirColor(h4.direction) }}>{pct(bull4, 2)} / {pct(h4.bearish_probability, 2)}</span>
+                <span className="k">4H</span><span className="v" style={{ color: dirColor(h4.direction) }}>{pct(bull4, 2)} / {pct(bear4, 2)}</span>
                 {finite(interval.low) !== null && <><span className="k">95% INTERVAL</span><span className="v" style={{ color: "var(--warn)" }}>{num(interval.low, 2)} – {num(interval.high, 2)}</span></>}
                 <span className="k" style={{ marginLeft: "auto" }}>GATE</span><span className="v">{upper(words(cognitive.decision_gate || "—"))}</span>
               </div>
@@ -682,11 +724,11 @@ export default function Cockpit() {
           </div>
 
           <div className="acc">
-            <Acc id="brains" idx="01" title="Reasoning Layers" sub="Bull, Bear and Disconfirming Critic"
+            <Acc id="brains" idx="01" title="Reasoning Layers (research only)" sub="Bull, Bear and Disconfirming Critic — no production influence"
               right={asList(critic.objections).length ? <span className="badge mid">OBJECTIONS</span> : <span className="badge good">CLEAR</span>}>
               <div className="isolated" style={{ marginTop: 12 }}>
                 <span className="k">STRUCTURE</span>
-                <span className="v">Hypotheses and Critic are live cognitive fields. The V7.4 Three-Brain is a separate package whose roles emit nine flat fields — it has <b style={{ color: "var(--warn)" }}>no cause, transmission, expected-effect or invalidation field</b>; that reasoning exists only as prose inside <span className="num">thesis</span>.</span>
+                <span className="v"><b style={{ color: "var(--warn)" }}>NEITHER LAYER BELOW AFFECTS THE PUBLISHED FORECAST.</b> The production 4H/8H probability is produced solely by BASE_FIA evidence scoring; the cognitive layer and the V7.4 Three-Brain are classified RESEARCH / SHADOW ONLY and are not connected to it. Hypotheses and Critic are live cognitive fields. The V7.4 Three-Brain is a separate package whose roles emit nine flat fields — it has <b style={{ color: "var(--warn)" }}>no cause, transmission, expected-effect or invalidation field</b>; that reasoning exists only as prose inside <span className="num">thesis</span>.</span>
               </div>
               <div className="bblock b">
                 <div className="bblock-h"><span className="brain-n">BULL HYPOTHESIS</span><span className="badge good">STRENGTH {num(asObj(hypotheses.bullish_hypothesis).strength, 4)}</span></div>
@@ -815,8 +857,8 @@ export default function Cockpit() {
             <Acc id="breadth" idx="06" title="Equal-Weight Participation" sub="Dispersion across the tracked large-cap basket — not market breadth"
               right={<span className="badge mid">{(finite(data.breadth) ?? 0) >= 0 ? "FLAT" : "NOT CONFIRMING"}</span>}>
               <KV k="Equal-weight participation" v={<span className="num">{signed(data.breadth, 4)}</span>} color="var(--warn)" />
-              <KV k="NQ vs SPX confirmation" v={<span className="num">{signed(data.spx_confirmation, 4)}</span>} color={(finite(data.spx_confirmation) ?? 0) < 0 ? "var(--bear)" : "var(--bull)"} />
-              <KV k="NQ structure" v={<span className="num">{signed(data.nq_structure, 4)}</span>} />
+              <KV k="SPY Confirmation Proxy (not SPX divergence)" v={<span className="num">{signed(data.spx_confirmation, 4)}</span>} color={(finite(data.spx_confirmation) ?? 0) < 0 ? "var(--bear)" : "var(--bull)"} />
+              <KV k="QQQ Structure Proxy (not NQ futures)" v={<span className="num">{signed(data.nq_structure, 4)}</span>} />
               <KV k="Structure basis" v={`${data.nq_structure_bars ?? "—"} completed bars · ${words(data.nq_structure_source)}`} />
               <p className="hint" style={{ marginTop: 11 }}>This factor is the <b style={{ color: "var(--t-hi)" }}>equal-weighted mean change of the 15 tracked large caps</b> — it is <b style={{ color: "var(--warn)" }}>not market breadth</b>: there is no advance/decline line and no wide-universe sample. Every Semiconductor and Mega-cap constituent is inside this same basket, so it measures equal-weight vs cap-weight dispersion, not participation across the market. The confirmation score is SPY&rsquo;s normalised change, not a computed divergence statistic.</p>
             </Acc>

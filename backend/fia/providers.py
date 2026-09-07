@@ -52,6 +52,15 @@ class ProviderHub:
             ]
         }
 
+        # V6.6.6 DIAGNOSTIC: why the candle series failed, if it did.
+        # A missing POLYGON_API_KEY and a REJECTED POLYGON_API_KEY previously
+        # produced byte-identical /api/provider/health output -- both simply
+        # reported candles as 'derived'. The reason existed only on stdout, which
+        # is not readable on a managed host, so a configuration fault was
+        # indistinguishable from a provider outage. This records the reason so it
+        # can be surfaced. It changes no availability semantics.
+        self._candle_failure: Optional[Dict[str, Any]] = None
+
         self._snapshot_cache: Optional[Dict[str, Any]] = None
         self._snapshot_cache_time: float = 0.0
         self._price_action_cache: Dict[tuple[str, str], tuple[float, Dict[str, Any]]] = {}
@@ -253,6 +262,9 @@ class ProviderHub:
                 f"Finnhub candles unavailable for {symbol} "
                 f"({resolution}); trying Polygon fallback."
             )
+            self._candle_failure = {"stage": "finnhub", "symbol": symbol,
+                                    "resolution": str(resolution),
+                                    "reason": "FINNHUB_CANDLES_UNAVAILABLE"}
 
         # ---------------------------------------------------------
         # Fallback: Polygon
@@ -261,6 +273,11 @@ class ProviderHub:
 
         if not polygon_key:
             print("Polygon fallback unavailable: POLYGON_API_KEY is missing.")
+            self._candle_failure = {
+                "stage": "polygon", "symbol": symbol, "resolution": str(resolution),
+                "reason": "POLYGON_API_KEY_NOT_CONFIGURED",
+                "remediation": "Set POLYGON_API_KEY in the deployment environment.",
+            }
             return None
 
         # Map Finnhub resolutions to Polygon aggregates.
@@ -302,12 +319,21 @@ class ProviderHub:
 
         if not polygon:
             print(f"Polygon fallback failed for {symbol} ({resolution}).")
+            self._candle_failure = {
+                "stage": "polygon", "symbol": symbol, "resolution": str(resolution),
+                "reason": "POLYGON_REQUEST_FAILED",
+                "remediation": "Polygon returned no usable response (auth, rate limit or network).",
+            }
             return None
 
         results = polygon.get("results") or []
 
         if not results:
             print(f"Polygon returned no candles for {symbol} ({resolution}).")
+            self._candle_failure = {
+                "stage": "polygon", "symbol": symbol, "resolution": str(resolution),
+                "reason": "POLYGON_EMPTY_RESULTS",
+            }
             return None
 
         # Normalize Polygon milliseconds → Finnhub seconds.
@@ -354,6 +380,7 @@ class ProviderHub:
             f"Polygon fallback active for {symbol} ({resolution}): "
             f"{len(timestamps)} candles."
         )
+        self._candle_failure = None
 
         return {
             "s": "ok",
@@ -5522,6 +5549,12 @@ class ProviderHub:
             print(f"Completed-bar structure unavailable: {exc}")
             structure = None
 
+        # V6.6.6: publish WHY candles failed, when they did. Diagnostic only --
+        # it never upgrades a proxy to real candle evidence.
+        if not (structure and structure.get("score") is not None):
+            if getattr(self, "_candle_failure", None):
+                data["provider_candle_failure"] = dict(self._candle_failure)
+
         if structure and structure.get("score") is not None:
             data["nq_structure"] = structure["score"]
             data["provider_candle_evidence"] = "available"
@@ -5834,6 +5867,44 @@ class ProviderHub:
                     )
 
                 data["news_scored_articles"] = len(sentiment_values)
+
+                # V6.6.7 REAL ARTICLE AGE.
+                # The news staleness ceiling (12h) has existed since V6.6.4, but
+                # it was fed the age of the HTTP REQUEST, which is 0.0 by
+                # construction. The gate therefore could never fire, and a
+                # week-old headline was labelled "live". Publication timestamps
+                # are read here so the existing gate operates on the age of the
+                # EVIDENCE rather than the age of the fetch.
+                _pub_ages = []
+                _now_utc = datetime.now(timezone.utc)
+                for _a in articles:
+                    _ts = _a.get("publishedAt") or _a.get("published_at") or _a.get("datetime")
+                    if _ts is None:
+                        continue
+                    try:
+                        if isinstance(_ts, (int, float)):
+                            _dt = datetime.fromtimestamp(float(_ts), tz=timezone.utc)
+                        else:
+                            _dt = datetime.fromisoformat(str(_ts).replace("Z", "+00:00"))
+                            if _dt.tzinfo is None:
+                                _dt = _dt.replace(tzinfo=timezone.utc)
+                    except (ValueError, OSError, OverflowError):
+                        continue
+                    _pub_ages.append((_now_utc - _dt).total_seconds())
+                if _pub_ages:
+                    _newest = min(_pub_ages)
+                    data["news_newest_article_age_seconds"] = round(_newest, 1)
+                    data["news_median_article_age_seconds"] = round(
+                        sorted(_pub_ages)[len(_pub_ages) // 2], 1)
+                    data["news_oldest_article_age_seconds"] = round(max(_pub_ages), 1)
+                    data["news_articles_with_timestamp"] = len(_pub_ages)
+                    data["news_age_basis"] = "NEWEST_ARTICLE_PUBLICATION_TIME"
+                    # Future-dated publication is a provider defect, never evidence.
+                    data["news_future_dated_articles"] = sum(1 for a in _pub_ages if a < -60)
+                else:
+                    data["news_newest_article_age_seconds"] = None
+                    data["news_articles_with_timestamp"] = 0
+                    data["news_age_basis"] = "NO_PUBLICATION_TIMESTAMPS_AVAILABLE"
 
                 if sentiment_values:
                     data["news"] = max(

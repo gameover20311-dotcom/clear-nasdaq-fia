@@ -165,6 +165,7 @@ def _source_item(
     value: Optional[float] = None,
     change_percent: Optional[float] = None,
     note: str = "",
+    evidence_state: Optional[str] = None,
 ) -> Dict[str, Any]:
     if status is None:
         if not available:
@@ -196,6 +197,7 @@ def _source_item(
         "value": value,
         "change_percent": change_percent,
         "note": note,
+        "evidence_state": evidence_state,
     }
 
 
@@ -301,6 +303,16 @@ async def enrich_provider_reliability(hub: Any, data: Dict[str, Any]) -> Dict[st
               "DERIVED: NQ structure was inferred from a single QQQ quote scalar. "
               "No candle series was requested or received."),
     )
+    # V6.6.6: surface WHY the candle series was unavailable. Without this a missing
+    # POLYGON_API_KEY and a rejected one are indistinguishable from this endpoint,
+    # because both simply report 'derived'. Diagnostic only -- availability,
+    # freshness and the fail-closed semantics above are untouched.
+    _candle_failure = data.get("provider_candle_failure")
+    if isinstance(_candle_failure, dict) and not candle_available:
+        source_health["candles"]["failure_reason"] = _candle_failure.get("reason")
+        source_health["candles"]["failure_stage"] = _candle_failure.get("stage")
+        if _candle_failure.get("remediation"):
+            source_health["candles"]["remediation"] = _candle_failure.get("remediation")
 
     # ----------------------------------------------------------
     # REAL DXY
@@ -430,19 +442,43 @@ async def enrich_provider_reliability(hub: Any, data: Dict[str, Any]) -> Dict[st
 
     news_status = str(data.get("news_status") or "missing")
     news_available = news_status.startswith("live")
+    # V6.6.7 NEWS AGE IS THE AGE OF THE EVIDENCE, NOT OF THE FETCH.
+    # age_seconds was hardcoded 0.0, so the 12h news staleness ceiling could
+    # never fire and a stale headline was indistinguishable from a breaking one.
+    _news_age = data.get("news_newest_article_age_seconds")
+    _news_basis = str(data.get("news_age_basis") or "UNKNOWN")
+    _news_fresh = ("request_live" if not news_available
+                   else ("unknown" if _news_age is None else "recent"))
     source_health["news"] = _source_item(
         available=news_available,
-        source="NewsAPI",
-        freshness="request_live" if news_available else "missing",
+        source="NewsAPI aggregator (secondary outlets; not primary filings/wires)",
+        freshness=_news_fresh,
         status=news_status,
         observed_at=now_iso if news_available else None,
-        age_seconds=0.0 if news_available else None,
-        note=f"articles={data.get('news_articles', 0)}, scored={data.get('news_scored_articles', 0)}",
+        age_seconds=(float(_news_age) if _news_age is not None else None),
+        evidence_state=("RELEASED_VERIFIED" if news_available else "SOURCE_FAILURE"),
+        note=(f"articles={data.get('news_articles', 0)}, "
+              f"scored={data.get('news_scored_articles', 0)}, "
+              f"age_basis={_news_basis}, "
+              f"newest_age_s={_news_age}, "
+              f"median_age_s={data.get('news_median_article_age_seconds')}, "
+              f"oldest_age_s={data.get('news_oldest_article_age_seconds')}, "
+              f"future_dated={data.get('news_future_dated_articles', 0)}; "
+              "PRIMARY SOURCE COVERAGE = 0 (aggregated secondary reporting); "
+              "sentiment = unweighted keyword count, not a validated model"),
     )
 
     macro_status = str(data.get("macro_status") or "missing")
     macro_available = "missing" not in macro_status.lower() and "unavailable" not in macro_status.lower()
+    # V6.6.7: macro carries the same explicit state. There is no macro EVENT
+    # CALENDAR producer in this build, so the honest state is "no producer" --
+    # not "the source failed" and not a silent absence.
+    _m_state = ("RELEASED_VERIFIED" if macro_available
+                else ("NO_PRODUCER_IMPLEMENTED"
+                      if "missing_event_calendar" in macro_status.lower()
+                      else "SOURCE_FAILURE"))
     source_health["macro"] = _source_item(
+        evidence_state=_m_state,
         available=macro_available,
         source="FRED",
         freshness="request_live" if macro_available else "missing",
@@ -465,11 +501,32 @@ async def enrich_provider_reliability(hub: Any, data: Dict[str, Any]) -> Dict[st
     )
     # Legacy `earnings` health means directional surprise evidence, not merely
     # that a future calendar event exists. Upcoming-only events stay MISSING.
+    # V6.6.7 NO AMBIGUOUS MIDDLE STATE.
+    # `status` previously collapsed four genuinely different situations into the
+    # single word "missing": there was no relevant event, the provider failed,
+    # an event is scheduled but has not reported yet, or a real surprise exists.
+    # Those demand different reactions, so they are now separate states. The
+    # score is unchanged either way -- this is provenance, not a new input.
+    _e_raw = str(data.get("earnings_status") or "unknown")
+    _EARNINGS_STATE = {
+        "released_surprise": "RELEASED_VERIFIED",
+        "upcoming_only_no_released_surprise": "UPCOMING_VERIFIED_NO_SURPRISE_YET",
+        "no_tracked_events": "NO_RELEVANT_EVENT",
+        "provider_error": "SOURCE_FAILURE",
+    }
+    _e_state = _EARNINGS_STATE.get(_e_raw, "DATA_MISSING_UNCLASSIFIED")
+    _e_status = {
+        "RELEASED_VERIFIED": "live",
+        "UPCOMING_VERIFIED_NO_SURPRISE_YET": "no_directional_evidence",
+        "NO_RELEVANT_EVENT": "not_applicable",
+        "SOURCE_FAILURE": "provider_error",
+    }.get(_e_state, "missing")
     source_health["earnings"] = _source_item(
         available=earnings_directional_available,
         source="Released earnings surprise evidence",
         freshness="request_live" if earnings_directional_available else "missing",
-        status="live" if earnings_directional_available else "missing",
+        status=_e_status,
+        evidence_state=_e_state,
         observed_at=now_iso if earnings_directional_available else None,
         age_seconds=0.0 if earnings_directional_available else None,
         note=(f"calendar_available={earnings_calendar_available}; directional_surprise_available={earnings_directional_available}; "

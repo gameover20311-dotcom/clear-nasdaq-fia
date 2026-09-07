@@ -179,13 +179,30 @@ async def build_dashboard_payload(hub, build_forecast):
     _bulls = {k: v for k, v in (('base_engine', _bullof(_fc)),
                                 ('premove_8h', _bullof(_pm8)),
                                 ('cognitive_8h', _bullof(_cog))) if v is not None}
+    # Separate genuine directional calls from abstentions before comparing them.
+    _ABSTAIN = {'NO_EDGE', 'NEUTRAL', 'UNKNOWN', ''}
+    _directional = [v for v in _dirs.values() if str(v or '').upper() not in _ABSTAIN]
+    _directional_names = [k for k, v in _dirs.items()
+                          if str(v or '').upper() not in _ABSTAIN]
+    _abstaining = [k for k, v in _dirs.items() if str(v or '').upper() in _ABSTAIN]
+    _canon_abstains = str(_dirs.get('premove_8h') or '').upper() in _ABSTAIN
+
     forecast_consistency = {
         'canonical_source': 'live.premove_watch.horizons',
         'canonical_reason': ('the pre-move layer is the only one that publishes 4H and 8H '
                              'separately with horizon-specific evidence weights'),
         'directions': _dirs,
         'bullish_probabilities': _bulls,
-        'directions_agree': (len(set(_known)) <= 1) if _known else None,
+        # V6.6.7: an ABSTENTION IS NOT AGREEMENT. `_known` filters out unknown
+        # values, which meant a canonical NO_EDGE alongside two BULLISH estimators
+        # reported directions_agree=true -- implying a consensus that the
+        # published forecast explicitly declined to make.
+        'directions_agree': ((len(set(_directional)) <= 1) if _directional else None),
+        'directional_estimators': sorted(_directional_names),
+        'abstaining_estimators': sorted(_abstaining),
+        'canonical_is_abstaining': _canon_abstains,
+        'agreement_scope': ('directional estimators only; abstentions are excluded '
+                            'from the comparison and never counted as agreement'),
         'max_bullish_spread_points': (round(max(_bulls.values()) - min(_bulls.values()), 3)
                                       if len(_bulls) > 1 else None),
         'note': ('Different estimators may disagree. Each publishes its direction from its OWN '
@@ -193,4 +210,73 @@ async def build_dashboard_payload(hub, build_forecast):
                  'Disagreement is reported, never averaged away.'),
     }
 
-    return {'ok':True,'generated_at':datetime.now(timezone.utc).isoformat(),'data_as_of':_data_as_of,'live':{'snapshot':snapshot,'forecast':ser(forecast),'cognitive':cognitive,'premove_watch':premove_watch,'data_as_of':_data_as_of,'liquidity':{k:ser(v) for k,v in levels.items()},'liquidity_groups':{g:{'instrument':v.get('instrument'),'current_price':v.get('current_price'),'levels':{k:ser(x) for k,x in (v.get('levels') or {}).items()}} for g,v in groups.items()},'upcoming_earnings':await upcoming(hub)},'backtest':load_backtest(),'forecast_consistency':forecast_consistency}
+    # V6.6.7 FED EVIDENCE (context only, never a forecast input).
+    # Built in an isolated module that neither engine nor premove_watch imports,
+    # and attached to the payload AFTER the forecast and the pre-move view have
+    # already been computed, so it cannot influence either even by accident.
+    try:
+        from fia.fed_evidence import build_fed_evidence
+        fed_evidence = await build_fed_evidence(hub)
+    except Exception as exc:
+        fed_evidence = {'ok': False, 'classification': 'PRODUCTION_EVIDENCE_ONLY',
+                        'production_influence': False,
+                        'affects_published_probability': False,
+                        'state': 'SOURCE_FAILURE',
+                        'error': type(exc).__name__ + ': ' + str(exc)}
+
+    # ------------------------------------------------------------- V6.6.7
+    # PRODUCTION / RESEARCH BOUNDARY. Every component is classified so no part
+    # of the system has ambiguous influence on the published forecast. This is
+    # provenance only -- it computes nothing and changes no probability.
+    #
+    # Three-Brain and the cognitive reasoning layer are RESEARCH_ONLY on evidence,
+    # not by assertion: driving the cognitive layer from maximally bullish to
+    # maximally bearish -- including critic.hard_hold=True -- leaves the published
+    # 4H/8H probability and confidence byte-identical. premove_watch imports
+    # nothing from the reasoning path except the calibration model file.
+    component_map = {
+        'PRODUCTION_FORECAST': {
+            'BASE_FIA_engine': 'fia/engine.py build_forecast -> weighted evidence score',
+            'premove_watch': 'fia/premove_watch.py -> the published 4H and 8H distributions',
+            'premove_calibration': 'slope-only, intercept pinned at 0; cannot decide a sign',
+            'conviction_gate': 'NO_EDGE when |published-50| < 2.0 or confidence < 5.0',
+            'session_freshness_gate': 'venue-aware admissibility of every input',
+        },
+        'PRODUCTION_EVIDENCE_ONLY': {
+            'provider_health': 'source availability/freshness; gates but does not score',
+            'liquidity_levels': 'execution context; not a directional input',
+            'news': 'scored, summary-only, primary_source_ratio 0.0',
+            'forward_oos_ledger': 'immutable record; never feeds a forecast',
+            'fed_evidence': ('FRED policy rate + FOMC calendar + monetary-policy RSS; '
+                             'timestamped, unscored, isolated module'),
+        },
+        'SHADOW_CANDIDATE': {},
+        'RESEARCH_ONLY': {
+            'three_brain_v74': 'zero production influence (proven by extremes test); FAIL_CLOSED on last run',
+            'cognitive_layer': 'hypotheses/critic/analogy/fusion -- reasoning context only',
+            'chart_analyst': 'user-initiated; external paid vision API; never feeds the forecast',
+            'phase33': 'validated on 78 untouched holdout rows and LOST to BASE_FIA; not adopted',
+            'phase34': 'never validated; 1 of 13 sources; replay blocked',
+        },
+        'REJECTED': {
+            'phase33_live_probability': 'calibration_approved_for_live_probability = false',
+        },
+        'LEGACY_ARCHIVE': {
+            'historical_backtests': 'phase29 supplies retrospective metrics; phase20/21 fallback only',
+        },
+        'NOT_AVAILABLE': {
+            'macro_event_calendar': ('data.macro is None; no event-calendar producer. '
+                                     'source_health.macro reports NO_PRODUCER_IMPLEMENTED'),
+            'fed_scored_signal': ('no validated hawkish/dovish score exists for this '
+                                  'project, so none is produced; the Fed EVIDENCE '
+                                  'producer is context only'),
+            'earnings_surprise': 'no released-surprise evidence',
+            'consensus_expectations': 'not available free; SURPRISE_UNAVAILABLE',
+        },
+        'three_brain_affects_published_probability': False,
+        'cognitive_affects_published_probability': False,
+        'note': ('Only PRODUCTION_FORECAST components influence the published 4H/8H '
+                 'probability. Everything else is context, record or research.'),
+    }
+
+    return {'ok':True,'generated_at':datetime.now(timezone.utc).isoformat(),'data_as_of':_data_as_of,'live':{'snapshot':snapshot,'forecast':ser(forecast),'cognitive':cognitive,'premove_watch':premove_watch,'data_as_of':_data_as_of,'liquidity':{k:ser(v) for k,v in levels.items()},'liquidity_groups':{g:{'instrument':v.get('instrument'),'current_price':v.get('current_price'),'levels':{k:ser(x) for k,x in (v.get('levels') or {}).items()}} for g,v in groups.items()},'upcoming_earnings':await upcoming(hub)},'backtest':load_backtest(),'forecast_consistency':forecast_consistency,'component_map':component_map,'fed_evidence':fed_evidence}

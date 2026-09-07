@@ -48,17 +48,29 @@ for token in ('forecastStatus === "LIVE"', 'snapshotStatus', 'providerOverall',
     assert token in page, 'truth-readiness composition missing: %s' % token
 
 # 3) probabilities/confidence must fail closed to null, never to a neutral number
-for token in ('const bull = truthReady ?', 'const bear = truthReady ?',
-              'const confidence = truthReady ?'):
+#    V6.6.7: the Obsidian cockpit renamed these bindings (bull8/bear8/bull4/bear4,
+#    confidence8/confidence4) and gates each horizon separately. The names moved;
+#    the protection did not. These assertions pin the BEHAVIOUR.
+for token in ('const bull8 = truthReady ?', 'const bear8 = truthReady ?',
+              'const bull4 = truthReady ?', 'const bear4 = truthReady ?',
+              'const confidence8 = truthReady ?', 'const confidence4 = truthReady ?'):
     assert token in page, 'probability must be gated by truthReady: %s' % token
 assert ': null;' in page, 'gated values must fall back to null'
+
+# every gated value must actually reach the screen through the gate, not around it
+for leak in ('pct(h8.confidence', 'pct(h4.confidence', 'pct(h4.bearish_probability'):
+    assert leak not in page, 'ungated value rendered directly: %s' % leak
 
 # 4) an explicit not-trustworthy presentation must exist (no silent neutral bias)
 for token in ('"UNAVAILABLE"', 'NO EDGE', 'DO NOT TRUST BIAS'):
     assert token in page, 'explicit fail-closed presentation missing: %s' % token
+assert 'truthBlockedReason' in page, 'the blocked reason must be shown, not just a dash'
 
 # 5) the page must never coerce a missing probability into 0 or 50
 assert 'bullish_probability || 0' not in page, 'missing probability coerced to 0'
 assert 'bullish_probability ?? 50' not in page, 'missing probability coerced to 50'
 assert 'Number(forecast.bullish_probability) || 0' not in page, 'Number(null)->0 coercion present'
+for tok in ('bull8 === null ? "—"', 'bear8 === null ? "—"', 'bull4 === null ? "—"'):
+    assert tok in page, 'a null probability must render as a dash: %s' % tok
+
 print('PASS test_rc2_sol56_truth_status')

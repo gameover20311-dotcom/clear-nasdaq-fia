@@ -1,0 +1,479 @@
+{
+ "data": {
+  "asia_high": 29583.0,
+  "asia_low": 29545.0,
+  "breadth": -0.009876666666666667,
+  "change": 1.29,
+  "change_percent": 0.1797,
+  "daily_high": 29704.5,
+  "daily_low": 29468.0,
+  "dxy": -0.00671944767166958,
+  "dxy_change_percent": 0.005,
+  "dxy_rate_proxy": 0.24666666666666673,
+  "dxy_source": "Yahoo Finance DX-Y.NYB",
+  "dxy_source_timestamp": "2026-09-07T03:55:00+00:00",
+  "dxy_value": 99.165,
+  "earnings": null,
+  "earnings_calendar_available": true,
+  "earnings_catalyst_risk": false,
+  "earnings_events": 0,
+  "earnings_negative": 0,
+  "earnings_positive": 0,
+  "earnings_status": "no_tracked_events",
+  "earnings_surprises_counted": 0,
+  "equal_weight_participation_definition": {
+   "constituent_count": 15,
+   "constituents": [
+    "NVDA",
+    "MSFT",
+    "AAPL",
+    "AMZN",
+    "META",
+    "AVGO",
+    "GOOGL",
+    "GOOG",
+    "TSLA",
+    "NFLX",
+    "AMD",
+    "MU",
+    "INTC",
+    "QCOM",
+    "SMCI"
+   ],
+   "is_market_breadth": false,
+   "label": "Equal-weight participation",
+   "measures": "equal-weighted mean normalised daily change of the tracked single-name large-cap basket",
+   "note": "NOT an advance/decline line and NOT a wide-universe breadth measure. Legacy key 'breadth' is retained for backward compatibility only.",
+   "shares_constituents_with": [
+    "Semiconductors",
+    "Mega-cap leadership"
+   ]
+  },
+  "fed_funds_rate": 3.63,
+  "fred_macro_series_available": true,
+  "high": 721.86,
+  "liquidity_evidence": {
+   "is_proxy": false,
+   "levels_priced": 14,
+   "levels_total": 14,
+   "nq": "explicit_contract",
+   "nq_symbol": "NQU6",
+   "qqq_reference": "available",
+   "source_quality": "EXPLICIT_CONTRACT"
+  },
+  "liquidity_evidence_available": true,
+  "liquidity_truth_fix": {
+   "exact_forexcom_cash_parity": false,
+   "forecast_price_overwritten": false,
+   "paid_dependency": false,
+   "primary_instrument": "NQ futures",
+   "status": "ZERO_COST_AUTONOMOUS",
+   "tradingview_webhook_required": false
+  },
+  "london_close_high": 29691.0,
+  "london_close_low": 29478.0,
+  "london_high": 29673.0,
+  "london_low": 29574.0,
+  "low": 716.56,
+  "macro": null,
+  "macro_status": "missing_event_calendar",
+  "mega_cap": -0.3153112676056337,
+  "mega_cap_details": {
+   "AAPL": {
+    "change_percent": -2.5106,
+    "signal": -1.0,
+    "weight": 0.09
+   },
+   "AMZN": {
+    "change_percent": -0.1506,
+    "signal": -0.0753,
+    "weight": 0.08
+   },
+   "AVGO": {
+    "change_percent": 0.2058,
+    "signal": 0.1029,
+    "weight": 0.06
+   },
+   "GOOG": {
+    "change_percent": -1.1118,
+    "signal": -0.5559,
+    "weight": 0.04
+   },
+   "GOOGL": {
+    "change_percent": -1.1738,
+    "signal": -0.5869,
+    "weight": 0.06
+   },
+   "META": {
+    "change_percent": 0.9972,
+    "signal": 0.4986,
+    "weight": 0.07
+   },
+   "MSFT": {
+    "change_percent": -2.0427,
+    "signal": -1.0,
+    "weight": 0.1
+   },
+   "NFLX": {
+    "change_percent": -5.3466,
+    "signal": -1.0,
+    "weight": 0.03
+   },
+   "NVDA": {
+    "change_percent": 0.8361,
+    "signal": 0.418,
+    "weight": 0.14
+   },
+   "TSLA": {
+    "change_percent": -5.9211,
+    "signal": -1.0,
+    "weight": 0.04
+   }
+  },
+  "monthly_high": 29811.5,
+  "monthly_low": 29273.5,
+  "new_york_high": 29694.0,
+  "new_york_low": 29478.0,
+  "news": 0.33333333333333337,
+  "news_articles": 20,
+  "news_scored_articles": 13,
+  "news_status": "live_scored",
+  "nq_futures_price": null,
+  "nq_liquidity": {
+   "candidate_contract_volumes": {
+    "NQU6": 450565.0
+   },
+   "current_price": 29561.25,
+   "instrument": "NQ",
+   "level_status": {
+    "asia_high": "UNTAPPED",
+    "asia_low": "UNTAPPED",
+    "daily_high": "UNTAPPED",
+    "daily_low": "UNTAPPED",
+    "london_close_high": "UNTAPPED",
+    "london_close_low": "TAPPED",
+    "london_high": "TAPPED",
+    "london_low": "TAPPED",
+    "monthly_high": "UNTAPPED",
+    "monthly_low": "TAPPED",
+    "new_york_high": "UNTAPPED",
+    "new_york_low": "TAPPED",
+    "weekly_high": "UNTAPPED",
+    "weekly_low": "TAPPED"
+   },
+   "levels": {
+    "asia_high": 29583.0,
+    "asia_low": 29545.0,
+    "daily_high": 29704.5,
+    "daily_low": 29468.0,
+    "london_close_high": 29691.0,
+    "london_close_low": 29478.0,
+    "london_high": 29673.0,
+    "london_low": 29574.0,
+    "monthly_high": 29811.5,
+    "monthly_low": 29273.5,
+    "new_york_high": 29694.0,
+    "new_york_low": 29478.0,
+    "weekly_high": 29811.5,
+    "weekly_low": 29273.5
+   },
+   "note": "NQ futures scale. It will not exactly equal FOREXCOM:NAS100 cash CFD.",
+   "period_origin": {
+    "anchor_date": "2026-09-06",
+    "daily": "2026-09-04",
+    "monthly": "2026-08",
+    "weekly": "2026-08-24"
+   },
+   "primary_chart_liquidity": true,
+   "session_origin": {
+    "asia": {
+     "date": "2026-09-07",
+     "end": "2026-09-07T00:00:00-04:00",
+     "start": "2026-09-06T20:00:00-04:00"
+    },
+    "london": {
+     "date": "2026-09-04",
+     "end": "2026-09-04T05:00:00-04:00",
+     "start": "2026-09-04T02:00:00-04:00"
+    },
+    "london_close": {
+     "date": "2026-09-04",
+     "end": "2026-09-04T12:00:00-04:00",
+     "start": "2026-09-04T10:00:00-04:00"
+    },
+    "new_york": {
+     "date": "2026-09-04",
+     "end": "2026-09-04T12:00:00-04:00",
+     "start": "2026-09-04T07:00:00-04:00"
+    }
+   },
+   "session_windows_ny": {
+    "asia": "20:00 previous day -> 00:00",
+    "london": "02:00 -> 05:00",
+    "london_close": "10:00 -> 12:00",
+    "new_york": "07:00 -> 12:00"
+   },
+   "source": "Massive Futures v1 explicit NQ contract NQU6",
+   "source_quality": "EXPLICIT_CONTRACT",
+   "symbol": "NQU6",
+   "tick_size": 0.25,
+   "timezone": "America/New_York",
+   "tradingview_webhook_required": false
+  },
+  "nq_structure": 0.161039,
+  "nq_structure_bars": 95,
+  "nq_structure_basis": "QQQ_60M_CANDLES_COMPLETED_BARS",
+  "nq_structure_detail": "95 completed 60m QQQ bars; range position +0.479, momentum -0.157; in-progress bar excluded",
+  "nq_structure_last_bar_end_utc": "2026-09-04T22:00:00+00:00",
+  "nq_structure_source": "polygon_fallback",
+  "open": 719.345,
+  "previous_close": 717.67,
+  "price": 718.96,
+  "price_action": {
+   "_fia_provider_status": "LIVE",
+   "events": {
+    "QQQ": {
+     "continuity": {
+      "display": "5m:F2d",
+      "full_continuity": "bear"
+     },
+     "interpretation": [
+      "5 minute trend is down."
+     ],
+     "symbol": "QQQ",
+     "timeframes": {
+      "5m": {
+       "above_prior_high": false,
+       "below_prior_low": true,
+       "c1": "F2u",
+       "cc": "F2d",
+       "combo_2bar": "F2u-F2d",
+       "combo_3bar": "2u-F2u-F2d",
+       "display": "F2d",
+       "open_sign": "<",
+       "took_c1h": false,
+       "took_c1l": true,
+       "trend": "down",
+       "updated_at": "2026-09-04T20:21:53.335+00:00"
+      }
+     },
+     "type": "bar_state.update"
+    }
+   },
+   "live_during_market_hours": true,
+   "market_hours_note": "Snapshot data is live during regular US market hours when the approved upstream feed is running.",
+   "provisional": false,
+   "source": "supabase_latest_bar_states",
+   "source_timestamp": "2026-09-04T20:21:53.335Z",
+   "status": "ok",
+   "symbols": [
+    "QQQ"
+   ],
+   "timeframes": [
+    "5m"
+   ],
+   "timestamp": "2026-09-07T08:30:53.112Z",
+   "type": "bar_state.snapshot_batch"
+  },
+  "price_action_status": "LIVE",
+  "provider_candle_evidence": "available",
+  "provider_health": {
+   "available_sources": [
+    "market_quotes",
+    "candles",
+    "dxy",
+    "volatility",
+    "us10y",
+    "news",
+    "earnings_calendar",
+    "liquidity"
+   ],
+   "checked_at": "2026-09-07T08:30:57.786319+00:00",
+   "critical_missing": [],
+   "fallback_active": [],
+   "missing_sources": [
+    "macro",
+    "earnings"
+   ],
+   "overall": "LIVE",
+   "rule": "Fallbacks are explicit; missing/stale critical sources cannot report full health.",
+   "score": 77.8,
+   "stale_sources": []
+  },
+  "provider_health_score": 77.8,
+  "provider_health_status": "LIVE",
+  "provider_quotes_available": 17,
+  "provider_quotes_requested": 17,
+  "qqq_liquidity": {
+   "current_price": 719.0,
+   "instrument": "QQQ",
+   "level_status": {
+    "daily_high": "TAPPED",
+    "daily_low": "UNTAPPED",
+    "monthly_high": "UNTAPPED",
+    "monthly_low": "UNTAPPED",
+    "weekly_high": "UNTAPPED",
+    "weekly_low": "UNTAPPED"
+   },
+   "levels": {
+    "daily_high": 719.0,
+    "daily_low": 709.75,
+    "monthly_high": 734.5,
+    "monthly_low": 685.75,
+    "weekly_high": 724.25,
+    "weekly_low": 702.75
+   },
+   "origin": {
+    "anchor_date": "2026-09-04",
+    "daily": "2026-09-03",
+    "monthly": "2026-08",
+    "weekly": "2026-08-24"
+   },
+   "primary_chart_liquidity": false,
+   "source": "Yahoo QQQ reference",
+   "symbol": "QQQ"
+  },
+  "semis": 0.65305,
+  "source_health": {
+   "candles": {
+    "age_seconds": 0.0,
+    "available": true,
+    "change_percent": null,
+    "fallback": false,
+    "freshness": "request_live",
+    "note": "Structure evidence health; exact upstream may be Finnhub or Polygon fallback.",
+    "observed_at": "2026-09-07T08:30:57.022908+00:00",
+    "source": "Finnhub candles + Polygon fallback",
+    "status": "live",
+    "value": null
+   },
+   "dxy": {
+    "age_seconds": 16557.8,
+    "available": true,
+    "change_percent": 0.005,
+    "fallback": false,
+    "freshness": "recent",
+    "note": "Direct US Dollar Index level/change; FIA score is inverse DXY pressure on NQ.",
+    "observed_at": "2026-09-07T03:55:00+00:00",
+    "source": "Yahoo Finance DX-Y.NYB",
+    "status": "live",
+    "value": 99.165
+   },
+   "earnings": {
+    "age_seconds": null,
+    "available": false,
+    "change_percent": null,
+    "fallback": false,
+    "freshness": "missing",
+    "note": "calendar_available=True; directional_surprise_available=False; status=no_tracked_events",
+    "observed_at": null,
+    "source": "Released earnings surprise evidence",
+    "status": "missing",
+    "value": null
+   },
+   "earnings_calendar": {
+    "age_seconds": 0.0,
+    "available": true,
+    "change_percent": null,
+    "fallback": false,
+    "freshness": "request_live",
+    "note": "tracked_events=0; status=no_tracked_events",
+    "observed_at": "2026-09-07T08:30:57.022908+00:00",
+    "source": "Finnhub earnings calendar",
+    "status": "live",
+    "value": null
+   },
+   "liquidity": {
+    "age_seconds": 0.0,
+    "available": true,
+    "change_percent": null,
+    "fallback": false,
+    "freshness": "request_live",
+    "note": "{'nq': 'explicit_contract', 'nq_symbol': 'NQU6', 'levels_priced': 14, 'levels_total': 14, 'source_quality': 'EXPLICIT_CONTRACT', 'is_proxy': False, 'qqq_reference': 'available'}",
+    "observed_at": "2026-09-07T08:30:57.022908+00:00",
+    "source": "QQQ period candles + NQ futures session candles",
+    "status": "live",
+    "value": null
+   },
+   "macro": {
+    "age_seconds": null,
+    "available": false,
+    "change_percent": null,
+    "fallback": false,
+    "freshness": "missing",
+    "note": "missing_event_calendar",
+    "observed_at": null,
+    "source": "FRED",
+    "status": "missing",
+    "value": null
+   },
+   "market_quotes": {
+    "age_seconds": 0.0,
+    "available": true,
+    "change_percent": null,
+    "fallback": false,
+    "freshness": "request_live",
+    "note": "17 tracked quotes returned in current snapshot request.",
+    "observed_at": "2026-09-07T08:30:57.022908+00:00",
+    "source": "Finnhub",
+    "status": "live",
+    "value": null
+   },
+   "news": {
+    "age_seconds": 0.0,
+    "available": true,
+    "change_percent": null,
+    "fallback": false,
+    "freshness": "request_live",
+    "note": "articles=20, scored=13",
+    "observed_at": "2026-09-07T08:30:57.022908+00:00",
+    "source": "NewsAPI",
+    "status": "live_scored",
+    "value": null
+   },
+   "us10y": {
+    "age_seconds": 221757.7,
+    "available": true,
+    "change_percent": 0.462,
+    "fallback": false,
+    "freshness": "delayed",
+    "note": "Intraday ^TNX converted to 10Y yield percent; existing FIA yield buckets preserved.",
+    "observed_at": "2026-09-04T18:55:00+00:00",
+    "source": "Yahoo Finance ^TNX",
+    "status": "delayed",
+    "value": 4.784
+   },
+   "volatility": {
+    "age_seconds": 957.7,
+    "available": true,
+    "change_percent": 3.4412,
+    "fallback": false,
+    "freshness": "live",
+    "note": "Direct VIX context for the cognitive volatility/options specialist.",
+    "observed_at": "2026-09-07T08:15:00+00:00",
+    "source": "Yahoo Finance ^VIX",
+    "status": "live",
+    "value": 15.03
+   }
+  },
+  "spx_change_percent": -0.3854,
+  "spx_confirmation": -0.1927,
+  "spx_price": 770.19,
+  "symbol": "QQQ",
+  "us10y": -0.5,
+  "us10y_change_percent": 0.462,
+  "us10y_source": "Yahoo Finance ^TNX",
+  "us10y_source_timestamp": "2026-09-04T18:55:00+00:00",
+  "us10y_value": 4.784,
+  "vix_change_percent": 3.4412,
+  "vix_signal": 0.25,
+  "vix_source": "Yahoo Finance ^VIX",
+  "vix_source_timestamp": "2026-09-07T08:15:00+00:00",
+  "vix_value": 15.03,
+  "weekly_high": 29811.5,
+  "weekly_low": 29273.5
+ },
+ "provider": "Finnhub + Polygon fallback",
+ "status": "LIVE",
+ "timestamp": 1788769857.786334
+}

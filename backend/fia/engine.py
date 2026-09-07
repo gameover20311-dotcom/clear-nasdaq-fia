@@ -403,8 +403,10 @@ def build_forecast(snapshot: dict) -> Forecast:
     # ========================================================
 
     adapters = [
-        ("NQ structure", raw.get("nq_structure"), 0.20, "QQQ/NQ intraday structure and momentum", "candles"),
-        ("SPX confirmation", raw.get("spx_confirmation"), 0.10, "S&P 500 confirmation / divergence", "market_quotes"),
+        ("NQ structure", raw.get("nq_structure"), 0.20,
+         "PROXY: QQQ 60m completed-bar structure. NOT NQ futures.", "candles"),
+        ("SPX confirmation", raw.get("spx_confirmation"), 0.10,
+         "PROXY: SPY normalised percent change. NOT an SPX divergence statistic.", "market_quotes"),
         ("DXY", raw.get("dxy"), 0.08, "US dollar pressure on NASDAQ risk assets", "dxy"),
         ("US10Y", raw.get("us10y"), 0.07, "US 10Y yield / rates pressure", "us10y"),
         ("Mega-cap leadership", raw.get("mega_cap"), 0.20, "Impact-weighted NASDAQ mega-cap leadership", "market_quotes"),

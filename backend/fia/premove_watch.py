@@ -125,6 +125,51 @@ HORIZON_WEIGHTS: Dict[str, Dict[str, float]] = {
 
 DEAD_FRESHNESS = {"missing", "unavailable", "error", "unknown", ""}
 
+# ---------------------------------------------------------------- truth labels
+# The internal signal NAME is a stable lookup key used by weights, calibration,
+# analogy and research modules; renaming it would silently change weight lookups
+# in ten modules. What the trader sees must nonetheless be TRUE, so the display
+# label and an explicit proxy flag are published alongside every driver.
+#
+# Two names were provably misleading:
+#   "NQ structure"     -> computed from QQQ 60m Polygon bars, not NQ futures
+#   "SPX confirmation" -> SPY normalised percent change, not an SPX divergence stat
+SIGNAL_DISPLAY: Dict[str, Dict[str, Any]] = {
+    "NQ structure": {
+        "display_name": "QQQ Structure Proxy",
+        "is_proxy": True,
+        "measures": "QQQ 60m completed-bar range position and momentum",
+        "not": "NQ futures structure",
+    },
+    "SPX confirmation": {
+        "display_name": "SPY Confirmation Proxy",
+        "is_proxy": True,
+        "measures": "SPY normalised percent change",
+        "not": "an SPX divergence statistic",
+    },
+    "Equal-weight participation": {
+        "display_name": "Equal-Weight Participation",
+        "is_proxy": True,
+        "measures": "equal-weighted mean change of the 15 tracked large caps",
+        "not": "market breadth or an advance/decline line",
+    },
+    "Breadth": {   # legacy key, same underlying data
+        "display_name": "Equal-Weight Participation",
+        "is_proxy": True,
+        "measures": "equal-weighted mean change of the 15 tracked large caps",
+        "not": "market breadth or an advance/decline line",
+    },
+}
+
+
+def display_label(name: str) -> Dict[str, Any]:
+    """Truthful presentation metadata for one signal. Never affects scoring."""
+    meta = SIGNAL_DISPLAY.get(str(name))
+    if not meta:
+        return {"display_name": str(name), "is_proxy": False}
+    return dict(meta)
+
+
 # ---------------------------------------------------------------- freshness
 # Which provider source backs each signal (mirrors engine.build_forecast).
 SIGNAL_SOURCE: Dict[str, str] = {
@@ -681,7 +726,8 @@ def build_watch(forecast: Any, snapshot: Optional[Dict[str, Any]] = None,
             "mapping": meta["mapping"],
             "drivers": [{"name": c["name"], "score": c["score"],
                          "effective_weight": c["effective_weight"],
-                         "freshness": c["freshness"]} for c in contribs[:5]],
+                         "freshness": c["freshness"],
+                         **display_label(c["name"])} for c in contribs[:5]],
             "conflicts": [{"name": c["name"], "score": c["score"]}
                           for c in (bear if len(bull) >= len(bear) else bull)[:4]],
             "supporting_signal_count": len(contribs),
