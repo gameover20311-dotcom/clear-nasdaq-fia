@@ -1,5 +1,6 @@
 import asyncio
 import bisect
+import os
 import csv
 import json
 from collections import Counter, defaultdict
@@ -141,7 +142,42 @@ def normalize_polygon_article(article):
     }
 
 
+# ---------------------------------------------------------------- V6.6.9
+# FROZEN MINIMAL NEWS ARCHIVE.
+# The original 132MB Polygon capture is .gitignore'd, so ONLINE could not run
+# the replay at all -- the single gap that kept HISTORICAL PIT at PARTIAL. The
+# committed archive is a FIELD PROJECTION of that same historical capture
+# (title, description, publisher.name, article_url, published_utc, tickers):
+# 64,851 records in, 64,851 out, nothing invented, re-fetched, re-timed,
+# reordered or deduplicated. Verified: nothing downstream reads article["raw"].
+_FROZEN_NEWS = (Path(__file__).resolve().parents[1] / "fia_backtest_frozen"
+                / "data" / "polygon_news_minimal_20250901_20260831.jsonl.gz")
+
+
+def _load_frozen_news():
+    if not _FROZEN_NEWS.exists():
+        return None
+    import gzip
+    rows = []
+    with gzip.open(_FROZEN_NEWS, "rt", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    return rows
+
+
 def load_polygon_archive_cache():
+    frozen = _load_frozen_news()
+    if frozen is not None:
+        return frozen, {
+            "status": "frozen_minimal_archive",
+            "raw": len(frozen),
+            "path": str(_FROZEN_NEWS),
+            "start": "2025-09-01",
+            "end": "2026-08-31",
+            "windows": 0,
+        }
     if not POLYGON_CACHE_PATH.exists():
         raise FileNotFoundError(
             f"Missing Polygon archive cache: {POLYGON_CACHE_PATH}"
@@ -208,7 +244,23 @@ async def prefetch_news_pool(
 
     fetch_end = end.date().isoformat()
 
-    if hub.keys.get("FINNHUB_API_KEY"):
+    # V6.6.9 SECOND LIVE-REFETCH PATH, CLOSED BY DEFAULT.
+    # This supplemented the frozen archive with a LIVE Finnhub company-news call
+    # at run time. The per-timestamp cutoff (bisect_right on published epochs)
+    # still applied, so it was not future leakage -- but the returned set varies
+    # by run, key state and provider availability, which makes the replay
+    # non-deterministic. It is now gated by the same explicit flag as the
+    # yfinance path so the default replay is reproducible.
+    _finnhub_supplement = (
+        hub is not None
+        and getattr(hub, "keys", None)
+        and hub.keys.get("FINNHUB_API_KEY")
+        and str(os.getenv("FIA_ALLOW_LIVE_HISTORICAL_REFETCH") or "").strip()
+        in ("1", "true", "yes")
+    )
+    if _finnhub_supplement:
+        print("WARNING: live Finnhub news supplement enabled -- THIS RUN IS NOT "
+              "REPRODUCIBLE")
 
         async def one_symbol(symbol):
             try:

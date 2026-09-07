@@ -1,0 +1,23 @@
+{
+ "bytes": 51424751,
+ "bytes_gz": 14810042,
+ "coverage_first_published_utc": "2025-09-01T01:02:00Z",
+ "coverage_last_published_utc": "2026-08-31T23:57:00Z",
+ "fields_kept": [
+  "title",
+  "description",
+  "article_url",
+  "published_utc",
+  "tickers"
+ ],
+ "file": "polygon_news_minimal_20250901_20260831.jsonl",
+ "file_gz": "polygon_news_minimal_20250901_20260831.jsonl.gz",
+ "frozen_at_utc": "2026-09-07T18:46:28.298174+00:00",
+ "note": "Field projection of the original historical capture. No article was invented, re-fetched, re-timed, reordered or deduplicated. Untitled articles are omitted because the normaliser already discarded them. The .gz is the committed artefact; the .jsonl is regenerated from it.",
+ "provider": "Polygon (historical capture, projected)",
+ "records": 64851,
+ "sha256": "f8c09d081580f715b24337e95dc27422b3d8a4781e1e03771a360fa6db6ac98f",
+ "sha256_gz": "bf62059fb75f768f1b15061a1fb1f2110635d0d62ebb8cad38c86dfc4327a295",
+ "skipped_untitled": 0,
+ "source_articles": 64851
+}
