@@ -498,11 +498,20 @@ export default function Cockpit() {
                       </div>
                     </div>
                     <div className="field">
-                      <div className="track">
+                      <div className={`track${bull8 === null ? " withheld" : ""}`}>
                         <div className="track-bull" style={{ width: `${bull8 === null ? 0 : Math.max(0, Math.min(100, bull8))}%` }} />
                         <i style={{ left: "25%" }} /><i style={{ left: "75%" }} /><span className="mid" style={{ left: "50%" }} />
+                        {bull8 === null && <span className="track-withheld-label">PUBLISHED WITHHELD — NO DISTRIBUTION</span>}
                       </div>
                       <div className="scale"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+                      {!truthReady && (
+                        <div className="research-only">
+                          <b>INTERNAL RESEARCH VALUE — NOT PUBLISHED, NOT TRADE-READY</b>
+                          <span>8H {pct(h8.bullish_probability, 2)} / {pct(h8.bearish_probability, 2)} · raw {pct(h8.raw_probability, 2)} · conf {pct(h8.confidence, 2)}</span>
+                          <span>4H {pct(h4.bullish_probability, 2)} / {pct(h4.bearish_probability, 2)} · raw {pct(h4.raw_probability, 2)} · conf {pct(h4.confidence, 2)}</span>
+                          <span>state 8H {String(h8.state || "—")} · 4H {String(h4.state || "—")}</span>
+                        </div>
+                      )}
                     </div>
 
                     {finite(h8.raw_probability) !== null && (
@@ -536,10 +545,10 @@ export default function Cockpit() {
                         <div className="eyebrow">4H · Secondary</div>
                         <div className="sub-figs">
                           <span className="b num">{bull4 === null ? "—" : `${bull4.toFixed(2)}%`}</span>
-                          <span className="r num">{finite(h4.bearish_probability) === null ? "—" : `${finite(h4.bearish_probability)!.toFixed(2)}%`}</span>
+                          <span className="r num">{bear4 === null ? "—" : `${bear4.toFixed(2)}%`}</span>
                         </div>
                       </div>
-                      <div className="mini"><i style={{ width: `${bull4 === null ? 0 : Math.max(0, Math.min(100, bull4))}%` }} /></div>
+                      <div className={`mini${bull4 === null ? " withheld" : ""}`} title={bull4 === null ? "Published 4H distribution withheld" : undefined}><i style={{ width: `${bull4 === null ? 0 : Math.max(0, Math.min(100, bull4))}%` }} /></div>
                       <div style={{ textAlign: "right", flex: "none" }}>
                         <div className="eyebrow">Conf</div>
                         <span className="num" style={{ fontSize: ".95rem", fontWeight: 600, color: (confidence4 ?? 0) < 20 ? "var(--warn)" : "var(--t-hi)" }}>{pct(confidence4, 2)}</span>

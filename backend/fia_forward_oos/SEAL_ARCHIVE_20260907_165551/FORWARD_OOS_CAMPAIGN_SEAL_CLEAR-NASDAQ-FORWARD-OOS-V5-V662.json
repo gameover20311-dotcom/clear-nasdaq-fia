@@ -15,7 +15,7 @@
   "missed_checkpoint_backfill_allowed": false,
   "model_fingerprint": {
     "algorithm": "sha256",
-    "digest": "870e199a9e2b64c4ef9d85557868451ebbe29dd196de98719011dd4c7f461659",
+    "digest": "e658dfc2b9fee00efbe95df3f91fec18024525bfeccdff463c59b0c91fed765b",
     "file_count": 95,
     "files": {
       "fia/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -111,18 +111,18 @@
       "fia/provider_reliability.py": "3c0b96df0ed1b8e45312067ef381d858cf3d0356b145497ad91452f9eacf34aa",
       "fia/providers.py": "797ce5daeec12c829ba17c1c6d2a25e846bfedac99daf1391353ff0b2c7b0ceb",
       "fia/three_way_confluence.py": "58bd3dd07e35bea46369a317747b4fa3d45f21ca757b23b6b654033f0974d20a",
-      "main.py": "d0a0a07f9e4e13fc3d221af9df06d8f1f3a966dc08f1a1635b135a646ab7e23c",
+      "main.py": "5db3d3823f5488d7470d4ad0de9f79211beaea3cbd8b353c95470b54584948b9",
       "run_forward_oos_daemon.py": "b41dfd93457e9de5a7a92697e184df49f8ed43b4256151326e9329d01da94e7d"
     }
   },
   "old_observed_holdout_eligible": false,
   "old_observed_holdout_untouched_rows": 0,
-  "previous_seal_archive": "fia_forward_oos/SEAL_ARCHIVE_20260907_165551/FORWARD_OOS_CAMPAIGN_SEAL_CLEAR-NASDAQ-FORWARD-OOS-V5-V662.json",
+  "previous_seal_archive": "fia_forward_oos/SEAL_ARCHIVE_20260907_163221/FORWARD_OOS_CAMPAIGN_SEAL_CLEAR-NASDAQ-FORWARD-OOS-V5-V662.json",
   "production_model": "BASE_FIA",
   "require_explicit_contract": true,
   "schema_version": "SOL56_FORWARD_OOS_V5_V662",
-  "seal_hash": "62d6b90ce8a85e9f4bf5662d0d979fb084608d65379ffdd2a9141a311698a26e",
-  "sealed_at_utc": "2026-09-07T16:55:51.683521+00:00",
+  "seal_hash": "5f4585dcfb7b422047ac2d4e7582e6bb761c07100ac1139e7a6ed03e8b82ff37",
+  "sealed_at_utc": "2026-09-07T16:32:21.540927+00:00",
   "shadow_candidate": null,
   "supersedes_campaign_id": "CLEAR-NASDAQ-FORWARD-OOS-V5-V662",
   "supersedes_reason": "backend fingerprint changed after the previous seal; previous campaign held 0 forecast locks",

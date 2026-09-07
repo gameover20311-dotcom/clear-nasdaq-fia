@@ -204,6 +204,30 @@ app = FastAPI(
 )
 
 
+# ---------------------------------------------------------------- V6.6.8
+# DO NOT ECHO SUBMITTED CREDENTIALS.
+# FastAPI's default 422 handler returns the offending request body under
+# "input". A signup/login call missing one field therefore replied with the
+# submitted PASSWORD in the response body -- and in the platform request log.
+# Observed live on 2026-09-07 against /api/auth/signup. Field names and the
+# reason are still returned, so the client can correct the request; only the
+# submitted values are withheld.
+from fastapi.exceptions import RequestValidationError as _RVE  # noqa: E402
+from fastapi.responses import JSONResponse as _JSONResponse    # noqa: E402
+
+
+@app.exception_handler(_RVE)
+async def _validation_error_without_credentials(request, exc):
+    safe = []
+    for err in exc.errors():
+        safe.append({
+            "type": err.get("type"),
+            "loc": err.get("loc"),
+            "msg": err.get("msg"),
+        })
+    return _JSONResponse(status_code=422, content={"detail": safe})
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

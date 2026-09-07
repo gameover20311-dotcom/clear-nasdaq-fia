@@ -184,6 +184,22 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   border-left:1px dashed rgba(233,235,240,.22);border-right:1px dashed rgba(233,235,240,.22)}
 .track i{position:absolute;top:0;bottom:0;width:1px;background:rgba(233,235,240,.08)}
 .track .mid{position:absolute;top:-2px;bottom:-2px;width:1px;background:rgba(233,235,240,.3)}
+/* V6.6.8 WITHHELD DISTRIBUTION TRUTH.
+   .track/.mini paint their BACKGROUND with var(--bear) and overlay the bullish
+   share from the left. When a probability is withheld the overlay width is 0, so
+   the bar rendered SOLID BEAR RED -- visually a 100% bearish call for a figure
+   the system explicitly refused to publish. These modifiers replace the
+   directional ground with a neutral "no published distribution" hatch. Geometry,
+   height, radius and border are untouched. */
+.track.withheld,.mini.withheld{background:
+  repeating-linear-gradient(135deg,rgba(233,235,240,.07) 0 6px,rgba(233,235,240,.02) 6px 12px)}
+.track.withheld .track-bull,.mini.withheld i{display:none}
+.track-withheld-label{position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;font-family:var(--mono);font-size:9px;letter-spacing:.16em;
+  color:var(--warn);pointer-events:none}
+.research-only{margin-top:7px;font-family:var(--mono);font-size:9px;letter-spacing:.1em;
+  color:var(--t-dim);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.research-only b{color:var(--t-low);font-weight:600}
 .scale{display:flex;justify-content:space-between;margin-top:5px}
 .scale span{font-family:var(--mono);font-size:8.5px;color:var(--t-dim);letter-spacing:.07em}
 .bandnote{margin-top:7px;font-size:10.5px;color:var(--t-low);display:flex;align-items:center;gap:7px}

@@ -57,9 +57,32 @@ for token in ('const bull8 = truthReady ?', 'const bear8 = truthReady ?',
     assert token in page, 'probability must be gated by truthReady: %s' % token
 assert ': null;' in page, 'gated values must fall back to null'
 
-# every gated value must actually reach the screen through the gate, not around it
-for leak in ('pct(h8.confidence', 'pct(h4.confidence', 'pct(h4.bearish_probability'):
-    assert leak not in page, 'ungated value rendered directly: %s' % leak
+# Every gated value must reach the PUBLISHED display through the gate.
+# V6.6.8: raw/internal figures may still be shown, but ONLY inside the block that
+# is explicitly labelled not-published. So the rule is positional, not absolute:
+# nothing ungated may appear before that marker.
+_MARKER = 'INTERNAL RESEARCH VALUE'
+assert _MARKER in page, 'the internal research block must be explicitly labelled'
+# Scan the published region only, and drop the gate DEFINITION lines
+# ("const x = truthReady ? finite(...) : null") -- those implement the protection
+# rather than bypass it.
+_published_region = "\n".join(
+    ln for ln in page.split(_MARKER)[0].splitlines()
+    if "truthReady ?" not in ln)
+for leak in ('pct(h8.confidence', 'pct(h4.confidence', 'pct(h4.bearish_probability',
+             'finite(h4.bearish_probability)', 'finite(h8.confidence)',
+             'h8.bullish_probability', 'h4.bullish_probability'):
+    assert leak not in _published_region, (
+        'ungated value rendered in the published region: %s' % leak)
+# and the research block must say it is not tradeable
+assert 'NOT PUBLISHED, NOT TRADE-READY' in page, 'research values must be labelled not-trade-ready'
+
+# A withheld probability must not render as a directional distribution bar.
+# .track paints its background with var(--bear); with a 0-width bull overlay that
+# reads as a 100% bearish call for a figure the system refused to publish.
+assert 'track${bull8 === null ? " withheld" : ""}' in page, '8H bar must go neutral when withheld'
+assert 'mini${bull4 === null ? " withheld" : ""}' in page, '4H bar must go neutral when withheld'
+assert 'PUBLISHED WITHHELD' in page, 'the withheld bar must say so on its face'
 
 # 4) an explicit not-trustworthy presentation must exist (no silent neutral bias)
 for token in ('"UNAVAILABLE"', 'NO EDGE', 'DO NOT TRUST BIAS'):
