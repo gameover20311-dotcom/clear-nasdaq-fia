@@ -1,0 +1,28 @@
+{
+  "fia_base_url": "http://127.0.0.1:8001",
+  "ollama_base_url": "http://127.0.0.1:11434",
+  "model": "gpt-oss:20b",
+  "mode": "max",
+  "reasoning_effort": "high",
+  "timeout_seconds": 420,
+  "http_timeout_seconds": 20,
+  "num_ctx": 24576,
+  "max_evidence_records": 360,
+  "max_evidence_chars": 64000,
+  "max_fact_cards": 96,
+  "atomic_evidence_endpoint": "/api/dashboard",
+  "health_endpoints": [
+    "/api/provider/health"
+  ],
+  "atomic_max_age_seconds": 180,
+  "future_clock_skew_seconds": 30,
+  "degraded_confidence_cap": 45,
+  "scenario_entropy_gate": true,
+  "market_twin_gate": true,
+  "novelty_gate": true,
+  "failure_memory_gate": true,
+  "num_predict": 3072,
+  "specialist_max_records": 72,
+  "specialist_timeout_seconds": 300,
+  "core_timeout_seconds": 480
+}

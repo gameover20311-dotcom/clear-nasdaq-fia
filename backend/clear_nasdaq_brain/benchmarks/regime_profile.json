@@ -1,0 +1,6 @@
+{
+  "enabled": false,
+  "training_split": "TRAIN",
+  "n": 0,
+  "truth_note": "Disabled until fitted on >=30 chronologically valid TRAIN evidence genomes."
+}

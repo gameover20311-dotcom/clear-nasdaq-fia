@@ -1,0 +1,8 @@
+{
+  "enabled": false,
+  "resolved_n": 0,
+  "training_split": "TRAIN",
+  "shrink_to_50": 0.0,
+  "confidence_cap": 100.0,
+  "truth_note": "Disabled until fitted on >=30 genuinely resolved TRAIN cases; HOLDOUT excluded."
+}

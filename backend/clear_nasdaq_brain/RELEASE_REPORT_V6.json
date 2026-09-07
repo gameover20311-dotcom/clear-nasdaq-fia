@@ -1,0 +1,49 @@
+{
+  "accepted_verified_changes": [
+    "Refine evidence correlation provenance",
+    "Pre-append ledger anchor verification",
+    "Final cockpit truth status",
+    "Brain runtime status truth",
+    "Frontend fail-closed forecast display",
+    "Sanitize validator clean object",
+    "Mode-sensitive specialist evidence budget",
+    "Dynamic release-manifest counters",
+    "Semantic future-outcome alias boundary (target_close/realized_return/next_close)",
+    "Mandatory evidence-ledger integrity verification before reasoning",
+    "Block tail+anchor deletion re-bootstrap during append",
+    "Verify shadow ledger chain+anchor before cockpit/sidecar consumption",
+    "Exact cockpit gpt-oss:20b model identity check",
+    "Remove stale .v6_* backup trees from active release package",
+    "Real-runtime probability contract recovery retry without validator-tolerance loosening"
+  ],
+  "adversarial_reference": "SOL56_CHALLENGE_WORK",
+  "brain_version": "6.6.1",
+  "forward_oos_campaign": "SOL56-NEW-FORWARD-OOS-V4-AUDITED",
+  "gates": {
+    "backend_curated": "24/24 PASS x3",
+    "brain": "81/81 release-suite target; installer must PASS x3",
+    "brain_python_files": "132 checked by release gate",
+    "brain_release_gate_log_sha256": "6dbc52ba3a748844775af4d911ea4d59160b280d9addbdbb148195293fca765b",
+    "brain_self_audit": "PASS x3",
+    "forward_oos": "43/43 integrity included in backend curated x3; V4 seal valid + fingerprint match x3",
+    "frontend_production_build": "PENDING_DEPENDENCY_INSTALL_IN_SANDBOX",
+    "frontend_typescript_syntax": "23/23 PASS x3",
+    "historical_truth": "258 rows; 0 surviving future-leak paths; 0 cross-horizon selections x3",
+    "python39_active_parse": "461 files; 0 failures x3"
+  },
+  "release": "CLEAR_NASDAQ_FIA_RC2_SOL56_FINAL_PROVE_IT",
+  "route_truth": {
+    "atomic_evidence_endpoint": "/api/dashboard",
+    "provider_health_endpoint": "/api/provider/health"
+  },
+  "source_of_truth": "RC2",
+  "truth_limits": [
+    "GPT-5.6 parity is not proven.",
+    "World #1 is not proven.",
+    "Predictive edge is not proven by engineering tests.",
+    "Real end-to-end gpt-oss:20b runtime success must run on the user Mac.",
+    "Full Next.js production build must be rerun where project node_modules can be installed.",
+    "Real end-to-end gpt-oss:20b runtime success must be re-proven on the user Mac after this runtime hotfix."
+  ],
+  "verdict": "ENGINEERING_RUNTIME_HOTFIX_INSTALLED__REAL_GPT_OSS_E2E_RETEST_REQUIRED"
+}
