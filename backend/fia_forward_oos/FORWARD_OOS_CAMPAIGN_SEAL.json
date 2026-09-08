@@ -1,6 +1,14 @@
 {
   "automatic_model_promotion": false,
-  "campaign_id": "CLEAR-NASDAQ-FORWARD-OOS-V5-V662",
+  "campaign_id": "CLEAR-NASDAQ-FORWARD-OOS-V6-V672",
+  "campaign_start_policy": {
+    "first_eligible_observation": "next normal checkpoint after deployment",
+    "historical_backfill_allowed": false,
+    "import_prior_campaign_rows": false,
+    "missed_checkpoint_backfill_allowed": false,
+    "old_campaign_remains_preserved_separately": true,
+    "starts_from_zero": true
+  },
   "checkpoint_et": "13:00",
   "evidence_quality_gate": {
     "min_data_coverage": 0.5,
@@ -123,11 +131,23 @@
   "production_model": "BASE_FIA",
   "require_explicit_contract": true,
   "schema_version": "SOL56_FORWARD_OOS_V5_V662",
-  "seal_hash": "4f72da871b92831bbe4777421b721b14b2929e5f89f2feccb4883478c8676440",
-  "sealed_at_utc": "2026-09-08T17:18:06.149914+00:00",
+  "seal_hash": "08f2e5e159b83f6b5a199e1ea57c172986b7bf906f758870f16f2f5119dc2778",
+  "sealed_at_utc": "2026-09-08T17:26:45.434628+00:00",
   "shadow_candidate": null,
+  "superseded_campaign_observation_summary": {
+    "abstention_rows": 1,
+    "created_at_utc": "2026-09-08T17:05:03.783241+00:00",
+    "directional_rows": 0,
+    "durable_store": "Render Postgres",
+    "event_hash": "aef8f63ab6ecde0ff24b45d191deb0fde3552bf7c7a78559c924ea957dc311de",
+    "event_type": "ABSTENTION_OBSERVATION",
+    "last_seq": 1,
+    "model_fingerprint_digest": "7d95927e6535960939f1ae5bcb1e6f84ffdf712597093e83b578b3374c641209",
+    "production_rows": 1,
+    "verification": "read-only production query before transition"
+  },
   "supersedes_campaign_id": "CLEAR-NASDAQ-FORWARD-OOS-V5-V662",
-  "supersedes_reason": "backend fingerprint changed after the previous seal; previous campaign held 0 forecast locks",
+  "supersedes_reason": "V5 recorded one genuine abstention observation before the live-news freshness provider fix. Because production source changed after that observation, V5 is closed and V6 starts from N=0; no prior row is imported or backfilled.",
   "target_final_sample_n": 50,
   "v4_seal_archive": "fia_forward_oos/V4_SEAL_ARCHIVE_20260906/FORWARD_OOS_CAMPAIGN_SEAL_V4.json"
 }
