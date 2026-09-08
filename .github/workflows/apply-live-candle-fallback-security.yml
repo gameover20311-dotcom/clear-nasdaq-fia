@@ -35,8 +35,10 @@ jobs:
           p.write_text(s.replace(old, new, 1))
           PY
 
-      - name: Apply exact source patch
-        run: python backend/apply_live_candle_fallback_security_patch.py
+      - name: Apply exact source patches
+        run: |
+          python backend/apply_live_candle_fallback_security_patch.py
+          python backend/apply_live_candle_fallback_compat_patch.py
 
       - name: Compile and run targeted regressions
         run: |
@@ -74,6 +76,7 @@ jobs:
           git config user.name "CLEAR NASDAQ Incident Fix"
           git config user.email "clear-nasdaq@users.noreply.github.com"
           git rm backend/apply_live_candle_fallback_security_patch.py
+          git rm backend/apply_live_candle_fallback_compat_patch.py
           git rm .github/workflows/apply-live-candle-fallback-security.yml
           git add backend/fia/providers.py backend/fia/provider_reliability.py backend/fia_forward_oos/FORWARD_OOS_CAMPAIGN_SEAL.json backend/fia_forward_oos/SEAL_ARCHIVE_*
           git commit -m "Add freshest candle fallback and redact provider credentials"
