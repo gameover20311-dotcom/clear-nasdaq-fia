@@ -512,7 +512,8 @@ async def enrich_provider_reliability(hub: Any, data: Dict[str, Any]) -> Dict[st
                    else ("unknown" if _news_age is None else "recent"))
     source_health["news"] = _source_item(
         available=news_available,
-        source="NewsAPI aggregator (secondary outlets; not primary filings/wires)",
+        source=(f"{data.get('news_provider_selected') or 'NewsAPI/Finnhub'} live-news aggregator "
+                "(secondary outlets; not primary filings/wires)"),
         freshness=_news_fresh,
         # V6.6.8: a 24h-old article set is STALE, whatever the fetch said. The
         # ceiling that already excludes it from the forecast is now also what the
@@ -528,7 +529,9 @@ async def enrich_provider_reliability(hub: Any, data: Dict[str, Any]) -> Dict[st
               f"newest_age_s={_news_age}, "
               f"median_age_s={data.get('news_median_article_age_seconds')}, "
               f"oldest_age_s={data.get('news_oldest_article_age_seconds')}, "
-              f"future_dated={data.get('news_future_dated_articles', 0)}; "
+              f"future_dated={data.get('news_future_dated_articles', 0)}, "
+              f"selected_provider={data.get('news_provider_selected')}, "
+              f"candidate_counts={data.get('news_provider_candidate_counts')}; "
               "PRIMARY SOURCE COVERAGE = 0 (aggregated secondary reporting); "
               "sentiment = unweighted keyword count, not a validated model"),
     )
