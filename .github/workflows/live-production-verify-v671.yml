@@ -39,15 +39,16 @@ jobs:
           durable=load('/api/forward-oos/durability')
           campaign=load('/api/forward-oos/campaign')
 
-          sh=((ph.get('source_health') or ph.get('provider_health',{}).get('source_health')) or {})
+          sh=(ph.get('source_health') or {})
           if not sh:
               sh=(dash.get('live',{}).get('snapshot',{}).get('data',{}).get('source_health') or {})
           candle=sh.get('candles') or {}
-          live_data=dash.get('live',{}).get('snapshot',{}).get('data',{})
-          cog=dash.get('live',{}).get('forecast',{}).get('cognitive',{})
+          live=dash.get('live') or {}
+          live_data=(live.get('snapshot') or {}).get('data') or {}
+          cog=live.get('cognitive') or {}
           specialists=cog.get('specialists') or []
-          spec={s.get('name'): {'direction':s.get('direction'),'missing_reason':s.get('missing_reason')} for s in specialists if isinstance(s,dict)}
-          print('VERIFY_SUMMARY=' + json.dumps({
+          spec={s.get('name'): {'direction':s.get('direction'),'score':s.get('score'),'reliability':s.get('reliability'),'missing_reason':s.get('missing_reason')} for s in specialists if isinstance(s,dict)}
+          summary={
               'health_ok': health.get('ok'),
               'provider_overall': (ph.get('provider_health') or {}).get('overall'),
               'provider_score': (ph.get('provider_health') or {}).get('score'),
@@ -61,6 +62,8 @@ jobs:
               'mtf_trend': spec.get('Multi-timeframe Trend AI'),
               'breadth': spec.get('Breadth/Internals AI'),
               'news_event': spec.get('News Event AI'),
+              'cognitive_reliability': cog.get('reliability'),
+              'cognitive_intelligence_coverage': cog.get('intelligence_coverage'),
               'foos_ledger_ok': (status.get('ledger') or {}).get('ok'),
               'foos_events': (status.get('ledger') or {}).get('events'),
               'foos_locks': (status.get('ledger') or {}).get('forecast_locks'),
@@ -72,7 +75,8 @@ jobs:
               'campaign_abstention_n': campaign.get('abstention_n'),
               'campaign_model_fingerprint': campaign.get('model_fingerprint'),
               'predictive_edge': campaign.get('predictive_edge'),
-          }, sort_keys=True))
+          }
+          print('VERIFY_SUMMARY=' + json.dumps(summary, sort_keys=True))
 
           assert health.get('ok') is True
           assert verify.get('ok') is True
@@ -81,7 +85,11 @@ jobs:
           assert (status.get('ledger') or {}).get('forecast_locks') == 0
           assert live_data.get('nq_structure_source') == 'yahoo_chart_fallback', live_data.get('nq_structure_source')
           assert candle.get('status') in ('live','current_for_session'), candle
-          assert spec.get('Price Structure AI',{}).get('direction') != 'MISSING', spec.get('Price Structure AI')
-          assert spec.get('Multi-timeframe Trend AI',{}).get('direction') != 'MISSING', spec.get('Multi-timeframe Trend AI')
+          assert 'Price Structure AI' in spec, list(spec)
+          assert 'Multi-timeframe Trend AI' in spec, list(spec)
+          assert 'Breadth/Internals AI' in spec, list(spec)
+          assert spec['Price Structure AI'].get('direction') != 'MISSING', spec['Price Structure AI']
+          assert spec['Multi-timeframe Trend AI'].get('direction') != 'MISSING', spec['Multi-timeframe Trend AI']
+          assert spec['Breadth/Internals AI'].get('direction') != 'MISSING', spec['Breadth/Internals AI']
           print('LIVE_PRODUCTION_V671=PASS')
           PY
