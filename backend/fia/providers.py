@@ -67,6 +67,13 @@ class ProviderHub:
         self._price_action_cooldown_until: Dict[tuple[str, str], float] = {}
         self.PRICE_ACTION_CACHE_SECONDS = 60.0
         self.PRICE_ACTION_RATE_LIMIT_BACKOFF_SECONDS = 300.0
+        # V6.7.2: live-news provider selection is cached separately so a stale
+        # NewsAPI feed cannot cause a Finnhub fallback request every 8-second
+        # snapshot refresh. One minute is negligible for 4H/8H research while
+        # materially reducing provider-rate pressure.
+        self._live_news_cache: Optional[Dict[str, Any]] = None
+        self._live_news_cache_time: float = 0.0
+        self.LIVE_NEWS_CACHE_SECONDS = 60.0
 
     # =========================================================
     # Generic HTTP
@@ -597,7 +604,125 @@ class ProviderHub:
                 out=dict(cached[1]); out["_fia_provider_status"]="STALE_CACHED_PROVIDER_ERROR"; return out
             print(f"Price Action API error -> {e}")
             return None
-# NewsAPI
+# V6.7.2 LIVE NEWS FRESHNESS FAILOVER
+    # =========================================================
+
+    @staticmethod
+    def _normalize_live_news_article(article, provider):
+        if not isinstance(article, dict):
+            return None
+        title = str(article.get("title") or article.get("headline") or "").strip()
+        if not title:
+            return None
+        description = str(article.get("description") or article.get("summary") or "").strip()
+        published = article.get("publishedAt")
+        if published is None:
+            published = article.get("published_at")
+        if published is None:
+            published = article.get("datetime")
+        return {
+            "title": title,
+            "description": description,
+            "publishedAt": published,
+            "_fia_news_provider": provider,
+        }
+
+    @staticmethod
+    def _news_article_age_seconds(article, now_utc=None):
+        now_utc = now_utc or datetime.now(timezone.utc)
+        ts = (article or {}).get("publishedAt")
+        if ts is None:
+            ts = (article or {}).get("published_at")
+        if ts is None:
+            ts = (article or {}).get("datetime")
+        if ts is None:
+            return None
+        try:
+            if isinstance(ts, (int, float)):
+                dt = datetime.fromtimestamp(float(ts), tz=timezone.utc)
+            else:
+                dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                else:
+                    dt = dt.astimezone(timezone.utc)
+            return float((now_utc - dt).total_seconds())
+        except (TypeError, ValueError, OSError, OverflowError):
+            return None
+
+    async def live_news_articles(self, stale_ceiling_seconds: float = 43200.0):
+        """Choose the freshest truthful live-news provider packet.
+
+        NewsAPI remains primary while its newest article is within the existing
+        12-hour ceiling. Only when it is empty/untimestamped/stale do we request
+        Finnhub market news. A future-dated row (>60s clock tolerance) is rejected
+        rather than allowed to make a provider look artificially fresh.
+        """
+        now_mono = time.time()
+        if (self._live_news_cache is not None and
+                now_mono - self._live_news_cache_time < self.LIVE_NEWS_CACHE_SECONDS):
+            return dict(self._live_news_cache)
+
+        now_utc = datetime.now(timezone.utc)
+
+        def clean(rows, provider):
+            out = []
+            for raw in rows or []:
+                item = self._normalize_live_news_article(raw, provider)
+                if not item:
+                    continue
+                age = self._news_article_age_seconds(item, now_utc)
+                if age is not None and age < -60.0:
+                    continue
+                out.append(item)
+            return out
+
+        def newest_age(rows):
+            ages = [self._news_article_age_seconds(x, now_utc) for x in rows]
+            ages = [x for x in ages if x is not None and x >= -60.0]
+            return min(ages) if ages else None
+
+        newsapi_rows = []
+        if self.keys.get("NEWS_API_KEY"):
+            try:
+                payload = await self.news_sentiment("QQQ")
+                newsapi_rows = clean((payload or {}).get("articles") if isinstance(payload, dict) else [], "NewsAPI")
+            except Exception as exc:
+                print(f"NewsAPI live-news selection error -> {type(exc).__name__}")
+
+        n_age = newest_age(newsapi_rows)
+        selected = newsapi_rows
+        selected_provider = "NewsAPI" if newsapi_rows else None
+        finnhub_rows = []
+        f_age = None
+
+        if not newsapi_rows or n_age is None or n_age > float(stale_ceiling_seconds):
+            try:
+                finnhub_rows = clean(await self.finnhub_market_news(), "Finnhub")
+                f_age = newest_age(finnhub_rows)
+            except Exception as exc:
+                print(f"Finnhub live-news selection error -> {type(exc).__name__}")
+
+            # Prefer Finnhub only when it has a valid timestamped packet fresher
+            # than NewsAPI. Missing timestamp is not evidence of freshness.
+            if finnhub_rows and f_age is not None and (n_age is None or f_age < n_age):
+                selected = finnhub_rows
+                selected_provider = "Finnhub"
+
+        result = {
+            "articles": selected,
+            "selected_provider": selected_provider,
+            "newest_age_seconds": newest_age(selected),
+            "candidate_counts": {"NewsAPI": len(newsapi_rows), "Finnhub": len(finnhub_rows)},
+            "candidate_newest_age_seconds": {"NewsAPI": n_age, "Finnhub": f_age},
+            "stale_ceiling_seconds": float(stale_ceiling_seconds),
+        }
+        self._live_news_cache = dict(result)
+        self._live_news_cache_time = time.time()
+        return result
+
+    # =========================================================
+    # NewsAPI
     # =========================================================
 
     async def news_sentiment(self, symbol: str = "QQQ"):
@@ -5951,110 +6076,88 @@ class ProviderHub:
                         pass
 
         # =====================================================
-        # News — Phase 22 truth semantics
+        # News — V6.7.2 truthful freshness failover
         # =====================================================
 
-        # Always publish article/scoring counts so UI and forecast cannot
-        # claim bullish/bearish news while simultaneously saying no articles.
         data["news"] = None
         data["news_articles"] = 0
         data["news_scored_articles"] = 0
         data["news_status"] = "missing"
+        data["news_provider_selected"] = None
 
-        if self.keys["NEWS_API_KEY"]:
-            try:
-                news = await self.news_sentiment("QQQ")
-                articles = (
-                    news.get("articles", [])
-                    if isinstance(news, dict)
-                    else []
-                )
-                data["news_articles"] = len(articles)
+        try:
+            news_packet = await self.live_news_articles()
+            articles = list(news_packet.get("articles") or [])
+            data["news_articles"] = len(articles)
+            data["news_provider_selected"] = news_packet.get("selected_provider")
+            data["news_provider_candidate_counts"] = news_packet.get("candidate_counts") or {}
+            data["news_provider_candidate_newest_age_seconds"] = (
+                news_packet.get("candidate_newest_age_seconds") or {}
+            )
 
-                positive_words = [
-                    "beat", "growth", "bullish", "surge", "strong",
-                    "upgrade", "record", "profit", "rally", "outperform",
-                ]
-                negative_words = [
-                    "miss", "fall", "bearish", "drop", "weak",
-                    "downgrade", "loss", "risk", "selloff", "decline",
-                ]
+            positive_words = [
+                "beat", "growth", "bullish", "surge", "strong",
+                "upgrade", "record", "profit", "rally", "outperform",
+            ]
+            negative_words = [
+                "miss", "fall", "bearish", "drop", "weak",
+                "downgrade", "loss", "risk", "selloff", "decline",
+            ]
 
-                sentiment_values = []
-                for article in articles:
-                    text = " ".join([
-                        str(article.get("title", "")),
-                        str(article.get("description", "")),
-                    ]).lower()
+            sentiment_values = []
+            for article in articles:
+                text = " ".join([
+                    str(article.get("title", "")),
+                    str(article.get("description", "")),
+                ]).lower()
+                positive = sum(1 for word in positive_words if word in text)
+                negative = sum(1 for word in negative_words if word in text)
+                if positive == 0 and negative == 0:
+                    continue
+                sentiment_values.append((positive - negative) / max(1, positive + negative))
 
-                    positive = sum(1 for word in positive_words if word in text)
-                    negative = sum(1 for word in negative_words if word in text)
-                    if positive == 0 and negative == 0:
-                        continue
+            data["news_scored_articles"] = len(sentiment_values)
 
-                    sentiment_values.append(
-                        (positive - negative) / max(1, positive + negative)
-                    )
+            _pub_ages = []
+            _now_utc = datetime.now(timezone.utc)
+            for _a in articles:
+                _age = self._news_article_age_seconds(_a, _now_utc)
+                if _age is None:
+                    continue
+                # Future-dated rows were already excluded by live_news_articles;
+                # retain a defensive check here so freshness can never be negative.
+                if _age < -60.0:
+                    continue
+                _pub_ages.append(max(0.0, _age))
 
-                data["news_scored_articles"] = len(sentiment_values)
+            if _pub_ages:
+                _newest = min(_pub_ages)
+                data["news_newest_article_age_seconds"] = round(_newest, 1)
+                data["news_median_article_age_seconds"] = round(sorted(_pub_ages)[len(_pub_ages) // 2], 1)
+                data["news_oldest_article_age_seconds"] = round(max(_pub_ages), 1)
+                data["news_articles_with_timestamp"] = len(_pub_ages)
+                data["news_age_basis"] = "NEWEST_SELECTED_PROVIDER_PUBLICATION_TIME"
+                data["news_observed_at"] = (_now_utc - timedelta(seconds=_newest)).isoformat()
+                data["news_future_dated_articles"] = 0
+            else:
+                data["news_newest_article_age_seconds"] = None
+                data["news_articles_with_timestamp"] = 0
+                data["news_age_basis"] = "NO_VALID_PUBLICATION_TIMESTAMPS_AVAILABLE"
+                data["news_future_dated_articles"] = 0
 
-                # V6.6.7 REAL ARTICLE AGE.
-                # The news staleness ceiling (12h) has existed since V6.6.4, but
-                # it was fed the age of the HTTP REQUEST, which is 0.0 by
-                # construction. The gate therefore could never fire, and a
-                # week-old headline was labelled "live". Publication timestamps
-                # are read here so the existing gate operates on the age of the
-                # EVIDENCE rather than the age of the fetch.
-                _pub_ages = []
-                _now_utc = datetime.now(timezone.utc)
-                for _a in articles:
-                    _ts = _a.get("publishedAt") or _a.get("published_at") or _a.get("datetime")
-                    if _ts is None:
-                        continue
-                    try:
-                        if isinstance(_ts, (int, float)):
-                            _dt = datetime.fromtimestamp(float(_ts), tz=timezone.utc)
-                        else:
-                            _dt = datetime.fromisoformat(str(_ts).replace("Z", "+00:00"))
-                            if _dt.tzinfo is None:
-                                _dt = _dt.replace(tzinfo=timezone.utc)
-                    except (ValueError, OSError, OverflowError):
-                        continue
-                    _pub_ages.append((_now_utc - _dt).total_seconds())
-                if _pub_ages:
-                    _newest = min(_pub_ages)
-                    data["news_newest_article_age_seconds"] = round(_newest, 1)
-                    data["news_median_article_age_seconds"] = round(
-                        sorted(_pub_ages)[len(_pub_ages) // 2], 1)
-                    data["news_oldest_article_age_seconds"] = round(max(_pub_ages), 1)
-                    data["news_articles_with_timestamp"] = len(_pub_ages)
-                    data["news_age_basis"] = "NEWEST_ARTICLE_PUBLICATION_TIME"
-                    data["news_observed_at"] = (
-                        _now_utc - timedelta(seconds=_newest)).isoformat()
-                    # Future-dated publication is a provider defect, never evidence.
-                    data["news_future_dated_articles"] = sum(1 for a in _pub_ages if a < -60)
-                else:
-                    data["news_newest_article_age_seconds"] = None
-                    data["news_articles_with_timestamp"] = 0
-                    data["news_age_basis"] = "NO_PUBLICATION_TIMESTAMPS_AVAILABLE"
+            if sentiment_values:
+                data["news"] = max(-1.0, min(1.0, sum(sentiment_values) / len(sentiment_values)))
+                data["news_status"] = "live_scored"
+            elif articles:
+                data["news_status"] = "live_unscored"
+            elif data.get("news_provider_selected"):
+                data["news_status"] = "live_empty"
+            else:
+                data["news_status"] = "missing"
 
-                if sentiment_values:
-                    data["news"] = max(
-                        -1.0,
-                        min(1.0, sum(sentiment_values) / len(sentiment_values)),
-                    )
-                    data["news_status"] = "live_scored"
-                elif articles:
-                    # Provider is healthy, but there is no directional evidence.
-                    # Keep news=None so engine marks this signal MISSING/UNSCORED,
-                    # rather than inventing a neutral 0.0 opinion.
-                    data["news_status"] = "live_unscored"
-                else:
-                    data["news_status"] = "live_empty"
-
-            except Exception as exc:
-                data["news_status"] = "error"
-                print(f"News intelligence error -> {exc}")
+        except Exception as exc:
+            data["news_status"] = "error"
+            print(f"News intelligence error -> {type(exc).__name__}")
 
         # =====================================================
         # Earnings intelligence
