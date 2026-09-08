@@ -146,12 +146,13 @@ def _evidence_id_lookup(ledger: Dict[str, Any]) -> Dict[str, List[str]]:
         instrument = str(row.get("instrument") or "")
         for candidate in (
             "NQ structure", "SPX confirmation", "DXY", "US10Y", "Mega-cap leadership",
-            "Semiconductors", "Breadth", "News", "Macro calendar", "Earnings/guidance",
+            "Semiconductors", "Equal-weight participation", "Breadth", "News", "Macro calendar", "Earnings/guidance",
         ):
             if candidate in raw_detail or instrument == {
                 "NQ structure":"NQ/QQQ", "SPX confirmation":"SPX/SPY", "DXY":"DXY",
                 "US10Y":"US10Y", "Mega-cap leadership":"NASDAQ-100 constituents",
-                "Semiconductors":"NASDAQ semiconductors", "Breadth":"NASDAQ breadth",
+                "Semiconductors":"NASDAQ semiconductors",
+                "Equal-weight participation":"NASDAQ breadth", "Breadth":"NASDAQ breadth",
                 "News":"NASDAQ news", "Macro calendar":"US macro", "Earnings/guidance":"NASDAQ earnings",
             }.get(candidate):
                 name = candidate
@@ -225,8 +226,21 @@ def build_specialists(snapshot: Dict[str, Any], forecast: Any, ledger: Dict[str,
     views.append(_make("Mega-cap Leadership AI", "equity_internal", mega, megarel, "Impact-weighted leadership in the largest NASDAQ constituents.", ids.get("Mega-cap leadership")))
     semis, semirel = sig("Semiconductors")
     views.append(_make("Semiconductor AI", "equity_internal", semis, semirel, "AI/semiconductor leadership and participation.", ids.get("Semiconductors")))
-    breadth, brrel = sig("Breadth")
-    views.append(_make("Breadth/Internals AI", "equity_internal", breadth, brrel, "Participation breadth across tracked NASDAQ names.", ids.get("Breadth")))
+    # Current BASE_FIA names this live signal "Equal-weight participation".
+    # The cognitive layer was still looking only for the legacy "Breadth" label,
+    # so Breadth/Internals AI was permanently MISSING even when the underlying
+    # tracked-name participation signal was live.  Keep the legacy fallback for
+    # historical replay packets, but prefer the current production label.
+    breadth, brrel = sig("Equal-weight participation")
+    breadth_evidence_ids = ids.get("Equal-weight participation")
+    if breadth is None:
+        breadth, brrel = sig("Breadth")
+        breadth_evidence_ids = ids.get("Breadth")
+    views.append(_make(
+        "Breadth/Internals AI", "equity_internal", breadth, brrel,
+        "Equal-weight participation across the tracked NASDAQ large-cap basket (not full-market breadth).",
+        breadth_evidence_ids,
+    ))
 
     rates, ratesrel = sig("US10Y", invert=True)
     views.append(_make("Rates & Yield AI", "macro_market", rates, ratesrel, "US10Y is translated into NASDAQ impact direction: rising yields are a headwind.", ids.get("US10Y"), tags=["inverse_impact"]))
