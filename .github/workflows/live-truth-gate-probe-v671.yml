@@ -1,0 +1,48 @@
+name: Live truth gate probe v671
+
+on:
+  push:
+    branches:
+      - fix/live-candle-fallback-security-20260908
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify live 4H 8H publication state
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sS --max-time 120 https://clear-nasdaq-fia.onrender.com/api/dashboard -o /tmp/d.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/d.json'))
+          live=d.get('live') or {}
+          pm=live.get('premove_watch') or {}
+          eq=pm.get('evidence_quality') or {}
+          h=pm.get('horizons') or {}
+          out={
+            'premove_state':pm.get('state'),
+            'evidence_grade':eq.get('grade'),
+            'evidence_coverage':eq.get('coverage'),
+            'live_signal_count':eq.get('live_signal_count'),
+            'total_signal_count':eq.get('total_signal_count'),
+            'provider_health_overall':eq.get('provider_health_overall'),
+            'age_excluded_count':eq.get('age_excluded_count'),
+            '4h':{k:(h.get('4h') or {}).get(k) for k in ['state','direction','bullish_probability','bearish_probability','confidence','actionable','no_edge_reason']},
+            '8h':{k:(h.get('8h') or {}).get(k) for k in ['state','direction','bullish_probability','bearish_probability','confidence','actionable','no_edge_reason']},
+            'forecast_consistency':d.get('forecast_consistency'),
+          }
+          print('LIVE_TRUTH=' + json.dumps(out,sort_keys=True))
+          assert pm.get('state') not in ('MISSING_DATA','STALE'), pm
+          assert eq.get('provider_health_overall') == 'LIVE', eq
+          assert (eq.get('age_excluded_count') or 0) <= 1, eq.get('age_excluded_signals')
+          for hz in ('4h','8h'):
+              x=h.get(hz) or {}
+              assert x.get('state') in ('WATCH','SHIFT_DETECTED','NO_EDGE'), (hz,x)
+              assert x.get('bullish_probability') is not None and x.get('bearish_probability') is not None, (hz,x)
+          print('LIVE_TRUTH_GATE_PROBE=PASS')
+          PY
