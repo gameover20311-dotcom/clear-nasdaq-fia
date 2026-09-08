@@ -1,0 +1,58 @@
+name: Live production verification
+
+on:
+  push:
+    branches:
+      - fix/live-degraded-20260908
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe live backend truth endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://clear-nasdaq-fia.onrender.com'
+          mkdir -p /tmp/fia_live
+          for p in \
+            /api/health \
+            /api/provider/health \
+            /api/dashboard \
+            /api/cognitive/status \
+            /api/forward-oos/status \
+            /api/forward-oos/verify \
+            /api/forward-oos/durability \
+            /api/forward-oos/campaign
+          do
+            name=$(printf '%s' "$p" | tr '/-' '__')
+            code=$(curl -sS --max-time 90 -o "/tmp/fia_live/${name}.json" -w '%{http_code}' "$BASE$p" || true)
+            echo "ENDPOINT $p HTTP $code"
+            if [ -s "/tmp/fia_live/${name}.json" ]; then
+              python - "$p" "/tmp/fia_live/${name}.json" <<'PY'
+import json,sys
+p,f=sys.argv[1:]
+try:
+    d=json.load(open(f))
+except Exception:
+    print(open(f).read()[:2000]); raise SystemExit
+
+def pick(obj, keys):
+    return {k:obj.get(k) for k in keys if isinstance(obj,dict) and k in obj}
+
+if p == '/api/provider/health':
+    print(json.dumps(d, indent=2, sort_keys=True)[:18000])
+elif p == '/api/dashboard':
+    keys=['status','data_status','coverage','effective_intelligence_coverage','truth_gate','forecast_sequence','sequence','updated_at','timestamp','market_session','published_4h','published_8h']
+    out=pick(d,keys)
+    for k in ('source_health','specialists','forecast','truth','data'):
+        if isinstance(d,dict) and k in d: out[k]=d[k]
+    print(json.dumps(out, indent=2, sort_keys=True, default=str)[:22000])
+else:
+    print(json.dumps(d, indent=2, sort_keys=True, default=str)[:18000])
+PY
+            fi
+          done
