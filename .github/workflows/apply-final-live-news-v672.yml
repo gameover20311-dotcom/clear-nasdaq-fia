@@ -1,0 +1,51 @@
+name: Apply final live news freshness v672
+
+on:
+  push:
+    branches:
+      - fix/final-live-news-freshness-20260908
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/final-live-news-freshness-20260908
+          fetch-depth: 0
+
+      - name: Install backend runtime dependencies
+        run: python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
+
+      - name: Apply exact live-news patch
+        run: python backend/apply_final_live_news_patch.py
+
+      - name: Compile and run targeted regressions
+        run: |
+          python -m compileall -q backend/fia backend/main.py
+          python backend/fia/test_live_news_fallback_v672.py
+          python backend/fia/test_live_degraded_incident_v670.py
+          python backend/fia/test_candle_fallback_cloud.py
+          python backend/fia/test_live_candle_fallback_security_v671.py
+
+      - name: Prove campaign still has zero repository forecast locks
+        run: test "$(find backend/fia_forward_oos/events -type f -name '*forecast-lock*.json' 2>/dev/null | wc -l)" -eq 0
+
+      - name: Re-seal zero-observation Forward-OOS against corrected source
+        run: |
+          cd backend
+          python reseal_forward_oos_campaign.py
+
+      - name: Commit verified source and clean staging files
+        run: |
+          git config user.name "CLEAR NASDAQ Final Incident Fix"
+          git config user.email "clear-nasdaq@users.noreply.github.com"
+          git rm -f backend/apply_final_live_news_patch.py
+          git rm -f .github/workflows/apply-final-live-news-v672.yml
+          git add backend/fia/providers.py backend/fia/provider_reliability.py backend/fia/test_live_news_fallback_v672.py backend/fia_forward_oos/FORWARD_OOS_CAMPAIGN_SEAL.json backend/fia_forward_oos/SEAL_ARCHIVE_*
+          git commit -m "Fix stale live news provider failover [skip ci]"
+          git push origin HEAD:fix/final-live-news-freshness-20260908
