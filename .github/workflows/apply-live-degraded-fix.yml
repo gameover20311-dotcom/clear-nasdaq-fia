@@ -1,0 +1,39 @@
+name: Apply live degraded incident fix
+
+on:
+  push:
+    branches:
+      - fix/live-degraded-20260908
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/live-degraded-20260908
+          fetch-depth: 0
+
+      - name: Verify and apply exact reviewed patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --check LIVE_DEGRADED_FIX_GITHUB.patch
+          git apply LIVE_DEGRADED_FIX_GITHUB.patch
+          python -m compileall -q backend/fia backend/main.py
+          python backend/fia/test_live_degraded_incident_v670.py
+
+      - name: Commit exact incident fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "CLEAR NASDAQ Incident Fix"
+          git config user.email "clear-nasdaq@users.noreply.github.com"
+          git add backend/fia/providers.py backend/fia/cognitive/specialists.py backend/fia/test_candle_fallback_cloud.py backend/fia/test_live_degraded_incident_v670.py
+          git commit -m "Fix live candle freshness and breadth specialist mapping"
+          git push origin HEAD:fix/live-degraded-20260908
