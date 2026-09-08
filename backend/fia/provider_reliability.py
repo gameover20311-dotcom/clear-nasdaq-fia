@@ -346,15 +346,15 @@ async def enrich_provider_reliability(hub: Any, data: Dict[str, Any]) -> Dict[st
         available=candle_available,
         status=(_session_status("candles", _bar_age, True) if candle_available
                 else ("derived" if candle_derived else "missing")),
-        source=("Finnhub candles + Polygon fallback" if candle_available
+        source=("Finnhub candles + Polygon fallback + Yahoo fallback" if candle_available
                 else ("QQQ quote percent-change proxy (NO candle series fetched)" if candle_derived
-                      else "Finnhub candles + Polygon fallback")),
+                      else "Finnhub candles + Polygon fallback + Yahoo fallback")),
         freshness=(("recent" if _bar_age is not None else "unknown") if candle_available
                    else ("derived" if candle_derived else "missing")),
         observed_at=(_bar_end if candle_available else None),
         age_seconds=(float(_bar_age) if (candle_available and _bar_age is not None) else None),
         fallback=False,
-        note=(("Structure evidence health; exact upstream may be Finnhub or Polygon fallback. "
+        note=(("Structure evidence health; exact upstream may be Finnhub, Polygon or Yahoo fallback. "
                f"fetched_at={now_iso}; last_completed_bar_end={_bar_end}; "
                f"observation_age_seconds={_bar_age}")
               if not candle_derived else
