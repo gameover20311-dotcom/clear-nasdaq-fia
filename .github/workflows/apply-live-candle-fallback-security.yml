@@ -22,6 +22,19 @@ jobs:
       - name: Install backend runtime dependencies
         run: python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
 
+      - name: Fix one-shot patcher label matcher
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('backend/apply_live_candle_fallback_security_patch.py')
+          s = p.read_text()
+          old = '''old_label = 'source="Finnhub candles + Polygon fallback"'\nnew_label = 'source="Finnhub candles + Polygon/Yahoo fallback"'\nif old_label not in r:\n    raise SystemExit('provider health candle source label not found')\nreliability.write_text(r.replace(old_label, new_label, 1))'''
+          new = '''old_label = "Finnhub candles + Polygon fallback"\nnew_label = "Finnhub candles + Polygon/Yahoo fallback"\nif old_label not in r:\n    raise SystemExit('provider health candle source label not found')\nr = r.replace(old_label, new_label)\nr = r.replace("exact upstream may be Finnhub or Polygon fallback.", "exact upstream may be Finnhub, Polygon or Yahoo fallback.")\nreliability.write_text(r)'''
+          if old not in s:
+              raise SystemExit('staging patcher tail did not match')
+          p.write_text(s.replace(old, new, 1))
+          PY
+
       - name: Apply exact source patch
         run: python backend/apply_live_candle_fallback_security_patch.py
 
