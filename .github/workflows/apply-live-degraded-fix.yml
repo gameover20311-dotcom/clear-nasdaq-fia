@@ -19,6 +19,12 @@ jobs:
           ref: fix/live-degraded-20260908
           fetch-depth: 0
 
+      - name: Install backend runtime dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
+
       - name: Verify and apply exact reviewed patch
         shell: bash
         run: |
@@ -27,6 +33,7 @@ jobs:
           git apply LIVE_DEGRADED_FIX_GITHUB.patch
           python -m compileall -q backend/fia backend/main.py
           python backend/fia/test_live_degraded_incident_v670.py
+          python backend/fia/test_candle_fallback_cloud.py
 
       - name: Commit exact incident fix
         shell: bash
