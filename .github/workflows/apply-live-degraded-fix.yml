@@ -1,4 +1,4 @@
-name: Apply live degraded incident fix
+name: Finalize live degraded incident fix
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  apply-fix:
+  reseal-and-verify:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
@@ -25,22 +25,28 @@ jobs:
           set -euo pipefail
           python -m pip install --disable-pip-version-check -q -r backend/requirements.txt
 
-      - name: Verify and apply exact reviewed patch
+      - name: Re-run targeted regressions
         shell: bash
         run: |
           set -euo pipefail
-          git apply --check LIVE_DEGRADED_FIX_GITHUB.patch
-          git apply LIVE_DEGRADED_FIX_GITHUB.patch
           python -m compileall -q backend/fia backend/main.py
           python backend/fia/test_live_degraded_incident_v670.py
           python backend/fia/test_candle_fallback_cloud.py
 
-      - name: Commit exact incident fix
+      - name: Re-seal zero-observation Forward-OOS campaign against fixed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find backend/fia_forward_oos/events -type f -name '*forecast-lock*.json' 2>/dev/null | wc -l)" -eq 0
+          cd backend
+          python reseal_forward_oos_campaign.py
+
+      - name: Commit new seal and byte-for-byte previous seal archive
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "CLEAR NASDAQ Incident Fix"
           git config user.email "clear-nasdaq@users.noreply.github.com"
-          git add backend/fia/providers.py backend/fia/cognitive/specialists.py backend/fia/test_candle_fallback_cloud.py backend/fia/test_live_degraded_incident_v670.py
-          git commit -m "Fix live candle freshness and breadth specialist mapping"
+          git add backend/fia_forward_oos/FORWARD_OOS_CAMPAIGN_SEAL.json backend/fia_forward_oos/SEAL_ARCHIVE_*
+          git commit -m "Reseal zero-observation Forward-OOS after incident fix"
           git push origin HEAD:fix/live-degraded-20260908
