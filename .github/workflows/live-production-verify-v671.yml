@@ -1,0 +1,87 @@
+name: Live production verification v671
+
+on:
+  push:
+    branches:
+      - fix/live-candle-fallback-security-20260908
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe deployed production truth
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://clear-nasdaq-fia.onrender.com'
+          mkdir -p /tmp/fia_live
+          for p in /api/health /api/provider/health /api/dashboard /api/forward-oos/status /api/forward-oos/verify /api/forward-oos/durability /api/forward-oos/campaign; do
+            n=$(printf '%s' "$p" | tr '/-' '__')
+            code=$(curl -sS --max-time 120 -o "/tmp/fia_live/${n}.json" -w '%{http_code}' "$BASE$p")
+            echo "$p HTTP=$code"
+            test "$code" = 200
+          done
+          python - <<'PY'
+          import json, pathlib
+          root=pathlib.Path('/tmp/fia_live')
+          def load(endpoint):
+              name=endpoint.replace('/','_').replace('-','_')
+              return json.loads((root/f'{name}.json').read_text())
+
+          health=load('/api/health')
+          ph=load('/api/provider/health')
+          dash=load('/api/dashboard')
+          status=load('/api/forward-oos/status')
+          verify=load('/api/forward-oos/verify')
+          durable=load('/api/forward-oos/durability')
+          campaign=load('/api/forward-oos/campaign')
+
+          sh=((ph.get('source_health') or ph.get('provider_health',{}).get('source_health')) or {})
+          if not sh:
+              sh=(dash.get('live',{}).get('snapshot',{}).get('data',{}).get('source_health') or {})
+          candle=sh.get('candles') or {}
+          live_data=dash.get('live',{}).get('snapshot',{}).get('data',{})
+          cog=dash.get('live',{}).get('forecast',{}).get('cognitive',{})
+          specialists=cog.get('specialists') or []
+          spec={s.get('name'): {'direction':s.get('direction'),'missing_reason':s.get('missing_reason')} for s in specialists if isinstance(s,dict)}
+          print('VERIFY_SUMMARY=' + json.dumps({
+              'health_ok': health.get('ok'),
+              'provider_overall': (ph.get('provider_health') or {}).get('overall'),
+              'provider_score': (ph.get('provider_health') or {}).get('score'),
+              'candle_status': candle.get('status'),
+              'candle_source_health': candle.get('source'),
+              'candle_observed_at': candle.get('observed_at'),
+              'candle_age_seconds': candle.get('age_seconds'),
+              'nq_structure_source': live_data.get('nq_structure_source'),
+              'nq_structure_last_bar_end_utc': live_data.get('nq_structure_last_bar_end_utc'),
+              'price_structure': spec.get('Price Structure AI'),
+              'mtf_trend': spec.get('Multi-timeframe Trend AI'),
+              'breadth': spec.get('Breadth/Internals AI'),
+              'news_event': spec.get('News Event AI'),
+              'foos_ledger_ok': (status.get('ledger') or {}).get('ok'),
+              'foos_events': (status.get('ledger') or {}).get('events'),
+              'foos_locks': (status.get('ledger') or {}).get('forecast_locks'),
+              'foos_verify_ok': verify.get('ok'),
+              'foos_durable': durable.get('durable'),
+              'foos_backend': durable.get('backend'),
+              'campaign_n': campaign.get('forward_oos_n'),
+              'campaign_directional_n': campaign.get('directional_n'),
+              'campaign_abstention_n': campaign.get('abstention_n'),
+              'campaign_model_fingerprint': campaign.get('model_fingerprint'),
+              'predictive_edge': campaign.get('predictive_edge'),
+          }, sort_keys=True))
+
+          assert health.get('ok') is True
+          assert verify.get('ok') is True
+          assert durable.get('durable') is True and durable.get('backend')=='postgres'
+          assert campaign.get('forward_oos_n') == 0
+          assert (status.get('ledger') or {}).get('forecast_locks') == 0
+          assert live_data.get('nq_structure_source') == 'yahoo_chart_fallback', live_data.get('nq_structure_source')
+          assert candle.get('status') in ('live','current_for_session'), candle
+          assert spec.get('Price Structure AI',{}).get('direction') != 'MISSING', spec.get('Price Structure AI')
+          assert spec.get('Multi-timeframe Trend AI',{}).get('direction') != 'MISSING', spec.get('Multi-timeframe Trend AI')
+          print('LIVE_PRODUCTION_V671=PASS')
+          PY
