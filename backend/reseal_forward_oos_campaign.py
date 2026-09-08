@@ -1,32 +1,21 @@
 #!/usr/bin/env python3
-"""Re-seal the Forward-OOS campaign against the CURRENT backend fingerprint.
+"""Re-seal Forward-OOS only while the current campaign has zero observations.
 
-WHY THIS EXISTS
----------------
-The campaign seal pins a sha256 fingerprint over the backend source files so that
-every locked forward observation is attributable to an exact code version. That is
-the right design, but it has a sharp edge: ANY backend edit invalidates the seal,
-`verify_campaign_seal()` starts returning model_fingerprint_match=false, and
-`lock_live_forecast()` then refuses every lock with
-CAMPAIGN_SEAL_OR_MODEL_FINGERPRINT_INVALID.
+A campaign seal pins the backend fingerprint so every forward observation is
+attributable to one exact production source state. Re-pinning after *any* real
+ledger event -- directional forecast, abstention, resolution, or another
+production event -- would change that attribution after the fact.
 
-That happened silently in this project. `fia/auth_api.py` was added on 2026-09-04
-at 22:45, four hours after the V4 seal was written at 01:31. From that moment the
-campaign could not lock a single forecast, and nothing surfaced the problem: the
-integrity suite aborted at check 5 of 43 and the status endpoints still reported
-ok:true. The campaign sat at ZERO observations for two days.
+Rules:
+1. Archive the previous seal byte-for-byte before any permitted re-seal.
+2. Refuse re-seal when ANY ledger event exists. An abstention is a genuine
+   forward observation even though it is not a directional forecast lock.
+3. If a campaign has observations, close it and start a new campaign instead.
+4. BASE_FIA remains production; this script never promotes a model.
+5. The seal returns to read-only mode after writing.
 
-RULES THIS SCRIPT ENFORCES
---------------------------
-1. The previous seal is archived BYTE-FOR-BYTE before anything is written.
-2. Re-sealing is REFUSED if the existing campaign holds any forecast lock, because
-   re-pinning a campaign that already has observations would retroactively change
-   what those observations are attributable to. Such a campaign must be closed and
-   a new one started instead.
-3. The production model is not promoted. BASE_FIA stays production.
-4. The seal file is restored to mode 444 afterwards.
-
-RUN THIS AFTER EVERY BACKEND CODE CHANGE, BEFORE RELYING ON FORWARD-OOS.
+The optional --force escape hatch is retained only for recovery tooling and must
+never be used to re-attribute a production campaign with observations.
 """
 from __future__ import annotations
 
@@ -47,7 +36,16 @@ FOOS = BACKEND / "fia_forward_oos"
 SEAL = FOOS / "FORWARD_OOS_CAMPAIGN_SEAL.json"
 
 
+def existing_events() -> int:
+    """Count every production ledger event, not only forecast-lock files."""
+    events = FOOS / "events"
+    if not events.is_dir():
+        return 0
+    return len([p for p in events.glob("*.json") if p.is_file()])
+
+
 def existing_locks() -> int:
+    """Diagnostic subset retained for operator visibility."""
     events = FOOS / "events"
     if not events.is_dir():
         return 0
@@ -60,8 +58,10 @@ def main(force: bool = False) -> int:
         return 2
 
     before = verify_campaign_seal()
+    events = existing_events()
     locks = existing_locks()
     print("current campaign : %s" % before.get("campaign_id"))
+    print("ledger events    : %d" % events)
     print("forecast locks   : %d" % locks)
     print("seal_hash_valid  : %s" % before.get("seal_hash_valid"))
     print("fingerprint_match: %s" % before.get("model_fingerprint_match"))
@@ -70,10 +70,11 @@ def main(force: bool = False) -> int:
         print("\nSeal already valid against the current fingerprint. Nothing to do.")
         return 0
 
-    if locks > 0 and not force:
-        print("\nREFUSING to re-seal: this campaign already holds %d forecast lock(s)." % locks)
-        print("Re-pinning would retroactively change what those sealed observations")
-        print("are attributable to. Close this campaign and start a new one instead.")
+    if events > 0 and not force:
+        print("\nREFUSING to re-seal: this campaign already holds %d ledger event(s)." % events)
+        print("An abstention is also a genuine forward observation. Re-pinning would")
+        print("retroactively change what an existing observation is attributable to.")
+        print("Close this campaign and start a new campaign instead.")
         return 3
 
     old = json.loads(SEAL.read_text(encoding="utf-8"))
@@ -81,7 +82,7 @@ def main(force: bool = False) -> int:
     arch = FOOS / ("SEAL_ARCHIVE_" + stamp)
     arch.mkdir(parents=True, exist_ok=True)
     archived = arch / ("FORWARD_OOS_CAMPAIGN_SEAL_%s.json" % (old.get("campaign_id") or "PREVIOUS"))
-    archived.write_bytes(SEAL.read_bytes())          # byte-for-byte, never mutated
+    archived.write_bytes(SEAL.read_bytes())
     os.chmod(archived, 0o444)
 
     fp = model_fingerprint()
@@ -95,8 +96,8 @@ def main(force: bool = False) -> int:
     new["model_fingerprint"] = fp
     new["production_model"] = "BASE_FIA"
     new["supersedes_campaign_id"] = prev_id
-    new["supersedes_reason"] = ("backend fingerprint changed after the previous seal; "
-                                "previous campaign held %d forecast locks" % locks)
+    new["supersedes_reason"] = ("backend fingerprint changed while previous campaign held "
+                                "%d ledger events and %d forecast locks" % (events, locks))
     new["previous_seal_archive"] = str(archived.relative_to(BACKEND))
     new["evidence_quality_gate"] = {
         "min_data_coverage": float(os.getenv("FIA_FOOS_MIN_DATA_COVERAGE", "0.50")),
