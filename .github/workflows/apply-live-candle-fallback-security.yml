@@ -75,9 +75,9 @@ jobs:
         run: |
           git config user.name "CLEAR NASDAQ Incident Fix"
           git config user.email "clear-nasdaq@users.noreply.github.com"
-          git rm backend/apply_live_candle_fallback_security_patch.py
-          git rm backend/apply_live_candle_fallback_compat_patch.py
-          git rm .github/workflows/apply-live-candle-fallback-security.yml
+          git rm -f backend/apply_live_candle_fallback_security_patch.py
+          git rm -f backend/apply_live_candle_fallback_compat_patch.py
+          git rm -f .github/workflows/apply-live-candle-fallback-security.yml
           git add backend/fia/providers.py backend/fia/provider_reliability.py backend/fia_forward_oos/FORWARD_OOS_CAMPAIGN_SEAL.json backend/fia_forward_oos/SEAL_ARCHIVE_*
           git commit -m "Add freshest candle fallback and redact provider credentials"
           git push origin HEAD:fix/live-candle-fallback-security-20260908
