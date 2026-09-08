@@ -10,15 +10,14 @@ Deployed Render reported:
 while direct provider probes showed Finnhub 60m = HTTP 403 and Polygon 60m =
 HTTP 200 with 96 real OHLCV bars.
 
-ROOT CAUSE (proven, not assumed): the committed code path is correct. Running it
-at HEAD with a valid POLYGON_API_KEY yields provider_candle_evidence="available",
-95 completed bars, critical_missing=[]. The deployed failure is environmental --
-the Polygon fallback could not run. Simulating an absent POLYGON_API_KEY
-reproduces the Render output exactly.
+HISTORICAL INCIDENT CONTEXT: an earlier deployed failure was reproducible when
+the Polygon fallback could not run, and this suite still locks the diagnostic
+that distinguishes a missing/rejected key from a valid Polygon candle response.
 
-SECONDARY DEFECT (real, and why this was hard to find): a MISSING key and a
-REJECTED key produced byte-identical /api/provider/health output. The reason
-lived only on stdout. This suite locks the diagnostic that distinguishes them.
+CURRENT COMPLETION RULE: provider aggregate timestamps are interval starts. A
+historical final row that has already ended must be retained, while a genuinely
+forming row must be excluded. This prevents completed 60m evidence from being
+made artificially stale by dropping a row and labelling the prior START as END.
 
 These tests do NOT weaken fail-closed:
   * a quote proxy is never reported as real candles
@@ -117,14 +116,23 @@ check("basis names completed candle bars",
 check("source is polygon_fallback, NOT finnhub",
       struct.get("source") == "polygon_fallback", str(struct.get("source")))
 
-print("\n[C] the forming bar is excluded")
-check("96 fetched -> 95 completed", struct.get("completed_bars") == 95,
+print("\n[C] completion is determined from bar start + resolution, not row position")
+# This historical fixture contains 96 bars that are ALL already completed. The
+# old code unconditionally discarded row 96 and mislabelled row 95's START as
+# its END. The corrected logic retains every completed row and derives the true
+# bar end from start + 60m.
+check("96 historical fetched -> 96 completed", struct.get("completed_bars") == 96,
       str(struct.get("completed_bars")))
 last_fetched_s = (1_788_000_000_000 + 95 * 3_600_000) // 1000
-check("last completed bar is NOT the final fetched bar",
-      str(last_fetched_s) not in str(struct.get("last_completed_bar_end_utc")),
+check("last completed bar start is the final fetched start",
+      int(__import__("datetime").datetime.fromisoformat(
+          str(struct.get("last_completed_bar_start_utc"))).timestamp()) == last_fetched_s,
+      str(struct.get("last_completed_bar_start_utc")))
+check("last completed bar end is start + 60m",
+      int(__import__("datetime").datetime.fromisoformat(
+          str(struct.get("last_completed_bar_end_utc"))).timestamp()) == last_fetched_s + 3600,
       str(struct.get("last_completed_bar_end_utc")))
-check("detail states the exclusion",
+check("detail still states forming-bar exclusion policy",
       "in-progress bar excluded" in str(struct.get("detail")))
 
 print("\n[D] provider_candle_evidence becomes available ONLY from genuine OHLC candles")

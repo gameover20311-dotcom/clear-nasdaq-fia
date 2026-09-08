@@ -127,8 +127,9 @@ class ProviderHub:
         Returns None when a real series is unavailable, so the caller can fall back
         to an explicitly-labelled proxy rather than silently inventing evidence.
 
-        The final bar returned by a provider is normally still forming, so it is
-        dropped unconditionally: no forming bar may influence a pre-move forecast.
+        Provider timestamps identify interval starts. A row is usable only when
+        its start + resolution is at or before the current time; forming bars are
+        excluded while already-completed final rows are retained.
         """
         import time as _time
         from datetime import datetime as _dt, timezone as _tz
@@ -143,11 +144,40 @@ class ProviderHub:
         if len(closes) != len(stamps) or len(closes) < 12:
             return None
 
-        # Drop the in-progress bar. Completed-bar truth is non-negotiable here.
-        closes = closes[:-1]
-        stamps = stamps[:-1]
-        if len(closes) < 10:
-            return None
+        # Provider candle timestamps are aggregate-window START timestamps.
+        # Polygon documents `t` as the start of the aggregate window, and the
+        # Finnhub candle feed uses the same interval timestamp convention.  The
+        # old code dropped the final row unconditionally and then labelled the
+        # previous row's START as the bar END.  On delayed/cloud feeds the final
+        # row is often already completed, so this made a genuinely fresh 60m bar
+        # appear roughly 1-2 hours older and caused the live freshness gate to
+        # exclude Price Structure / MTF during regular session.
+        try:
+            _resolution_minutes = int(str(resolution).lower().rstrip("m"))
+        except (TypeError, ValueError):
+            _resolution_minutes = 0
+        _bar_seconds = _resolution_minutes * 60 if _resolution_minutes > 0 else 0
+
+        if _bar_seconds:
+            completed = [
+                (float(c), int(t))
+                for c, t in zip(closes, stamps)
+                if int(t) + _bar_seconds <= now
+            ]
+            if len(completed) < 10:
+                return None
+            closes = [c for c, _ in completed]
+            stamps = [t for _, t in completed]
+            _last_bar_end_ts = int(stamps[-1]) + _bar_seconds
+        else:
+            # Conservative compatibility fallback for non-minute resolutions:
+            # preserve the previous completed-bar rule rather than guessing an
+            # interval length.  This path is not used by the live 60m structure.
+            closes = closes[:-1]
+            stamps = stamps[:-1]
+            if len(closes) < 10:
+                return None
+            _last_bar_end_ts = int(stamps[-1])
 
         last = float(closes[-1])
         window = [float(x) for x in closes[-40:]]
@@ -166,7 +196,8 @@ class ProviderHub:
             "score": round(score, 6),
             "basis": f"{symbol}_{resolution}M_CANDLES_COMPLETED_BARS",
             "completed_bars": len(closes),
-            "last_completed_bar_end_utc": _dt.fromtimestamp(int(stamps[-1]), _tz.utc).isoformat(),
+            "last_completed_bar_start_utc": _dt.fromtimestamp(int(stamps[-1]), _tz.utc).isoformat(),
+            "last_completed_bar_end_utc": _dt.fromtimestamp(_last_bar_end_ts, _tz.utc).isoformat(),
             "source": str(candles.get("_fia_candle_source") or "finnhub"),
             "detail": (
                 f"{len(closes)} completed {resolution}m {symbol} bars; "
