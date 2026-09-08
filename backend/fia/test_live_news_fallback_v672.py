@@ -6,7 +6,6 @@ calibration or the 4H/8H decision rules.
 from __future__ import annotations
 
 import asyncio
-import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sys
@@ -68,14 +67,17 @@ r2 = asyncio.run(h2.live_news_articles())
 check("NewsAPI selected", r2.get("selected_provider") == "NewsAPI", str(r2))
 check("Finnhub not called", h2.finnhub_calls == 0, str(h2.finnhub_calls))
 
-print("[C] future-dated provider rows are rejected")
+print("[C] future-dated fallback rows are rejected without fabricating freshness")
 h3 = FakeHub(
     [{"title":"old", "description":"", "publishedAt":old}],
     [{"headline":"future provider defect", "summary":"", "datetime":future}],
 )
 r3 = asyncio.run(h3.live_news_articles())
-check("future article not accepted", not (r3.get("articles") or []), str(r3))
-check("provider remains unavailable/stale rather than fake-live", r3.get("selected_provider") in ("NewsAPI", None), str(r3))
+check("future Finnhub row rejected", (r3.get("candidate_counts") or {}).get("Finnhub") == 0, str(r3))
+check("future Finnhub never selected", r3.get("selected_provider") != "Finnhub", str(r3))
+check("older real NewsAPI packet remains stale rather than fake-live",
+      r3.get("selected_provider") == "NewsAPI" and float(r3.get("newest_age_seconds")) > 43200,
+      str(r3))
 
 print("=" * 64)
 if FAIL:
