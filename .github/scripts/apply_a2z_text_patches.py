@@ -49,6 +49,15 @@ replace_once(
     '''            "report": forward_report(DEFAULT_ROOT),\n            "durability": __import__("fia.oos_guard", fromlist=["durability_guard_status"]).durability_guard_status(DEFAULT_ROOT),\n        }\n\n    @app.get("/api/forward-oos/report")\n''',
 )
 
+# FastAPI 0.141 / Starlette 1.x removed Starlette.add_event_handler. FastAPI's
+# APIRouter retains the compatibility bridge, so keep the existing worker
+# semantics while moving registration to the supported compatibility surface.
+replace_once(
+    "backend/fia/forward_oos_api.py",
+    '''    app.add_event_handler("startup", startup)\n    app.add_event_handler("shutdown", shutdown)\n''',
+    '''    app.router.add_event_handler("startup", startup)\n    app.router.add_event_handler("shutdown", shutdown)\n''',
+)
+
 # 3) Replace wildcard CORS with an explicit configurable allow-list.
 replace_once(
     "backend/main.py",
