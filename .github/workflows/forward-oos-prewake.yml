@@ -1,0 +1,35 @@
+name: forward-oos-prewake
+
+on:
+  schedule:
+    # Keep the Free Render service awake across both possible 13:00 ET UTC
+    # windows (EDT=17:00Z, EST=18:00Z). This is a best-effort mitigation;
+    # GitHub scheduled jobs are not a hard real-time scheduler.
+    - cron: '45,50,55 16 * * 1-5'
+    - cron: '*/5 17 * * 1-5'
+    - cron: '0,5,10,15 18 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prewake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Wake backend and verify read-only OOS status
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 2 --retry-delay 5 --max-time 45 \
+            https://clear-nasdaq-fia.onrender.com/api/health >/tmp/health.json
+          curl --fail --silent --show-error --retry 2 --retry-delay 5 --max-time 45 \
+            https://clear-nasdaq-fia.onrender.com/api/forward-oos/status >/tmp/oos-status.json
+          python - <<'PY'
+          import json
+          health=json.load(open('/tmp/health.json'))
+          status=json.load(open('/tmp/oos-status.json'))
+          assert health.get('ok') is True, health
+          assert isinstance(status.get('ledger'), dict), status
+          print('prewake health=PASS ledger_ok=', (status.get('ledger') or {}).get('ok'))
+          PY
