@@ -1,0 +1,176 @@
+name: full-a2z-audit
+
+on:
+  push:
+    branches:
+      - audit/a2z-20260909
+  workflow_dispatch:
+
+jobs:
+  backend-audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install backend dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Dependency consistency
+        run: pip check
+      - name: Active Python syntax and AST scan
+        run: |
+          python - <<'PY'
+          import ast, pathlib, sys
+          root=pathlib.Path('.')
+          skip_parts={'__pycache__','.venv','venv','node_modules'}
+          skip_prefixes=('fia_backtest_phase','fia_backtest_module','fia_backtest_forexcom','fia_backtest_liquidity_truth_fix','fia_whole_system_backtest')
+          failures=[]; count=0
+          for p in root.rglob('*.py'):
+              rel=p.as_posix()
+              if any(part in skip_parts for part in p.parts): continue
+              if any(rel.startswith(x) for x in skip_prefixes): continue
+              if 'backup' in rel.lower() or '.bak' in rel.lower(): continue
+              count+=1
+              try: ast.parse(p.read_text(encoding='utf-8'), filename=rel)
+              except Exception as e: failures.append((rel,repr(e)))
+          print('ACTIVE_PY_FILES=',count)
+          print('AST_FAILURES=',len(failures))
+          for x in failures: print(x)
+          if failures: sys.exit(1)
+          PY
+      - name: Compile active runtime packages
+        run: |
+          python -m compileall -q fia clear_nasdaq_brain main.py
+      - name: Run unittest discovery
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend
+          FIA_LIVE_TESTS: '0'
+        run: |
+          set +e
+          python -m unittest discover -s . -p 'test*.py' -v 2>&1 | tee /tmp/unittest.log
+          code=${PIPESTATUS[0]}
+          echo "UNITTEST_EXIT=$code"
+          echo "UNITTEST_TEST_LINES=$(grep -Ec '^test_|\.\.\. (ok|FAIL|ERROR|skipped)' /tmp/unittest.log || true)"
+          exit $code
+      - name: Import smoke test core modules
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend
+        run: |
+          python - <<'PY'
+          mods=['main','fia.engine','fia.providers','fia.forward_oos','fia.forward_oos_api','fia.provider_reliability','fia.accuracy_engine','fia.learning_engine']
+          import importlib
+          for m in mods:
+              importlib.import_module(m); print('IMPORT_OK',m)
+          PY
+
+  frontend-audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+      - name: TypeScript no-emit check
+        run: npx tsc --noEmit
+      - name: Next production build
+        env:
+          NEXT_PUBLIC_API_BASE: https://clear-nasdaq-fia.onrender.com
+        run: npm run build
+
+  repository-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Repository inventory
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root=Path('.')
+          files=[p for p in root.rglob('*') if p.is_file() and '.git' not in p.parts]
+          print('TOTAL_FILES=',len(files))
+          print('TOTAL_BYTES=',sum(p.stat().st_size for p in files))
+          for ext in ['.py','.ts','.tsx','.json','.md','.csv','.jsonl']:
+              print(ext, sum(1 for p in files if p.suffix==ext))
+          backups=[p for p in files if any(x in p.as_posix().lower() for x in ['backup','before_','.bak','_tmp','tmp/'])]
+          print('BACKUP_OR_TMP_FILES=',len(backups))
+          roots=sorted({p.parts[0] for p in files if p.parts and ('backup' in p.parts[0].lower() or 'tmp' in p.parts[0].lower())})
+          print('BACKUP_ROOTS=',roots)
+          PY
+      - name: TODO FIXME HACK XXX scan
+        run: |
+          grep -RInE --exclude-dir=.git --exclude='package-lock.json' --exclude='*.csv' --exclude='*.jsonl' '\b(TODO|FIXME|HACK|XXX)\b' . > /tmp/todos.txt || true
+          echo "TODO_LIKE_COUNT=$(wc -l < /tmp/todos.txt)"
+          head -200 /tmp/todos.txt
+      - name: Secret-pattern scan tracked files
+        run: |
+          python - <<'PY'
+          import re, subprocess, pathlib, sys
+          files=subprocess.check_output(['git','ls-files'],text=True).splitlines()
+          pats=[
+            ('OPENAI_KEY',re.compile(r'sk-[A-Za-z0-9_-]{20,}')),
+            ('GITHUB_PAT',re.compile(r'gh[pousr]_[A-Za-z0-9]{20,}')),
+            ('AWS_ACCESS',re.compile(r'AKIA[0-9A-Z]{16}')),
+            ('PRIVATE_KEY',re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----')),
+          ]
+          hits=[]
+          for f in files:
+            p=pathlib.Path(f)
+            try:
+              if p.stat().st_size>2_000_000: continue
+              txt=p.read_text(errors='ignore')
+            except Exception: continue
+            for name,pat in pats:
+              if pat.search(txt): hits.append((name,f))
+          print('SECRET_PATTERN_HITS=',len(hits))
+          for h in hits: print(h)
+          if hits: sys.exit(1)
+          PY
+      - name: Merge-conflict marker scan
+        run: |
+          if grep -RInE --exclude-dir=.git '^(<<<<<<<|=======|>>>>>>>)' backend frontend; then exit 1; else echo NO_MERGE_MARKERS; fi
+      - name: Large tracked file inventory
+        run: |
+          git ls-files -z | xargs -0 -I{} sh -c 'test -f "$1" && printf "%s\t%s\n" "$(wc -c < "$1")" "$1"' _ {} | sort -nr | head -40
+
+  seal-and-oos-static:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Forward-OOS seal static assertions
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('fia_forward_oos/FORWARD_OOS_CAMPAIGN_SEAL.json')
+          assert p.exists(), 'seal missing'
+          x=json.loads(p.read_text())
+          print('campaign_id=',x.get('campaign_id'))
+          print('forecast_edit_or_delete_allowed=',x.get('forecast_edit_or_delete_allowed'))
+          print('historical_tuning_after_seal_allowed=',x.get('historical_tuning_after_seal_allowed'))
+          assert x.get('forecast_edit_or_delete_allowed') is False
+          assert x.get('historical_tuning_after_seal_allowed') is False
+          PY
+      - name: Forbidden OOS mutation keywords review
+        run: |
+          grep -RInE 'DELETE FROM forward_oos|UPDATE forward_oos|historical_backfill|backfill' fia/forward_oos*.py fia/*durable*.py || true
