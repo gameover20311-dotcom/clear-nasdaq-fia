@@ -1,0 +1,129 @@
+name: final-a2z-validation
+
+on:
+  push:
+    branches:
+      - fix/a2z-hardening-20260909
+  workflow_dispatch:
+
+jobs:
+  backend-exhaustive:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.14'
+      - name: Apply the exact staged repairs before validation
+        working-directory: .
+        run: |
+          python .github/scripts/apply_a2z_text_patches.py
+          python .github/scripts/refresh_brain_manifest.py
+      - name: Install backend
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Compile every active Python source
+        run: |
+          python - <<'PY'
+          import pathlib, py_compile, sys
+          skip=('backup','backups','__pycache__','.venv','venv','node_modules')
+          files=[]; failures=[]
+          for p in pathlib.Path('.').rglob('*.py'):
+              rel=p.as_posix().lower()
+              if any(tok in rel for tok in skip):
+                  continue
+              files.append(p)
+              try: py_compile.compile(str(p), doraise=True)
+              except Exception as e: failures.append((p.as_posix(),repr(e)))
+          print('ACTIVE_PYTHON_FILES=',len(files),'COMPILE_FAILURES=',len(failures))
+          for f,e in failures: print('COMPILE_FAIL',f,e)
+          if failures: sys.exit(1)
+          PY
+      - name: Run every active test script separately
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend
+          FIA_LIVE_TESTS: '0'
+          FIA_FORWARD_OOS_ENABLED: '0'
+        run: |
+          python - <<'PY'
+          import os, pathlib, subprocess, sys
+          root=pathlib.Path('.')
+          skip_tokens=('backup','backups','__pycache__','.venv','venv','node_modules')
+          tests=[]
+          for p in root.rglob('test*.py'):
+              rel=p.as_posix().lower()
+              if any(tok in rel for tok in skip_tokens):
+                  continue
+              tests.append(p)
+          tests=sorted(tests)
+          print('ACTIVE_TEST_SCRIPTS=',len(tests))
+          failures=[]; timeouts=[]; passed=[]
+          env=dict(os.environ)
+          for i,p in enumerate(tests,1):
+              print(f'\n=== [{i}/{len(tests)}] {p.as_posix()} ===', flush=True)
+              try:
+                  r=subprocess.run([sys.executable,str(p)],cwd='.',env=env,
+                                   stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+                                   text=True,timeout=120)
+                  out=r.stdout or ''
+                  print(out[-8000:])
+                  if r.returncode==0: passed.append(p.as_posix())
+                  else: failures.append((p.as_posix(),r.returncode,out[-3000:]))
+              except subprocess.TimeoutExpired:
+                  timeouts.append(p.as_posix()); print('TIMEOUT_120S')
+          print('\n=== FINAL ACTIVE TEST SWEEP ===')
+          print('TOTAL=',len(tests),'PASS=',len(passed),'FAIL=',len(failures),'TIMEOUT=',len(timeouts))
+          for p,c,o in failures: print('\nFAIL',p,'exit',c,'\n',o)
+          for p in timeouts: print('TIMEOUT',p)
+          if failures or timeouts: sys.exit(1)
+          PY
+      - name: Core imports, routes, auth, CORS and API smoke
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend
+          FIA_FORWARD_OOS_ENABLED: '0'
+        run: |
+          python - <<'PY'
+          import importlib
+          mods=['main','fia.engine','fia.providers','fia.forward_oos','fia.forward_oos_api','fia.provider_reliability','fia.accuracy_engine','fia.learning_engine','fia.auth_api','fia.premove_watch','fia.provider_guard','fia.oos_guard','fia.live_market_truth','fia.official_macro_fallback']
+          for m in mods: importlib.import_module(m); print('IMPORT_OK',m)
+          import main
+          routes=[]
+          for r in main.app.routes:
+              methods=tuple(sorted(getattr(r,'methods',[]) or [])); path=getattr(r,'path',None)
+              if path: routes.append((methods,path))
+          seen=set(); dup=[]
+          for x in routes:
+              if x in seen: dup.append(x)
+              seen.add(x)
+          print('ROUTE_COUNT=',len(routes),'DUPLICATE_ROUTES=',dup); assert not dup
+          from fastapi.testclient import TestClient
+          with TestClient(main.app) as c:
+              h=c.get('/api/health'); print('HEALTH=',h.status_code); assert h.status_code==200
+              f=c.post('/api/forward-oos/durability/test-fixture',json={'marker':'audit-unauthenticated'}); assert f.status_code==401
+              r=c.post('/api/forward-oos/run-once'); print('RUN_ONCE_UNAUTH=',r.status_code); assert r.status_code==401
+              bad=c.options('/api/health',headers={'Origin':'https://evil.example','Access-Control-Request-Method':'GET'}); assert bad.headers.get('access-control-allow-origin')!='https://evil.example'
+              good=c.options('/api/health',headers={'Origin':'https://clear-nasdaq-fia.vercel.app','Access-Control-Request-Method':'GET'}); assert good.headers.get('access-control-allow-origin')=='https://clear-nasdaq-fia.vercel.app'
+          PY
+
+  frontend-production:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install exact frontend dependencies
+        run: npm ci
+      - name: TypeScript no-emit
+        run: npx tsc --noEmit
+      - name: Production build
+        run: npm run build
+      - name: High-severity dependency audit
+        run: npm audit --audit-level=high
