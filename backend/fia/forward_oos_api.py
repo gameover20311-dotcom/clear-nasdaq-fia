@@ -46,6 +46,16 @@ async def run_once(hub: Any, build_forecast: Callable[[dict], Any]) -> dict:
                 "report": forward_report(DEFAULT_ROOT),
             }
         try:
+            from fia.oos_guard import require_durable_before_scientific_write
+            durability = require_durable_before_scientific_write(DEFAULT_ROOT)
+            if not durability.get("append_allowed"):
+                return {
+                    "ok": False,
+                    "skipped": True,
+                    "reason": "DURABILITY_UNAVAILABLE_FAIL_CLOSED",
+                    "durability": durability,
+                    "report": forward_report(DEFAULT_ROOT),
+                }
             resolution = await resolve_due_forecasts(hub, DEFAULT_ROOT)
             cp = checkpoint_state()
             lock = {"ok": True, "created": False, "reason": "OUTSIDE_LIVE_CHECKPOINT_NO_BACKFILL", "checkpoint": cp}
@@ -144,6 +154,7 @@ def install_forward_oos_routes(app: Any, hub: Any, build_forecast: Callable[[dic
             "checkpoint": checkpoint_state(),
             "ledger": verify_ledger(DEFAULT_ROOT),
             "report": forward_report(DEFAULT_ROOT),
+            "durability": __import__("fia.oos_guard", fromlist=["durability_guard_status"]).durability_guard_status(DEFAULT_ROOT),
         }
 
     @app.get("/api/forward-oos/report")
@@ -168,7 +179,7 @@ def install_forward_oos_routes(app: Any, hub: Any, build_forecast: Callable[[dic
         n=30 milestone. A win rate at n=1-5 is noise, and showing it would invite
         exactly the conclusion this campaign exists to avoid.
         """
-        from fia.forward_oos_durable import durability_status
+        from fia.oos_guard import durability_guard_status
         led = verify_ledger(DEFAULT_ROOT)
         rep = forward_report(DEFAULT_ROOT)
         recs = records(DEFAULT_ROOT) or []
@@ -197,7 +208,7 @@ def install_forward_oos_routes(app: Any, hub: Any, build_forecast: Callable[[dic
             "ledger_ok": bool(led.get("ok")),
             "ledger_events": led.get("events"),
             "tamper_evident": led.get("tamper_evident"),
-            "durability": durability_status(DEFAULT_ROOT),
+            "durability": durability_guard_status(DEFAULT_ROOT),
             "checkpoint": checkpoint_state(),
             "metrics_available": n >= MILESTONE,
             "metrics": (None if n < MILESTONE else {"see": "/api/forward-oos/report"}),
@@ -214,8 +225,8 @@ def install_forward_oos_routes(app: Any, hub: Any, build_forecast: Callable[[dic
     @app.get("/api/forward-oos/durability")
     async def forward_oos_durability():
         """What the ledger's storage actually is. Public, carries no secret."""
-        from fia.forward_oos_durable import durability_status
-        return durability_status(DEFAULT_ROOT)
+        from fia.oos_guard import durability_guard_status
+        return durability_guard_status(DEFAULT_ROOT)
 
     @app.post("/api/forward-oos/durability/test-fixture")
     async def forward_oos_durability_fixture(
@@ -261,9 +272,17 @@ def install_forward_oos_routes(app: Any, hub: Any, build_forecast: Callable[[dic
         return delete_test_fixture(DEFAULT_ROOT, clean)
 
     @app.post("/api/forward-oos/run-once")
-    async def forward_oos_run_once():
-        # Manual invocation does NOT bypass the live checkpoint and therefore
-        # cannot create hindsight/backfilled forecasts.
+    async def forward_oos_run_once(
+        authorization: Optional[str] = Header(default=None),
+    ):
+        # Manual invocation is a write-capable operational surface. It does NOT
+        # bypass the live checkpoint, but it can consume provider quota, so it
+        # must never be public/anonymous.
+        from fia.auth_api import _bearer, decode_session_token
+        try:
+            decode_session_token(_bearer(authorization))
+        except Exception as exc:
+            raise HTTPException(status_code=401, detail="AUTH_REQUIRED") from exc
         return await run_once(hub, build_forecast)
 
     async def startup() -> None:
@@ -282,5 +301,5 @@ def install_forward_oos_routes(app: Any, hub: Any, build_forecast: Callable[[dic
             except asyncio.CancelledError:
                 pass
 
-    app.add_event_handler("startup", startup)
-    app.add_event_handler("shutdown", shutdown)
+    app.router.add_event_handler("startup", startup)
+    app.router.add_event_handler("shutdown", shutdown)

@@ -4,6 +4,7 @@ from fia.dashboard_api import build_dashboard_payload
 from fia.final_integration import build_final_status
 import csv
 import json
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
@@ -228,11 +229,21 @@ async def _validation_error_without_credentials(request, exc):
     return _JSONResponse(status_code=422, content={"detail": safe})
 
 
+_cors_default = (
+    "https://clear-nasdaq-fia.vercel.app,"
+    "http://localhost:3000,http://127.0.0.1:3000"
+)
+_cors_origins = [
+    origin.strip().rstrip("/")
+    for origin in str(os.getenv("FIA_CORS_ALLOWED_ORIGINS", _cors_default)).split(",")
+    if origin.strip() and origin.strip() != "*"
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 
