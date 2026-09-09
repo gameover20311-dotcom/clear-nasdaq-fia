@@ -11,6 +11,8 @@ venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+.coverage
+htmlcov/
 
 # Node / Next
 node_modules/
@@ -22,6 +24,17 @@ runtime_logs/
 *.log
 *.pid
 *.sock
+
+# Local scratch / generated backups
+# Existing tracked forensic backups are intentionally left untouched; these
+# patterns stop new ad-hoc copies from growing the production repository.
+*_BACKUP_*/
+*_backup_*/
+*.backup_*
+*.before_*
+*.bak
+*.tmp
+*.temp
 
 # macOS
 .DS_Store
