@@ -1,0 +1,47 @@
+name: core-api-smoke
+
+on:
+  push:
+    branches:
+      - audit/a2z-20260909
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Imports routes health auth smoke
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend
+          FIA_FORWARD_OOS_ENABLED: '0'
+        run: |
+          python - <<'PY'
+          import importlib
+          mods=['main','fia.engine','fia.providers','fia.forward_oos','fia.forward_oos_api','fia.provider_reliability','fia.accuracy_engine','fia.learning_engine','fia.auth_api','fia.premove_watch']
+          for m in mods:
+              importlib.import_module(m); print('IMPORT_OK',m)
+          import main
+          routes=[]
+          for r in main.app.routes:
+              methods=tuple(sorted(getattr(r,'methods',[]) or [])); path=getattr(r,'path',None)
+              if path: routes.append((methods,path))
+          seen=set(); dup=[]
+          for x in routes:
+              if x in seen: dup.append(x)
+              seen.add(x)
+          print('ROUTE_COUNT=',len(routes)); print('DUPLICATE_ROUTES=',dup)
+          assert not dup
+          from fastapi.testclient import TestClient
+          with TestClient(main.app) as c:
+              h=c.get('/api/health'); print('HEALTH=',h.status_code,h.text[:500]); assert h.status_code==200
+              f=c.post('/api/forward-oos/durability/test-fixture',json={'marker':'audit-unauthenticated'}); print('FIXTURE_UNAUTH=',f.status_code); assert f.status_code==401
+              r=c.post('/api/forward-oos/run-once'); print('RUN_ONCE_UNAUTH=',r.status_code,r.text[:500])
+          PY
