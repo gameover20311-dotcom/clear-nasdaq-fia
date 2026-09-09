@@ -70,4 +70,14 @@ replace_once(
     '''_cors_default = (\n    "https://clear-nasdaq-fia.vercel.app,"\n    "http://localhost:3000,http://127.0.0.1:3000"\n)\n_cors_origins = [\n    origin.strip().rstrip("/")\n    for origin in str(os.getenv("FIA_CORS_ALLOWED_ORIGINS", _cors_default)).split(",")\n    if origin.strip() and origin.strip() != "*"\n]\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=_cors_origins,\n    allow_credentials=True,\n    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],\n    allow_headers=["Authorization", "Content-Type", "Accept"],\n)\n''',
 )
 
+# 4) Freeze-parity regression: make the stale forecast explicitly stale relative
+# to the deterministic checkpoint probe. The former fixture inherited a frozen
+# generated_at that could become FUTURE relative to the test's separately chosen
+# checkpoint, proving the wrong guard. Production validator logic is unchanged.
+replace_once(
+    "backend/fia/test_freeze_parity_v667.py",
+    '''with _Seal():\n    stale_probe = try_lock(premove, tmp, state_probe, fc=base_fc)\ncheck("[3g] a forecast older than the lock window is refused",\n      stale_probe["created"] is False\n      and stale_probe["reason"] == "FORECAST_NOT_FRESH_ENOUGH_TO_LOCK",\n      json.dumps(stale_probe)[:160])\n\nlock_fc = copy.deepcopy(base_fc)\nlock_fc["generated_at"] = state_probe.isoformat()\n''',
+    '''stale_fc = copy.deepcopy(base_fc)\nstale_fc["generated_at"] = (state_probe - __import__("datetime").timedelta(minutes=16)).isoformat()\nwith _Seal():\n    stale_probe = try_lock(premove, tmp, state_probe, fc=stale_fc)\ncheck("[3g] a forecast older than the lock window is refused",\n      stale_probe["created"] is False\n      and stale_probe["reason"] == "FORECAST_NOT_FRESH_ENOUGH_TO_LOCK",\n      json.dumps(stale_probe)[:160])\n\nlock_fc = copy.deepcopy(base_fc)\nlock_fc["generated_at"] = state_probe.isoformat()\n''',
+)
+
 print("A2Z deterministic source patches applied")
