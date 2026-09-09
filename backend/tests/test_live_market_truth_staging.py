@@ -52,16 +52,29 @@ class FakeHub:
 class LiveMarketTruthTests(unittest.TestCase):
     def test_completed_structure_rejects_forming_bar(self):
         now = int(time.time())
-        candles = {
-            "t": [now - (13 - i) * 3600 for i in range(12)] + [now - 1200],
-            "c": [100.0 + i for i in range(12)] + [9999.0],
-        }
-        out = _completed_structure_from_candles(candles, 3600)
-        self.assertIsNotNone(out)
-        self.assertEqual(out["completed_bars"], 12)
-        self.assertLess(out["score"], 1.0)
+        completed_t = [now - (13 - i) * 3600 for i in range(12)]
+        completed_c = [100.0 + i for i in range(12)]
+
+        clean = _completed_structure_from_candles(
+            {"t": completed_t, "c": completed_c}, 3600
+        )
+        contaminated = _completed_structure_from_candles(
+            {
+                "t": completed_t + [now - 1200],
+                "c": completed_c + [9999.0],
+            },
+            3600,
+        )
+        self.assertIsNotNone(clean)
+        self.assertIsNotNone(contaminated)
+        self.assertEqual(contaminated["completed_bars"], 12)
+        # The output must be byte-for-byte equivalent on all derived fields when
+        # the only added observation is a still-forming bar.
+        self.assertEqual(contaminated, clean)
         self.assertLessEqual(
-            int(__import__("datetime").datetime.fromisoformat(out["last_completed_bar_end_utc"]).timestamp()),
+            int(__import__("datetime").datetime.fromisoformat(
+                contaminated["last_completed_bar_end_utc"]
+            ).timestamp()),
             now,
         )
 
