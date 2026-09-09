@@ -156,7 +156,11 @@ class LiveMarketTruthTests(unittest.TestCase):
         out = asyncio.run(_macro_calendar(hub))
         self.assertTrue(out["macro_calendar_available"])
         self.assertIsNone(out["macro"])
-        self.assertEqual(out["macro_status"], "calendar_live_upcoming_only_no_directional_vote")
+        # The official fallback intentionally replaces the vendor-only status
+        # while still refusing to fabricate a neutral/directional score.
+        self.assertEqual(out["macro_status"], "official_calendar_live_no_point_in_time_consensus")
+        self.assertIn("macro_official_calendar", out)
+        self.assertFalse(out["macro_official_calendar"]["consensus_available"])
 
     def test_no_earnings_event_is_not_provider_failure(self):
         hub = FakeHub()
