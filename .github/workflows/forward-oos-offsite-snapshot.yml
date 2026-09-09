@@ -1,0 +1,53 @@
+name: forward-oos-offsite-snapshot
+
+on:
+  schedule:
+    - cron: '25 20 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Capture public immutable-ledger views off Render
+        run: |
+          set -u
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          mkdir -p "forward-oos-snapshot/$stamp"
+          base="https://clear-nasdaq-fia.onrender.com/api/forward-oos"
+          failed=0
+          for endpoint in status verify records report campaign durability; do
+            if ! curl --fail --silent --show-error --retry 3 --retry-delay 5 --max-time 60 \
+              "$base/$endpoint" -o "forward-oos-snapshot/$stamp/$endpoint.json"; then
+              printf '{"ok":false,"capture_error":"ENDPOINT_UNAVAILABLE","endpoint":"%s"}\n' "$endpoint" \
+                >"forward-oos-snapshot/$stamp/$endpoint.json"
+              failed=1
+            fi
+          done
+          python - "$stamp" <<'PY'
+          import hashlib, json, pathlib, sys
+          stamp=sys.argv[1]
+          root=pathlib.Path('forward-oos-snapshot')/stamp
+          files={}
+          for p in sorted(root.glob('*.json')):
+              raw=p.read_bytes()
+              files[p.name]={"bytes":len(raw),"sha256":hashlib.sha256(raw).hexdigest()}
+          (root/'CAPTURE_MANIFEST.json').write_text(json.dumps({
+              "captured_at_utc": stamp,
+              "purpose":"OFF_HOST_RECOVERY_SNAPSHOT_NOT_LEDGER_REPLACEMENT",
+              "files":files,
+          },indent=2)+"\n")
+          PY
+          exit "$failed"
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: forward-oos-offsite-${{ github.run_id }}
+          path: forward-oos-snapshot/
+          retention-days: 90
+          if-no-files-found: error
