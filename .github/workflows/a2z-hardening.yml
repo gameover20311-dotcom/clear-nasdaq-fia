@@ -21,6 +21,8 @@ jobs:
           python-version: '3.12.14'
       - name: Apply deterministic source patches
         run: python .github/scripts/apply_a2z_text_patches.py
+      - name: Refresh release manifest from current bytes
+        run: python .github/scripts/refresh_brain_manifest.py
       - name: Install backend dependencies
         working-directory: backend
         run: python -m pip install --upgrade pip && pip install -r requirements.txt
@@ -40,15 +42,25 @@ jobs:
       - name: Re-run market-truth regressions
         working-directory: backend
         run: python -m unittest discover -s tests -p 'test_*market_truth*.py' -v
+      - name: Prove the three original audit failures are repaired
+        working-directory: backend
+        run: |
+          python clear_nasdaq_brain/tests/test_release_manifest_v661.py
+          python clear_nasdaq_brain/tests/test_structured_output_wiring_v6_5.py
+          python fia/test_freeze_parity_v667.py
       - name: Import production API
         working-directory: backend
         run: python -c "import main; assert any(getattr(r, 'path', '') == '/api/health' for r in main.app.routes)"
-      - name: Commit deterministic patches only after tests pass
+      - name: Commit deterministic repairs only after tests pass
         run: |
           if ! git diff --quiet; then
             git config user.name "clear-nasdaq-a2z-bot"
             git config user.email "actions@users.noreply.github.com"
-            git add backend/main.py backend/fia/forward_oos_api.py
-            git commit -m "Apply authenticated OOS, durability and CORS hardening"
+            git add \
+              backend/main.py \
+              backend/fia/forward_oos_api.py \
+              backend/fia/test_freeze_parity_v667.py \
+              backend/clear_nasdaq_brain/MANIFEST.json
+            git commit -m "Repair remaining A2Z audit regressions"
             git push origin HEAD:fix/a2z-hardening-20260909
           fi
