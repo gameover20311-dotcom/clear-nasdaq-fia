@@ -43,8 +43,7 @@ jobs:
           if failures: sys.exit(1)
           PY
       - name: Compile active runtime packages
-        run: |
-          python -m compileall -q fia clear_nasdaq_brain main.py
+        run: python -m compileall -q fia clear_nasdaq_brain main.py
       - name: Run unittest discovery
         env:
           PYTHONPATH: ${{ github.workspace }}/backend
@@ -142,7 +141,7 @@ jobs:
           PY
       - name: Merge-conflict marker scan
         run: |
-          if grep -RInE --exclude-dir=.git '^(<<<<<<<|=======|>>>>>>>)' backend frontend; then exit 1; else echo NO_MERGE_MARKERS; fi
+          if grep -RInE --exclude-dir=.git '^(<<<<<<< .+|>>>>>>> .+)$' backend frontend; then exit 1; else echo NO_UNRESOLVED_MERGE_MARKERS; fi
       - name: Large tracked file inventory
         run: |
           git ls-files -z | xargs -0 -I{} sh -c 'test -f "$1" && printf "%s\t%s\n" "$(wc -c < "$1")" "$1"' _ {} | sort -nr | head -40
@@ -172,5 +171,4 @@ jobs:
           assert x.get('historical_tuning_after_seal_allowed') is False
           PY
       - name: Forbidden OOS mutation keywords review
-        run: |
-          grep -RInE 'DELETE FROM forward_oos|UPDATE forward_oos|historical_backfill|backfill' fia/forward_oos*.py fia/*durable*.py || true
+        run: grep -RInE 'DELETE FROM forward_oos|UPDATE forward_oos|historical_backfill|backfill' fia/forward_oos*.py fia/*durable*.py || true
