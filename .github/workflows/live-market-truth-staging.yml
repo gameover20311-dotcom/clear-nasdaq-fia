@@ -20,10 +20,21 @@ jobs:
       - name: Install backend dependencies
         run: python -m pip install --upgrade pip && pip install -r requirements.txt
       - name: Compile staged truth modules
-        run: python -m py_compile fia/live_market_truth.py fia/__init__.py fia/providers.py fia/engine.py fia/forward_oos.py
+        run: python -m py_compile fia/live_market_truth.py fia/official_macro_fallback.py fia/__init__.py fia/providers.py fia/engine.py fia/forward_oos.py
       - name: Run staged truth regressions
-        run: python -m unittest discover -s tests -p 'test_live_market_truth_staging.py' -v
-      - name: Prove production seal is untouched on main-only path
+        run: python -m unittest discover -s tests -p 'test_*market_truth*.py' -v
+      - name: Live official macro source smoke test
+        run: |
+          python - <<'PY'
+          import asyncio
+          from fia.official_macro_fallback import build_official_macro_calendar
+          result = asyncio.run(build_official_macro_calendar())
+          print('official macro states:', result['source_states'])
+          print('official macro events:', result['event_count'])
+          assert result['available'] is True, result
+          assert any(v == 'LIVE' for v in result['source_states'].values()), result
+          PY
+      - name: Prove production seal policy is untouched on staging
         run: |
           python - <<'PY'
           import json
