@@ -1,5 +1,5 @@
 {
-  "name": "CLEAR NASDAQ — FIA BRAIN V7.4 FINAL THREE-BRAIN (V6.6.2 hardened base)",
+  "name": "CLEAR NASDAQ \u2014 FIA BRAIN V7.4 FINAL THREE-BRAIN (V6.6.2 hardened base)",
   "version": "7.4.0-final-three-brain",
   "release_status": "ENGINEERING_RELEASE_GATE_PASS__REAL_E2E_REQUIRED_FOR_PRODUCTION",
   "tests_expected": 107,
@@ -151,8 +151,8 @@
     },
     {
       "path": "fia_brain/config.py",
-      "size": 8582,
-      "sha256": "4a2d8701dafe48a8580935e96882efc53a72dee4b3f713c8498d3352d3aa3a4a"
+      "size": 9720,
+      "sha256": "af839e78fa9681489709743131fe4a7455bfc8d7eb6f314c0920919dc714229e"
     },
     {
       "path": "fia_brain/domains.py",
@@ -241,8 +241,8 @@
     },
     {
       "path": "fia_brain/orchestrator.py",
-      "size": 22080,
-      "sha256": "4fb8a2dfb1835ac50d9bc855c699905cefb34dcedbc0f660a1f849d5ff42afad"
+      "size": 24219,
+      "sha256": "d506d7c24bd9f5e6d3c71c5639855d243f6787c8a3221b16fbca6fe29263cbd3"
     },
     {
       "path": "fia_brain/parity_v6.py",
@@ -291,8 +291,8 @@
     },
     {
       "path": "fia_brain/sidecar.py",
-      "size": 3630,
-      "sha256": "ed7b16f109c548e584ec089863d15969cb3e94d3d5f3fdf24fd3534b8f6b6673"
+      "size": 3715,
+      "sha256": "221e32a8a2944a837b384fd71ba66471e7076aebb9f1eb65caf3d6e3275b3522"
     },
     {
       "path": "fia_brain/three_brain.py",
@@ -911,8 +911,8 @@
     },
     {
       "path": "tests/test_structured_output_wiring_v6_5.py",
-      "size": 449,
-      "sha256": "c1ef3ef7ab3290714957c1b15672cf242571ca4fe304cb49af07167ad44b8207"
+      "size": 1096,
+      "sha256": "fe34ad29e58e33af62af6479f0c9b1db6d6420c738b1667b925121d79aae996f"
     },
     {
       "path": "tests/test_three_brain_freeze_v74.py",
@@ -943,6 +943,12 @@
       "path": "tests/test_version_labels_v5.py",
       "size": 309,
       "sha256": "89fc2eb14e290d84728255ce25fcf2f765da1274098b716fbb61acca5f29d5e3"
+    },
+    {
+      "path": "fia_brain/cloud_llm.py",
+      "size": 7738,
+      "sha256": "7fbd5b278a74a6cceff0fbefc3e7eac97ad99fd77f98d01e58e1cab71ab3c31e"
     }
-  ]
+  ],
+  "generated_at": "2026-09-10T01:18:50Z"
 }

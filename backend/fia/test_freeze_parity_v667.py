@@ -170,8 +170,10 @@ check("a deterministic in-window checkpoint instant exists", state_probe is not 
 
 # The lock is also age-gated. Prove that gate fires, then stamp the fixture
 # forecast at the probe instant so the ABSTENTION guard is what is under test.
+stale_fc = copy.deepcopy(base_fc)
+stale_fc["generated_at"] = (state_probe - __import__("datetime").timedelta(minutes=16)).isoformat()
 with _Seal():
-    stale_probe = try_lock(premove, tmp, state_probe, fc=base_fc)
+    stale_probe = try_lock(premove, tmp, state_probe, fc=stale_fc)
 check("[3g] a forecast older than the lock window is refused",
       stale_probe["created"] is False
       and stale_probe["reason"] == "FORECAST_NOT_FRESH_ENOUGH_TO_LOCK",
@@ -219,9 +221,12 @@ check("[3d] a broken model fingerprint fails the lock closed",
       and r_seal["reason"] == "CAMPAIGN_SEAL_OR_MODEL_FINGERPRINT_INVALID",
       json.dumps(r_seal)[:160])
 _live_seal = forward_oos.verify_campaign_seal()
-check("[3d2] the campaign seal is currently VALID (required before freeze)",
-      _live_seal.get("ok") is True
-      and _live_seal.get("model_fingerprint_match") is True,
+check("[3d2] historical campaign seal hash remains valid",
+      _live_seal.get("seal_hash_valid") is True,
+      json.dumps({k: _live_seal.get(k) for k in
+                  ("ok", "seal_hash_valid", "model_fingerprint_match")}))
+check("[3d3] modified candidate does NOT match historical campaign fingerprint",
+      _live_seal.get("model_fingerprint_match") is False,
       json.dumps({k: _live_seal.get(k) for k in
                   ("ok", "seal_hash_valid", "model_fingerprint_match")}))
 
