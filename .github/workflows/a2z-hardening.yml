@@ -60,6 +60,9 @@ jobs:
               backend/main.py \
               backend/fia/forward_oos_api.py \
               backend/fia/test_freeze_parity_v667.py \
+              backend/fia/test_session_abstention_v665.py \
+              backend/fia_forward_oos/test_forward_oos_integrity.py \
+              backend/fia_forward_oos/V2_PRELIVE_ARCHIVE_20260903_065357/test_forward_oos_integrity.py \
               backend/clear_nasdaq_brain/MANIFEST.json
             git commit -m "Repair remaining A2Z audit regressions"
             git push origin HEAD:fix/a2z-hardening-20260909
