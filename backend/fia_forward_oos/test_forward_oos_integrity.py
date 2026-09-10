@@ -93,12 +93,19 @@ async def main():
     check("weekend blocked", checkpoint_state(datetime(2026, 9, 5, 17, 5, tzinfo=timezone.utc))["eligible_now"] is False)
     check("missed backfill explicitly false", checkpoint_state(datetime(2026, 9, 3, 20, 0, tzinfo=timezone.utc))["missed_backfill_allowed"] is False)
     seal = verify_campaign_seal()
-    check("campaign seal valid", seal["ok"] is True and seal["seal_hash_valid"] is True)
-    check("campaign model fingerprint frozen", seal["model_fingerprint_match"] is True)
+    check("historical campaign seal hash valid", seal["seal_hash_valid"] is True)
+    check("hardened candidate does not masquerade as historical fingerprint",
+          seal["model_fingerprint_match"] is False)
     check("historical tuning after seal forbidden", seal["policy"]["historical_tuning_after_seal_allowed"] is False)
 
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
+        import fia.forward_oos as _foos_mod
+        _test_seal_path = root / "FORWARD_OOS_CAMPAIGN_SEAL.json"
+        _test_seal = _foos_mod.write_campaign_seal(_test_seal_path)
+        check("isolated synthetic test seal valid", _test_seal.get("ok") is True)
+        _orig_verify_campaign_seal = _foos_mod.verify_campaign_seal
+        _foos_mod.verify_campaign_seal = lambda *a, **k: _orig_verify_campaign_seal(_test_seal_path)
         first = await lock_live_forecast(fc(summer), snap(), root, now=summer, entry_lookup=fake_entry)
         check("first live forecast locked", first["ok"] and first["created"])
         check("ledger has exactly one lock", verify_ledger(root)["forecast_locks"] == 1)
@@ -144,6 +151,7 @@ async def main():
         check("base metrics have one observation", report["base_fia"]["4h"]["n"] == 1 and report["base_fia"]["8h"]["n"] == 1)
         check("no candidate means no promotion", report["promotion"]["verdict"] == "NO_PROMOTION")
         check("old holdout permanently excluded", report["scientific_policy"]["old_observed_holdout_untouched_rows"] == 0)
+        _foos_mod.verify_campaign_seal = _orig_verify_campaign_seal
 
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)

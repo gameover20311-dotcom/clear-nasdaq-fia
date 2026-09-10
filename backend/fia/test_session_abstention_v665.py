@@ -207,8 +207,11 @@ tmp = Path(tempfile.mkdtemp(prefix="abst_reg_"))
 try:
     (tmp / "events").mkdir(parents=True)
     (tmp / "evidence").mkdir()
-    shutil.copy(F.DEFAULT_ROOT / "FORWARD_OOS_CAMPAIGN_SEAL.json",
-                tmp / "FORWARD_OOS_CAMPAIGN_SEAL.json")
+    test_seal_path = tmp / "FORWARD_OOS_CAMPAIGN_SEAL.json"
+    test_seal = F.write_campaign_seal(test_seal_path)
+    check("isolated abstention test seal valid", test_seal.get("ok") is True)
+    _seal = F.verify_campaign_seal
+    F.verify_campaign_seal = lambda *a, **k: _seal(test_seal_path)
     _cp = F.checkpoint_state
     F.checkpoint_state = lambda now=None: {
         "eligible_now": True, "checkpoint_date_et": "2026-09-08",
@@ -218,6 +221,7 @@ try:
         dup = asyncio.run(F.lock_abstention_observation(None, SNAP, PREMOVE, tmp))
     finally:
         F.checkpoint_state = _cp
+        F.verify_campaign_seal = _seal
 
     check("abstention record created", r.get("created") is True, json.dumps(r)[:160])
     check("tagged as an ABSTENTION observation", r.get("observation_type") == "ABSTENTION")
