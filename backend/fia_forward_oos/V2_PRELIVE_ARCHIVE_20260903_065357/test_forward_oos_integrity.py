@@ -153,6 +153,15 @@ async def main():
         check("old holdout permanently excluded", report["scientific_policy"]["old_observed_holdout_untouched_rows"] == 0)
         _foos_mod.verify_campaign_seal = _orig_verify_campaign_seal
 
+    # Keep all remaining synthetic lock tests on one independent, current-code
+    # seal. This does not alter or re-seal production history.
+    _suite_seal_td = tempfile.TemporaryDirectory()
+    _suite_seal_path = Path(_suite_seal_td.name) / "FORWARD_OOS_CAMPAIGN_SEAL.json"
+    _suite_seal = _foos_mod.write_campaign_seal(_suite_seal_path)
+    check("isolated downstream test seal valid", _suite_seal.get("ok") is True)
+    _suite_orig_verify = _foos_mod.verify_campaign_seal
+    _foos_mod.verify_campaign_seal = lambda *a, **k: _suite_orig_verify(_suite_seal_path)
+
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         outside = datetime(2026, 9, 3, 19, 0, tzinfo=timezone.utc)
@@ -238,6 +247,9 @@ async def main():
     check("promotion needs same 50 new rows", gate["details"]["4h"]["candidate"]["n"] == 50 and gate["details"]["8h"]["base"]["n"] == 50)
     check("strong paired candidate can become eligible but not auto-deploy", gate["verdict"] == "PROMOTION_ELIGIBLE_NOT_AUTO_DEPLOYED")
     check("promotion gate still excludes old holdout", gate["old_holdout_permanently_disqualified_as_untouched"] is True)
+
+    _foos_mod.verify_campaign_seal = _suite_orig_verify
+    _suite_seal_td.cleanup()
 
     print("=" * 72)
     print(f"SOL56 NEW FORWARD OOS INTEGRITY PASS {PASS}/{PASS}")
