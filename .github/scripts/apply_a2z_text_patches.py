@@ -88,10 +88,10 @@ replace_once(
     '''    finally:\n        F.checkpoint_state = _cp\n        F.verify_campaign_seal = _seal\n\n    check("abstention record created", r.get("created") is True, json.dumps(r)[:160])\n''',
 )
 
-# 7) Legacy integrity suites remain historical. Validate the old seal hash and the
-# expected fingerprint mismatch, then run synthetic writes under a fresh isolated
-# valid seal. Each file executes in its own process, so no production/global state
-# survives the test process.
+# 7) Legacy integrity suites remain historical. Validate their immutable seal, then
+# run only the first synthetic campaign exercise under a fresh isolated valid seal.
+# Restore the production verifier before that temp directory is destroyed so all
+# later independent test cases exercise the real historical-seal fail-closed gate.
 for _path in (
     "backend/fia_forward_oos/test_forward_oos_integrity.py",
     "backend/fia_forward_oos/V2_PRELIVE_ARCHIVE_20260903_065357/test_forward_oos_integrity.py",
@@ -100,6 +100,11 @@ for _path in (
         _path,
         '''    seal = verify_campaign_seal()\n    check("campaign seal valid", seal["ok"] is True and seal["seal_hash_valid"] is True)\n    check("campaign model fingerprint frozen", seal["model_fingerprint_match"] is True)\n    check("historical tuning after seal forbidden", seal["policy"]["historical_tuning_after_seal_allowed"] is False)\n\n    with tempfile.TemporaryDirectory() as td:\n        root = Path(td)\n''',
         '''    seal = verify_campaign_seal()\n    check("historical campaign seal hash valid", seal["seal_hash_valid"] is True)\n    check("hardened candidate does not masquerade as historical fingerprint",\n          seal["model_fingerprint_match"] is False)\n    check("historical tuning after seal forbidden", seal["policy"]["historical_tuning_after_seal_allowed"] is False)\n\n    with tempfile.TemporaryDirectory() as td:\n        root = Path(td)\n        import fia.forward_oos as _foos_mod\n        _test_seal_path = root / "FORWARD_OOS_CAMPAIGN_SEAL.json"\n        _test_seal = _foos_mod.write_campaign_seal(_test_seal_path)\n        check("isolated synthetic test seal valid", _test_seal.get("ok") is True)\n        _orig_verify_campaign_seal = _foos_mod.verify_campaign_seal\n        _foos_mod.verify_campaign_seal = lambda *a, **k: _orig_verify_campaign_seal(_test_seal_path)\n''',
+    )
+    replace_once(
+        _path,
+        '''        check("old holdout permanently excluded", report["scientific_policy"]["old_observed_holdout_untouched_rows"] == 0)\n\n    with tempfile.TemporaryDirectory() as td:\n''',
+        '''        check("old holdout permanently excluded", report["scientific_policy"]["old_observed_holdout_untouched_rows"] == 0)\n        _foos_mod.verify_campaign_seal = _orig_verify_campaign_seal\n\n    with tempfile.TemporaryDirectory() as td:\n''',
     )
 
 print("A2Z deterministic source patches applied")
