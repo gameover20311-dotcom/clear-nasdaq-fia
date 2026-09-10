@@ -107,4 +107,23 @@ for _path in (
         '''        check("old holdout permanently excluded", report["scientific_policy"]["old_observed_holdout_untouched_rows"] == 0)\n        _foos_mod.verify_campaign_seal = _orig_verify_campaign_seal\n\n    with tempfile.TemporaryDirectory() as td:\n''',
     )
 
+# 8) Downstream guard/tamper fixtures need a valid *synthetic* campaign seal too.
+# The historical production seal must stay immutable and fingerprint-mismatched to
+# the hardened candidate; otherwise downstream tests stop at the seal gate and
+# never actually exercise explicit-contract, candidate, tamper, or deletion guards.
+for _path in (
+    "backend/fia_forward_oos/test_forward_oos_integrity.py",
+    "backend/fia_forward_oos/V2_PRELIVE_ARCHIVE_20260903_065357/test_forward_oos_integrity.py",
+):
+    replace_once(
+        _path,
+        '''        _foos_mod.verify_campaign_seal = _orig_verify_campaign_seal\n\n    with tempfile.TemporaryDirectory() as td:\n        root = Path(td)\n        outside = datetime(2026, 9, 3, 19, 0, tzinfo=timezone.utc)\n''',
+        '''        _foos_mod.verify_campaign_seal = _orig_verify_campaign_seal\n\n    # Keep all remaining synthetic lock tests on one independent, current-code\n    # seal. This does not alter or re-seal production history.\n    _suite_seal_td = tempfile.TemporaryDirectory()\n    _suite_seal_path = Path(_suite_seal_td.name) / "FORWARD_OOS_CAMPAIGN_SEAL.json"\n    _suite_seal = _foos_mod.write_campaign_seal(_suite_seal_path)\n    check("isolated downstream test seal valid", _suite_seal.get("ok") is True)\n    _suite_orig_verify = _foos_mod.verify_campaign_seal\n    _foos_mod.verify_campaign_seal = lambda *a, **k: _suite_orig_verify(_suite_seal_path)\n\n    with tempfile.TemporaryDirectory() as td:\n        root = Path(td)\n        outside = datetime(2026, 9, 3, 19, 0, tzinfo=timezone.utc)\n''',
+    )
+    replace_once(
+        _path,
+        '''    check("promotion gate still excludes old holdout", gate["old_holdout_permanently_disqualified_as_untouched"] is True)\n\n    print("=" * 72)\n''',
+        '''    check("promotion gate still excludes old holdout", gate["old_holdout_permanently_disqualified_as_untouched"] is True)\n\n    _foos_mod.verify_campaign_seal = _suite_orig_verify\n    _suite_seal_td.cleanup()\n\n    print("=" * 72)\n''',
+    )
+
 print("A2Z deterministic source patches applied")
