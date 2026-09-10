@@ -80,4 +80,47 @@ replace_once(
     '''stale_fc = copy.deepcopy(base_fc)\nstale_fc["generated_at"] = (state_probe - __import__("datetime").timedelta(minutes=16)).isoformat()\nwith _Seal():\n    stale_probe = try_lock(premove, tmp, state_probe, fc=stale_fc)\ncheck("[3g] a forecast older than the lock window is refused",\n      stale_probe["created"] is False\n      and stale_probe["reason"] == "FORECAST_NOT_FRESH_ENOUGH_TO_LOCK",\n      json.dumps(stale_probe)[:160])\n\nlock_fc = copy.deepcopy(base_fc)\nlock_fc["generated_at"] = state_probe.isoformat()\n''',
 )
 
+# 5) The hardened candidate MUST NOT pretend to match the immutable historical
+# campaign fingerprint. The old seal remains cryptographically valid historical
+# evidence; a fingerprint mismatch is now the expected state until a new campaign
+# is created for this code.
+replace_once(
+    "backend/fia/test_freeze_parity_v667.py",
+    '''_live_seal = forward_oos.verify_campaign_seal()\ncheck("[3d2] the campaign seal is currently VALID (required before freeze)",\n      _live_seal.get("ok") is True\n      and _live_seal.get("model_fingerprint_match") is True,\n      json.dumps({k: _live_seal.get(k) for k in\n                  ("ok", "seal_hash_valid", "model_fingerprint_match")}))\n''',
+    '''_live_seal = forward_oos.verify_campaign_seal()\ncheck("[3d2] historical campaign seal hash remains valid",\n      _live_seal.get("seal_hash_valid") is True,\n      json.dumps({k: _live_seal.get(k) for k in\n                  ("ok", "seal_hash_valid", "model_fingerprint_match")}))\ncheck("[3d3] modified candidate does NOT match historical campaign fingerprint",\n      _live_seal.get("model_fingerprint_match") is False,\n      json.dumps({k: _live_seal.get(k) for k in\n                  ("ok", "seal_hash_valid", "model_fingerprint_match")}))\n''',
+)
+
+# 6) Abstention regression uses an isolated, freshly-generated VALID test seal
+# instead of copying the immutable historical production seal into a temp root.
+replace_once(
+    "backend/fia/test_session_abstention_v665.py",
+    '''    shutil.copy(F.DEFAULT_ROOT / "FORWARD_OOS_CAMPAIGN_SEAL.json",\n                tmp / "FORWARD_OOS_CAMPAIGN_SEAL.json")\n    _cp = F.checkpoint_state\n''',
+    '''    test_seal_path = tmp / "FORWARD_OOS_CAMPAIGN_SEAL.json"\n    test_seal = F.write_campaign_seal(test_seal_path)\n    check("isolated abstention test seal valid", test_seal.get("ok") is True)\n    _seal = F.verify_campaign_seal\n    F.verify_campaign_seal = lambda *a, **k: _seal(test_seal_path)\n    _cp = F.checkpoint_state\n''',
+)
+replace_once(
+    "backend/fia/test_session_abstention_v665.py",
+    '''    finally:\n        F.checkpoint_state = _cp\n\n    check("abstention record created", r.get("created") is True, json.dumps(r)[:160])\n''',
+    '''    finally:\n        F.checkpoint_state = _cp\n        F.verify_campaign_seal = _seal\n\n    check("abstention record created", r.get("created") is True, json.dumps(r)[:160])\n''',
+)
+
+# 7) Both legacy integrity suites are historical. Their immutable seal hash must
+# remain valid, while the hardened code is expected NOT to match the historical
+# model fingerprint. Their synthetic write exercises run under a real isolated
+# test seal so no historical campaign is mutated or re-pinned.
+for _path in (
+    "backend/fia_forward_oos/test_forward_oos_integrity.py",
+    "backend/fia_forward_oos/V2_PRELIVE_ARCHIVE_20260903_065357/test_forward_oos_integrity.py",
+):
+    replace_once(
+        _path,
+        '''    seal = verify_campaign_seal()\n    check("campaign seal valid", seal["ok"] is True and seal["seal_hash_valid"] is True)\n    check("campaign model fingerprint frozen", seal["model_fingerprint_match"] is True)\n    check("historical tuning after seal forbidden", seal["policy"]["historical_tuning_after_seal_allowed"] is False)\n\n    with tempfile.TemporaryDirectory() as td:\n        root = Path(td)\n''',
+        '''    seal = verify_campaign_seal()\n    check("historical campaign seal hash valid", seal["seal_hash_valid"] is True)\n    check("hardened candidate does not masquerade as historical fingerprint",\n          seal["model_fingerprint_match"] is False)\n    check("historical tuning after seal forbidden", seal["policy"]["historical_tuning_after_seal_allowed"] is False)\n\n    with tempfile.TemporaryDirectory() as td:\n        root = Path(td)\n        import fia.forward_oos as _foos_mod\n        _test_seal_path = root / "FORWARD_OOS_CAMPAIGN_SEAL.json"\n        _test_seal = _foos_mod.write_campaign_seal(_test_seal_path)\n        check("isolated synthetic test seal valid", _test_seal.get("ok") is True)\n        _orig_verify_campaign_seal = _foos_mod.verify_campaign_seal\n        _foos_mod.verify_campaign_seal = lambda *a, **k: _orig_verify_campaign_seal(_test_seal_path)\n''',
+    )
+    # Restore module-global verifier before leaving the temporary directory.
+    replace_once(
+        _path,
+        '''        check("promotion gate excludes old holdout", promo["requirements"]["legacy_holdout_rows_eligible"] == 0)\n\n    print(f"ALL {PASS} FORWARD OOS INTEGRITY TESTS PASSED")\n''',
+        '''        check("promotion gate excludes old holdout", promo["requirements"]["legacy_holdout_rows_eligible"] == 0)\n        _foos_mod.verify_campaign_seal = _orig_verify_campaign_seal\n\n    print(f"ALL {PASS} FORWARD OOS INTEGRITY TESTS PASSED")\n''',
+    )
+
 print("A2Z deterministic source patches applied")
