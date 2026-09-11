@@ -303,5 +303,24 @@
    "end": 6428,
    "lines": 798
   }
+ },
+ "additional_findings": {
+  "snapshot_is_itself_three_way_mixed": {
+   "method": "snapshot",
+   "span": "5631-6427 (797 lines, the last and largest method)",
+   "evidence": "providers.py:6149 inside snapshot() computes data['news'] = mean(sentiment_values), which is the final News score (MODEL). The same method also assembles provider health and eligibility (PROTOCOL) and orchestrates fetches (INFRASTRUCTURE).",
+   "consequence": "The split cannot be done purely at method granularity. snapshot() needs intra-method decomposition, which is the highest-risk part of the whole refactor."
+  },
+  "providers_not_importable_offline": {
+   "evidence": "providers.py:3 imports yfinance at module scope; yfinance is uninstallable in the sandbox.",
+   "consequence": "providers.py cannot be imported here at all, so no part of a split could be verified offline. Independent confirmation of the earlier BLOCKED finding."
+  }
+ },
+ "equivalence_harness": {
+  "file": "fia/test_providers_equivalence_v678.py",
+  "status": "WRITTEN_BASELINE_NOT_YET_RECORDED",
+  "records": "deterministic ProviderHub surface: news scoring, trust/recency/dedup/confirmation policy, value transforms, article normalisation, staleness, session windows, instrument symbol",
+  "sufficiency": "NECESSARY NOT SUFFICIENT. Live transport, real fallback chains under provider failure and snapshot() assembly are proven only by the 8 CI-only provider tests.",
+  "baseline_recorded_where": "CI, on UNSPLIT code, per the owner's step 2."
  }
 }
