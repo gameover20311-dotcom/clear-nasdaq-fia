@@ -1,8 +1,10 @@
-"""Read-only durable Forward-OOS adapter for SIMONS SHADOW LAB V1.
+"""Read-only durable Forward-OOS adapter for SIMONS SHADOW LAB V2 hybrid.
 
-Never imports production write helpers and never executes DDL/DML. It can read
-the existing Postgres mirror, verify the event chain, and materialize a
-Shadow-Lab-only snapshot. Database credentials are never returned.
+Never imports production write helpers and never executes DDL/DML. It reads the
+existing Postgres mirror in transaction-level read-only mode, verifies the real
+event chain, creates causally correct as-of snapshots, and records contract
+exclusions rather than inventing missing data. Database credentials are never
+returned.
 """
 from __future__ import annotations
 
@@ -13,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .lab import GENESIS, LAB_SCHEMA_VERSION, _row_from_lock, _write_new_json, canonical_bytes, sha256_bytes
+from .strict_contract import audit_lock_time_row
 
 _PG_AVAILABLE = False
 try:
@@ -26,6 +29,58 @@ except Exception:  # pragma: no cover
 
 def _database_url() -> str:
     return str(os.getenv("DATABASE_URL") or "").strip()
+
+
+def _parse_dt(value: Any) -> datetime:
+    text = str(value or "").strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    dt = datetime.fromisoformat(text)
+    if dt.tzinfo is None:
+        raise RuntimeError("naive durable event timestamp refused")
+    return dt.astimezone(timezone.utc)
+
+
+def _event_time(event: Dict[str, Any]) -> datetime:
+    payload = event.get("payload") or {}
+    value = payload.get("resolved_at_utc") or payload.get("locked_at_utc") or event.get("created_at_utc")
+    if not value:
+        raise RuntimeError(f"event timestamp missing: seq={event.get('seq')}")
+    return _parse_dt(value)
+
+
+def events_as_of(events: Sequence[Dict[str, Any]], cutoff: datetime) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """Return the append-only prefix that genuinely existed by ``cutoff``.
+
+    A future event is never allowed into a historical snapshot. Because the
+    production ledger is append-only, once an event is later than cutoff all
+    later sequence entries are excluded too. Timestamp regressions fail closed.
+    """
+    if cutoff.tzinfo is None:
+        raise ValueError("cutoff must be timezone-aware")
+    cutoff = cutoff.astimezone(timezone.utc)
+    ordered = sorted(events, key=lambda e: int(e.get("seq") or 0))
+    kept: List[Dict[str, Any]] = []
+    previous_time: Optional[datetime] = None
+    excluded = 0
+    future_started = False
+    for event in ordered:
+        ts = _event_time(event)
+        if previous_time is not None and ts < previous_time:
+            raise RuntimeError(f"durable event timestamp regression at seq={event.get('seq')}")
+        previous_time = ts
+        if future_started or ts > cutoff:
+            future_started = True
+            excluded += 1
+            continue
+        kept.append(event)
+    return kept, {
+        "cutoff_utc": cutoff.isoformat(),
+        "source_events": len(ordered),
+        "events_in_snapshot_prefix": len(kept),
+        "future_events_excluded": excluded,
+        "as_of_prefix_enforced": True,
+    }
 
 
 def verify_event_chain(events: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
@@ -89,6 +144,22 @@ def rows_from_events(events: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return sorted((_row_from_lock(lock, resolutions) for lock in locks.values()), key=lambda row: str(row.get("locked_at_utc") or ""))
 
 
+def contract_filter_rows(rows: Sequence[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    eligible: List[Dict[str, Any]] = []
+    excluded: List[Dict[str, Any]] = []
+    for row in rows:
+        audit = audit_lock_time_row(row)
+        if audit.get("ok"):
+            eligible.append(row)
+        else:
+            excluded.append({
+                "forecast_id": row.get("forecast_id"),
+                "reason": "LOCK_TIME_CONTRACT_FAIL_CLOSED",
+                "contract_audit": audit,
+            })
+    return eligible, excluded
+
+
 class DurableForwardOOSReader:
     """SELECT-only adapter with PostgreSQL transaction-level read-only mode."""
     def __init__(self, database_url: Optional[str] = None):
@@ -100,7 +171,12 @@ class DurableForwardOOSReader:
     def _connect(self):
         if not self.configured():
             raise RuntimeError("durable reader is not configured")
-        return _psycopg.connect(self._dsn, row_factory=_pg_dict_row, connect_timeout=10, options="-c default_transaction_read_only=on")
+        return _psycopg.connect(
+            self._dsn,
+            row_factory=_pg_dict_row,
+            connect_timeout=10,
+            options="-c default_transaction_read_only=on",
+        )
 
     def campaigns(self) -> List[Dict[str, Any]]:
         sql = """
@@ -149,33 +225,48 @@ class DurableForwardOOSReader:
         return out
 
     def create_snapshot(self, campaign_id: str, lab_root: Path, now: Optional[datetime] = None) -> Dict[str, Any]:
-        events = self.read_events(campaign_id)
-        audit = verify_event_chain(events)
-        if not audit["ok"]:
+        all_events = self.read_events(campaign_id)
+        full_audit = verify_event_chain(all_events)
+        if not full_audit["ok"]:
             raise RuntimeError("durable source integrity failure")
-        rows = rows_from_events(events)
-        now = now or datetime.now(timezone.utc)
+        now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+        events, asof = events_as_of(all_events, now)
+        prefix_audit = verify_event_chain(events)
+        if not prefix_audit["ok"]:
+            raise RuntimeError("durable as-of prefix integrity failure")
+        all_rows = rows_from_events(events)
+        rows, exclusions = contract_filter_rows(all_rows)
         core = {
             "schema_version": LAB_SCHEMA_VERSION,
+            "hybrid_version": "SIMONS_SHADOW_LAB_V2_HYBRID",
             "source_mode": "DURABLE_POSTGRES_READ_ONLY",
             "campaign_id": campaign_id,
-            "created_at_utc": now.astimezone(timezone.utc).isoformat(),
-            "source_head_event_hash": audit["head_event_hash"],
+            "created_at_utc": now.isoformat(),
+            "source_head_event_hash_full": full_audit["head_event_hash"],
+            "snapshot_prefix_head_event_hash": prefix_audit["head_event_hash"],
+            "source_event_count_full": full_audit["events"],
+            "snapshot_event_count": prefix_audit["events"],
+            "as_of_policy": asof,
+            "source_row_count_before_contract": len(all_rows),
             "row_count": len(rows),
+            "excluded_row_count": len(exclusions),
             "completed_4h": sum(1 for r in rows if "4h" in (r.get("outcomes") or {})),
             "completed_8h": sum(1 for r in rows if "8h" in (r.get("outcomes") or {})),
             "forecast_ids": [r.get("forecast_id") for r in rows],
             "rows_sha256": sha256_bytes(canonical_bytes(rows)),
+            "exclusions_sha256": sha256_bytes(canonical_bytes(exclusions)),
             "event_chain_verified": True,
+            "lock_time_contract_enforced": True,
             "evidence_file_bytes_verified": False,
             "evidence_hashes_preserved_in_events": True,
             "production_modified": False,
             "scientific_status": "DISCOVERY_ONLY_NOT_PROVEN",
         }
-        core["snapshot_id"] = "SSL1-DUR-" + sha256_bytes(canonical_bytes(core))[:20]
+        core["snapshot_id"] = "SSL2-DUR-" + sha256_bytes(canonical_bytes(core))[:20]
         manifest = dict(core)
         manifest["manifest_sha256"] = sha256_bytes(canonical_bytes(core))
         root = Path(lab_root) / "snapshots" / core["snapshot_id"]
         _write_new_json(root / "manifest.json", manifest)
         _write_new_json(root / "rows.json", {"rows": rows, "rows_sha256": core["rows_sha256"]})
+        _write_new_json(root / "exclusions.json", {"exclusions": exclusions, "exclusions_sha256": core["exclusions_sha256"]})
         return manifest
