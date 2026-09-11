@@ -60,8 +60,8 @@ jobs:
           suite = unittest.TestSuite(loader.loadTestsFromName(n) for n in names)
           count = suite.countTestCases()
           print('DISCOVERED_TESTS=', count)
-          if count < 40:
-              raise SystemExit('Refusing green CI: fewer than 40 real tests discovered')
+          if count < 41:
+              raise SystemExit('Refusing green CI: fewer than 41 real tests discovered')
           PY
       - name: Run Shadow Lab regression tests
         working-directory: backend
