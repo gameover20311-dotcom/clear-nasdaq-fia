@@ -384,29 +384,39 @@ def _write_head(root: Path, events: int, head_event_hash: str, now: datetime) ->
         pass
 
 
-def _restore_from_durable_if_empty(root: Path) -> None:
-    """If local storage came back empty after a redeploy, rebuild from Postgres.
+def _restore_from_durable_if_empty(root: Path) -> Dict[str, Any]:
+    """Recover missing saved proofs even when some event files still exist.
 
-    Only ever writes files that are absent, so a live ledger cannot be clobbered.
+    The historical function name is retained for callers. Original files with
+    conflicting bytes are reported, never overwritten or re-created from data.
     """
     try:
-        events_dir = root / "events"
-        if events_dir.exists() and any(events_dir.glob("*.json")):
-            return
         from fia.forward_oos_durable import enabled as _durable_enabled, restore_missing
         if not _durable_enabled():
-            return
+            return {"ok": True, "skipped": True}
         result = restore_missing(root)
         if result.get("restored"):
             print("Forward-OOS ledger restored from durable store: %s event(s)"
                   % result["restored"])
+        return result
     except Exception as exc:                                         # noqa: BLE001
         print("Forward-OOS durable restore skipped -> %s" % type(exc).__name__)
+        return {"ok": False, "reason": "RESTORE_FAILED", "error_type": type(exc).__name__}
 
 
-def verify_ledger(root: Path | str = DEFAULT_ROOT) -> Dict[str, Any]:
+def verify_ledger(root: Path | str = DEFAULT_ROOT, *, recover: bool = True) -> Dict[str, Any]:
     root = Path(root)
-    _restore_from_durable_if_empty(root)
+    if recover:
+        recovery = _restore_from_durable_if_empty(root)
+        root.mkdir(parents=True, exist_ok=True)
+        with (root / LOCK_FILENAME).open("a+") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
+            report = verify_ledger(root, recover=False)
+        if not recovery.get("ok", False):
+            report["issues"].extend("durable_restore:" + issue for issue in
+                                    (recovery.get("issues") or [recovery.get("reason", "UNKNOWN_FAILURE")]))
+            report["ok"] = report["tamper_evident"] = False
+        return report
     files = _event_files(root)
     prev = "GENESIS"
     expected_seq = 1
@@ -415,6 +425,7 @@ def verify_ledger(root: Path | str = DEFAULT_ROOT) -> Dict[str, Any]:
     forecast_ids: set[str] = set()
     lock_events = 0
     resolution_events = 0
+    abstention_observations = 0
 
     for path in files:
         try:
@@ -458,6 +469,8 @@ def verify_ledger(root: Path | str = DEFAULT_ROOT) -> Dict[str, Any]:
             resolution_events += 1
             if fid not in forecast_ids:
                 issues.append(f"resolution_without_prior_lock:{fid}")
+        elif et == "ABSTENTION_OBSERVATION":
+            abstention_observations += 1
 
         event_hashes.append(claimed)
         prev = claimed
@@ -494,6 +507,7 @@ def verify_ledger(root: Path | str = DEFAULT_ROOT) -> Dict[str, Any]:
         "events": len(files),
         "forecast_locks": lock_events,
         "resolution_events": resolution_events,
+        "abstention_observations": abstention_observations,
         "head_event_hash": prev,
         "issues": issues,
         # V6.6.2: this was a hardcoded True and therefore reported "tamper_evident"
@@ -505,14 +519,24 @@ def verify_ledger(root: Path | str = DEFAULT_ROOT) -> Dict[str, Any]:
 
 def _append_event(root: Path, event_type: str, forecast_id: str, payload: Dict[str, Any], now: datetime) -> Dict[str, Any]:
     events, _ = _dirs(root)
+    # Recover before taking the append mutex. Recovery uses the same mutex;
+    # re-entering it from the verification inside this critical section hangs.
+    recovery_audit = verify_ledger(root)
+    if not recovery_audit["ok"]:
+        raise RuntimeError("Forward OOS ledger integrity failure; refusing append: " + ";".join(recovery_audit["issues"]))
     lock_path = root / LOCK_FILENAME
     root.mkdir(parents=True, exist_ok=True)
     with lock_path.open("a+", encoding="utf-8") as lock_handle:
         fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
         try:
-            audit = verify_ledger(root)
+            audit = verify_ledger(root, recover=False)
             if not audit["ok"]:
                 raise RuntimeError("Forward OOS ledger integrity failure; refusing append: " + ";".join(audit["issues"]))
+            # Another writer could have appended after the recovery above and
+            # failed its mirror. Do not replace that event's only local anchor.
+            from fia.forward_oos_durable import enabled as _durable_enabled, durability_status
+            if _durable_enabled() and durability_status(root).get("durable") is not True:
+                raise RuntimeError("Forward OOS backup incomplete; refusing append until original proofs are saved")
             # Cross-process idempotency: duplicate locks/resolutions are rejected
             # while holding the filesystem lock, not only by a pre-check outside it.
             for existing_path in _event_files(root):
@@ -1668,10 +1692,17 @@ def promotion_gate(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def forward_report(root: Path | str = DEFAULT_ROOT) -> Dict[str, Any]:
+def forward_report(root: Path | str = DEFAULT_ROOT, *, audit: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     root = Path(root)
-    audit = verify_ledger(root)
-    rows = records(root) if audit["ok"] else []
+    audit = audit if audit is not None else verify_ledger(root)
+    stored_rows = records(root) if audit["ok"] else []
+    fingerprints = sorted({
+        str((r.get("model_fingerprint") or {}).get("digest") or "")
+        for r in stored_rows if (r.get("model_fingerprint") or {}).get("digest")
+    })
+    campaign_seal = verify_campaign_seal(root / DEFAULT_CAMPAIGN_SEAL.name)
+    valid = audit["ok"] and campaign_seal.get("ok", False) and len(fingerprints) <= 1
+    rows = stored_rows if valid else []
     m4 = _model_metrics(rows, MODEL_NAME, 4)
     m8 = _model_metrics(rows, MODEL_NAME, 8)
     fully = sum(1 for r in rows if r.get("4h") and r.get("8h"))
@@ -1682,19 +1713,22 @@ def forward_report(root: Path | str = DEFAULT_ROOT) -> Dict[str, Any]:
         stage = "EARLY_FORWARD_EVIDENCE"
     else:
         stage = "COLLECTING_NEW_UNSEEN_FORECASTS"
-    fingerprints = sorted({
-        str((r.get("model_fingerprint") or {}).get("digest") or "")
-        for r in rows if (r.get("model_fingerprint") or {}).get("digest")
-    })
-    campaign_seal = verify_campaign_seal()
+    if not audit["ok"]:
+        stage = "BLOCKED_LEDGER_INTEGRITY"
+    elif not campaign_seal.get("ok"):
+        stage = "BLOCKED_CAMPAIGN_SEAL"
+    elif len(fingerprints) > 1:
+        stage = "BLOCKED_MIXED_MODEL_VERSIONS"
     return {
-        "ok": audit["ok"] and campaign_seal.get("ok", False) and len(fingerprints) <= 1,
+        "ok": valid,
         "program": PROGRAM_NAME,
         "campaign_seal": campaign_seal,
         "observed_model_fingerprints": fingerprints,
         "mixed_model_versions": len(fingerprints) > 1,
         "schema_version": SCHEMA_VERSION,
         "stage": stage,
+        "observed_forecast_locks": audit.get("forecast_locks", 0),
+        "observed_abstentions": audit.get("abstention_observations", 0),
         "new_forward_forecasts_locked": len(rows),
         "fully_resolved_4h_8h": fully,
         "minimum_report_sample": MIN_REPORT_N,

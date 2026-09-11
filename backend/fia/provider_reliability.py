@@ -342,18 +342,20 @@ async def enrich_provider_reliability(hub: Any, data: Dict[str, Any]) -> Dict[st
         except (ValueError, TypeError):
             _bar_age = None
 
+    candle_source = str(data.get("nq_structure_source") or "")
+    candle_fallback = candle_available and "fallback" in candle_source.lower()
     source_health["candles"] = _source_item(
         available=candle_available,
         status=(_session_status("candles", _bar_age, True) if candle_available
                 else ("derived" if candle_derived else "missing")),
-        source=("Finnhub candles + Polygon fallback + Yahoo fallback" if candle_available
+        source=((candle_source or "Candle provider unspecified") if candle_available
                 else ("QQQ quote percent-change proxy (NO candle series fetched)" if candle_derived
                       else "Finnhub candles + Polygon fallback + Yahoo fallback")),
         freshness=(("recent" if _bar_age is not None else "unknown") if candle_available
                    else ("derived" if candle_derived else "missing")),
         observed_at=(_bar_end if candle_available else None),
         age_seconds=(float(_bar_age) if (candle_available and _bar_age is not None) else None),
-        fallback=False,
+        fallback=candle_fallback,
         note=(("Structure evidence health; exact upstream may be Finnhub, Polygon or Yahoo fallback. "
                f"fetched_at={now_iso}; last_completed_bar_end={_bar_end}; "
                f"observation_age_seconds={_bar_age}")
@@ -602,14 +604,26 @@ async def enrich_provider_reliability(hub: Any, data: Dict[str, Any]) -> Dict[st
     )
 
     liquidity_available = bool(data.get("liquidity_evidence_available"))
+    liquidity_evidence = data.get("liquidity_evidence") or {}
+    nq_liquidity = data.get("nq_liquidity") or {}
+    liquidity_quality = str(nq_liquidity.get("source_quality") or
+                            liquidity_evidence.get("source_quality") or "UNKNOWN")
+    liquidity_proxy = bool(liquidity_evidence.get("is_proxy")) or (
+        "PROXY" in liquidity_quality.upper() or
+        "CONTINUOUS" in liquidity_quality.upper())
+    liquidity_fallback = liquidity_available and (
+        liquidity_proxy or "FALLBACK" in liquidity_quality.upper())
     source_health["liquidity"] = _source_item(
         available=liquidity_available,
-        source="QQQ period candles + NQ futures session candles",
+        source=str(nq_liquidity.get("source") or "QQQ period candles + NQ futures session candles"),
+        fallback=liquidity_fallback,
         freshness="request_live" if liquidity_available else "missing",
         observed_at=now_iso if liquidity_available else None,
         age_seconds=0.0 if liquidity_available else None,
         note=str(data.get("liquidity_evidence") or {}),
     )
+    source_health["liquidity"]["source_quality"] = liquidity_quality
+    source_health["liquidity"]["is_proxy"] = liquidity_proxy
 
     data["source_health"] = source_health
     data["provider_health"] = build_provider_health(source_health)

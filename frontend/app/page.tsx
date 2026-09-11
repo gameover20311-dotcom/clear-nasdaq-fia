@@ -184,6 +184,7 @@ export default function Cockpit() {
   const missingEvidence = asList(cognitive.missing_evidence);
   const backtest = asObj(payload?.backtest);
   const finalCockpit = asObj(payload?.final_cockpit);
+  const sealedCampaign = asObj(payload?.forward_oos_campaign);
   const dataTruth = asObj(payload?.data_truth);
   const brain = asObj(payload?.brain_v66);
   const whole = asObj(payload?.whole_system_backtest);
@@ -713,11 +714,17 @@ export default function Cockpit() {
                 <div className="panel-h"><div><h3>Data Status</h3><p className="hint" style={{ marginTop: 1 }}>Fail-closed, at a glance.</p></div></div>
                 <div className="panel-b">
                   <KV k="Provider health" v={<Badge value={provider.overall || "UNKNOWN"} />} />
+                  <KV k="System status" v={<Badge value={finalCockpit.system_status || "UNKNOWN"} />} />
+                  <KV k="Forward record integrity" v={sealedCampaign.ledger_ok === true ? "VERIFIED" : "NOT VERIFIED"} color={sealedCampaign.ledger_ok === true ? "var(--bull)" : "var(--bear)"} />
+                  <KV k="Stored / verified forecasts" v={`${sealedCampaign.directional_n ?? "—"} / ${sealedCampaign.verified_directional_n ?? "—"}`} />
+                  <KV k="Forward backup" v={asObj(sealedCampaign.durability).durability || "UNKNOWN"} />
+                  {sealedCampaign.ledger_ok === false && <p className="degraded">Forward records failed verification. Stored observations are excluded from validation until their original evidence is recovered.</p>}
                   <KV k="Provider score" v={<span className="num">{finite(provider.score) === null ? "—" : num(provider.score, 1)}</span>} />
                   <KV k="Data coverage" v={<span className="num">{num(forecast.data_coverage, 3)}</span>} />
                   <KV k="Intelligence coverage" v={<span className="num">{num(forecast.intelligence_coverage, 3)}</span>} />
                   <KV k="Critical missing" v={<span className="num">{criticalMissing.length}</span>} color={criticalMissing.length ? "var(--bear)" : "var(--bull)"} />
                   <KV k="Missing sources" v={missingSources.length ? missingSources.join(" · ") : "none"} color={missingSources.length ? "var(--warn)" : undefined} />
+                  <KV k="Fallback sources" v={asList(provider.fallback_active).length ? asList(provider.fallback_active).join(" · ") : "none"} />
                   <KV k="Delayed sources" v={staleSources.length ? staleSources.join(" · ") : "none"} color={staleSources.length ? "var(--warn)" : undefined} />
                   <KV k="Decision gate" v={upper(words(cognitive.decision_gate || "—"))} />
                   <KV k="Reliability" v={`${upper(words(cognitive.reliability || "—"))} · ${num(cognitive.reliability_score, 3)}`} />

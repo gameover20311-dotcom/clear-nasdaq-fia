@@ -295,8 +295,14 @@ def install_final_cockpit_routes(app, hub, build_forecast, backend_root=None):
         base['backend_registry']=_route_registry(app)
         truth=data_truth_overlay(base); base['data_truth']=truth
         cockpit_truth=_cockpit_truth_status(base,truth)
+        from fia.forward_oos_monitor import build_campaign_status
+        campaign = build_campaign_status(root / 'fia_forward_oos')
+        base['forward_oos_campaign'] = campaign
         base['final_cockpit']={
             **cockpit_truth,'research_only':True,'broker_execution':False,
+            'system_status': ('READY' if cockpit_truth['truth_ready'] and
+                              campaign.get('operational_ok') is True else 'DEGRADED'),
+            'forward_oos_status': campaign.get('status', 'UNAVAILABLE'),
             'no_mock_performance':True,'historical_and_forward_oos_separate':True,
             'dashboard_contract':'ATOMIC_LIVE_BASE_PLUS_TRUTH_LABELED_LOCAL_VALIDATION_OVERLAYS',
         }
