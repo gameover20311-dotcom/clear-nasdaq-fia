@@ -1,8 +1,12 @@
-"""Lock-time-only feature extraction for SIMONS SHADOW LAB V1.
+"""Lock-time-only feature extraction for SIMONS SHADOW LAB V2 hybrid.
 
 "Causal" here means temporal discipline: every feature is derived only from
 information present in the immutable forecast lock. It does NOT claim a proven
 causal relationship with future NQ returns.
+
+V2 adds a structural anti-leakage barrier: feature code receives a guarded view
+that raises if prediction-time logic attempts to access outcome/resolution data,
+including through ``.get()``. This is stronger than relying on convention alone.
 """
 from __future__ import annotations
 
@@ -10,6 +14,7 @@ import re
 from typing import Any, Dict, Mapping, Optional
 
 from .lab import _float
+from .strict_contract import LockTimeRowView, validate_horizon_distribution
 
 _SIGNAL_ALIASES = {
     "nq_structure": ("nq structure", "price structure"),
@@ -38,12 +43,21 @@ def canonical_signal_name(name: Any) -> Optional[str]:
 
 
 def extract_lock_time_features(row: Mapping[str, Any], hours: int) -> Dict[str, Any]:
-    """Pure lock-time feature function. Deliberately never reads row['outcomes']."""
+    """Extract features through the mechanical lock-time barrier only."""
     if hours not in (4, 8):
         raise ValueError("hours must be 4 or 8")
-    base = row.get("base") or {}
+    view = row if isinstance(row, LockTimeRowView) else LockTimeRowView(row)
+    base = view.get("base") or {}
     h = base.get(f"h{hours}") or {}
     other = base.get("h8" if hours == 4 else "h4") or {}
+
+    # Validate real two-way probability distributions when present. Missing
+    # distributions remain missing (fail-closed for any rule requiring them),
+    # while malformed distributions are rejected loudly.
+    dist = validate_horizon_distribution(base, hours)
+    if dist.get("reason") not in {None, "missing_distribution"} and not dist.get("ok"):
+        raise ValueError(f"invalid {hours}H distribution: {dist.get('reason')}")
+
     bull = _float(h.get("bullish_probability"))
     bear = _float(h.get("bearish_probability"))
     confidence = _float(h.get("confidence"))
@@ -52,7 +66,7 @@ def extract_lock_time_features(row: Mapping[str, Any], hours: int) -> Dict[str, 
 
     scores: Dict[str, Optional[float]] = {key: None for key in _SIGNAL_ALIASES}
     freshness: Dict[str, Optional[str]] = {key: None for key in _SIGNAL_ALIASES}
-    for raw in base.get("signals") or []:
+    for raw in base.get("signals") or ():
         if not isinstance(raw, Mapping):
             continue
         key = canonical_signal_name(raw.get("name"))
@@ -79,7 +93,7 @@ def extract_lock_time_features(row: Mapping[str, Any], hours: int) -> Dict[str, 
     source_missing = sum(1 for value in source_status.values() if isinstance(value, str) and any(token in value.lower() for token in ("missing", "unavailable", "stale")))
 
     features: Dict[str, Any] = {
-        "forecast_id": row.get("forecast_id"),
+        "forecast_id": view.get("forecast_id"),
         "horizon_hours": hours,
         "fia_direction": direction,
         "bullish_probability": bull,
@@ -100,8 +114,11 @@ def extract_lock_time_features(row: Mapping[str, Any], hours: int) -> Dict[str, 
         "component_neutral_or_missing_count": neutral,
         "available_component_count": available,
         "missing_component_count": missing,
+        "missing_component_ratio": (missing / len(scores)) if scores else None,
         "source_status_missing_or_stale_count": source_missing,
         "component_alignment_is_independent_evidence": False,
+        "lock_time_barrier_enforced": True,
+        "distribution_contract_ok": bool(dist.get("ok")),
     }
     for key, value in scores.items():
         features[f"signal_{key}_score"] = value
