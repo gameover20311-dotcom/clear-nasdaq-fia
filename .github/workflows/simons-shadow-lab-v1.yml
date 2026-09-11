@@ -1,9 +1,10 @@
-name: SIMONS Shadow Lab V1
+name: SIMONS Shadow Lab V2 Hybrid
 
 on:
   push:
     branches:
       - research/simons-shadow-lab-v1
+      - research/simons-shadow-lab-v2-hybrid
   pull_request:
     paths:
       - 'backend/simons_shadow_lab_v1/**'
@@ -12,6 +13,7 @@ on:
       - 'backend/tests/test_simons_shadow_lab_v1_metrics.py'
       - 'backend/tests/test_simons_shadow_lab_v1_causal.py'
       - 'backend/tests/test_simons_shadow_lab_v1_readiness.py'
+      - 'backend/tests/test_simons_shadow_lab_v2_hybrid.py'
       - '.github/workflows/simons-shadow-lab-v1.yml'
 
 jobs:
@@ -35,6 +37,10 @@ jobs:
             backend/simons_shadow_lab_v1/experiment_registry.py \
             backend/simons_shadow_lab_v1/reporting.py \
             backend/simons_shadow_lab_v1/integrity.py \
+            backend/simons_shadow_lab_v1/strict_contract.py \
+            backend/simons_shadow_lab_v1/scientific_stats.py \
+            backend/simons_shadow_lab_v1/drift_monitor.py \
+            backend/simons_shadow_lab_v1/isolation_guard.py \
             backend/run_simons_shadow_lab_v1.py
       - name: Verify real test discovery count
         working-directory: backend
@@ -46,13 +52,14 @@ jobs:
               'tests.test_simons_shadow_lab_v1_metrics',
               'tests.test_simons_shadow_lab_v1_causal',
               'tests.test_simons_shadow_lab_v1_readiness',
+              'tests.test_simons_shadow_lab_v2_hybrid',
           ]
           loader = unittest.TestLoader()
           suite = unittest.TestSuite(loader.loadTestsFromName(n) for n in names)
           count = suite.countTestCases()
           print('DISCOVERED_TESTS=', count)
-          if count < 15:
-              raise SystemExit('Refusing green CI: fewer than 15 real tests discovered')
+          if count < 35:
+              raise SystemExit('Refusing green CI: fewer than 35 real tests discovered')
           PY
       - name: Run Shadow Lab regression tests
         working-directory: backend
@@ -62,4 +69,5 @@ jobs:
             tests.test_simons_shadow_lab_v1_metrics \
             tests.test_simons_shadow_lab_v1_causal \
             tests.test_simons_shadow_lab_v1_readiness \
+            tests.test_simons_shadow_lab_v2_hybrid \
             -v
