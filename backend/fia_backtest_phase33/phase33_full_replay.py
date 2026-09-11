@@ -3,6 +3,7 @@ import csv,json,math,statistics,pathlib,sys
 from collections import defaultdict
 ROOT=pathlib.Path(__file__).resolve().parents[1]; sys.path.insert(0,str(ROOT))
 from fia.phase33_common import fnum, clamp, sigmoid
+from fia.artifact_guard import guarded_output_path
 SRC=ROOT/"fia_backtest_phase29"/"results"/"phase29_outcome_revalidated_1y.csv"
 OUTDIR=ROOT/"fia_backtest_phase33"/"results"; OUTDIR.mkdir(parents=True,exist_ok=True)
 OUT=OUTDIR/"phase33_full_replay_1y.csv"; SUM=OUTDIR/"phase33_full_replay_1y_summary.json"; CAL=ROOT/"fia_phase33"/"data"/"phase33_calibration.json"
@@ -99,7 +100,8 @@ def main():
         train=[r for r in dev if r.get(f"actual_{h}") in {"BULLISH","BEARISH"}]; xs=[r["phase33_x"] for r in train]; ys=[1 if r[f"actual_{h}"]=="BULLISH" else 0 for r in train]; a,b=fit_platt(xs,ys); model[h]=(a,b)
         for r in enriched: r[f"phase33_probability_{h}"]=round(100*sigmoid(a*r["phase33_x"]+b),1)
     fields=list(enriched[0].keys());
-    with OUT.open("w",newline="",encoding="utf-8") as f: w=csv.DictWriter(f,fieldnames=fields); w.writeheader(); w.writerows(enriched)
+    # A6: sealed-artifact guard. Default run writes to a non-canonical run dir.
+    with guarded_output_path(OUT).open("w",newline="",encoding="utf-8") as f: w=csv.DictWriter(f,fieldnames=fields); w.writeheader(); w.writerows(enriched)
     hold_metrics={h:metrics(hold,f"phase33_probability_{h}",h) for h in ("4h","8h")}; dev_metrics={h:metrics(dev,f"phase33_probability_{h}",h) for h in ("4h","8h")}
     base_hold={h:base_metrics(hold,h) for h in ("4h","8h")}; base_all={h:base_metrics(enriched,h) for h in ("4h","8h")}
     # Approval requires directional accuracy OR Brier improvement on BOTH horizons and adequate n; deliberately strict.
@@ -108,8 +110,8 @@ def main():
         m=hold_metrics[h]; b=base_hold[h]; improves.append(m.get("n",0)>=40 and ((m.get("accuracy",0)>b.get("accuracy",0)+1.0) or (m.get("brier",1)<b.get("brier",1)-0.005)))
     approved=all(improves)
     cal={"version":"phase33-platt-1","approved":approved,"a":round((model["4h"][0]+model["8h"][0])/2,6),"b":round((model["4h"][1]+model["8h"][1])/2,6),"fit_partition":"development_first_70_percent_only","holdout_used_for_fit":False,"approval_rule":"must improve both horizons under strict rule","holdout_metrics":hold_metrics,"base_holdout":base_hold}
-    CAL.parent.mkdir(parents=True,exist_ok=True); CAL.write_text(json.dumps(cal,indent=2),encoding="utf-8")
+    _cal=guarded_output_path(CAL); _cal.parent.mkdir(parents=True,exist_ok=True); _cal.write_text(json.dumps(cal,indent=2),encoding="utf-8")
     summary={"ok":True,"phase":"PHASE 33 INSTITUTIONAL PRE-MOVE","rows":len(enriched),"development_rows":len(dev),"untouched_holdout_rows":len(hold),"dev":dev_metrics,"holdout":hold_metrics,"base_holdout":base_hold,"base_all":base_all,"calibration_approved_for_live_probability":approved,"missing_historical_optional_inputs":["L2/L3","VIX/VXN intraday","US2Y/real-yield intraday","dealer gamma","options skew","ETF flow","volume delta","futures basis"],"missing_policy":"MISSING_NOT_FAKED_AND_NO_NEUTRAL_IMPUTATION","rl_influence_on_live":0.0,"broker_execution":False,"claim_95_percent":False,"note":"Replay is point-in-time over the preserved Phase29 forecast/evidence rows. Optional institutional feeds absent from the historical archive are explicitly excluded, not fabricated."}
-    SUM.write_text(json.dumps(summary,indent=2),encoding="utf-8")
+    guarded_output_path(SUM).write_text(json.dumps(summary,indent=2),encoding="utf-8")
     print(json.dumps(summary,indent=2))
 if __name__=="__main__": main()

@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
 from .phase35_data_foundation import ROOT, DATA_DIR, LIC_DIR, _dt, _num, load_store
+from .artifact_guard import guarded_output_path  # A6 sealed-artifact guard
 
 SRC=ROOT/'fia_backtest_phase29/results/phase29_outcome_revalidated_1y.csv'
 NEWS=ROOT/'fia_backtest_phase20/data/polygon_news_20250901_20260831.json'
@@ -139,9 +140,9 @@ def enrich()->Dict[str,Any]:
         z['licensed']={k:_licensed_asof(v,t) for k,v in licensed.items()}
         wanted=['vix_ret_1h','vxn_ret_1h','us2y_change','real_yield_change','mega_impact_ret_1h','semi_breadth_ret_1h','crossasset_riskon','news_sentiment','news_novelty','earnings_surprise','futures_basis_proxy']
         av=sum(z.get(k) is not None for k in wanted); z['historical_feature_coverage']=round(av/len(wanted),3); coverage.append(z['historical_feature_coverage']); enriched.append(z)
-    with OUT.open('w',encoding='utf-8') as f:
+    with guarded_output_path(OUT).open('w',encoding='utf-8') as f:
         for z in enriched:f.write(json.dumps(z,separators=(',',':'),default=str)+'\n')
     result={"ok":True,"rows":len(enriched),"output":str(OUT),"mean_feature_coverage":round(sum(coverage)/len(coverage),3) if coverage else 0.0,
             "point_in_time_rules":["hourly bars require bar_end <= forecast timestamp","FRED/Treasury daily values use prior calendar date only","news published_at <= timestamp","earnings reveal_at <= timestamp","licensed feeds require timestamp <= checkpoint and max age"],
             "no_future_leakage_by_design":True,"missing_never_imputed_as_neutral":True}
-    (DATA_DIR/'enrichment_summary.json').write_text(json.dumps(result,indent=2)); return result
+    guarded_output_path(DATA_DIR/'enrichment_summary.json').write_text(json.dumps(result,indent=2)); return result

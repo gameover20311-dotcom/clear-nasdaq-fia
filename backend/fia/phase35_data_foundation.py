@@ -4,6 +4,7 @@ from bisect import bisect_right
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from .artifact_guard import guarded_output_path  # A6 sealed-artifact guard
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "fia_phase35" / "data"
@@ -35,6 +36,8 @@ def _num(x, default=None):
     except Exception:return default
 
 def _write_json(path:Path,obj:Any):
+    # A6: every JSON written by this module passes the sealed-artifact guard.
+    path=guarded_output_path(path)
     path.parent.mkdir(parents=True,exist_ok=True); path.write_text(json.dumps(obj,indent=2,default=str),encoding='utf-8')
 
 def _download_yfinance()->Dict[str,Any]:
