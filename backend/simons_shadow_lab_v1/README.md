@@ -110,6 +110,10 @@ Therefore:
 - profitability remains `NOT_PROVEN`;
 - no production promotion is allowed.
 
+## CI coverage
+
+The dedicated `SIMONS Shadow Lab V1` workflow compiles the core, advanced analytics module and CLI, then runs both the isolation suite and advanced-metrics regression suite. A green workflow establishes only engineering/test status, never predictive edge.
+
 ## Current limits
 
 V1 still does not claim a strategy. Richer causal evidence extraction, predeclared state-transition candidates, measured execution-cost ingestion, adverse-excursion/drawdown metrics when genuinely available, and a separate research UI remain future work.
