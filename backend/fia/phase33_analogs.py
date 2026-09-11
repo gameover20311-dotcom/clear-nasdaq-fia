@@ -3,14 +3,28 @@ import csv, json, math
 from pathlib import Path
 from typing import Any, Dict, List
 from .phase33_common import dt, fnum
+from .signal_identity import canonical_name_list, canonicalize_signal_keys
 
 DEFAULT_DB=Path(__file__).resolve().parents[1]/"fia_backtest_phase29"/"results"/"phase29_outcome_revalidated_1y.csv"
-CORE=["NQ structure","SPX confirmation","DXY","US10Y","Mega-cap leadership","Semiconductors","Breadth","News"]
+# CORE defines the analog feature axes. canonical_name_list() both translates
+# legacy spellings and removes duplicates, so one signal can never be allocated
+# two axes of the same vector.
+CORE=canonical_name_list(["NQ structure","SPX confirmation","DXY","US10Y","Mega-cap leadership","Semiconductors","Breadth","News"])
 
 def _signals(row:Dict[str,Any])->Dict[str,float]:
+    """Read boundary for BOTH the historical CSV and the live query row.
+
+    The stored analog database (phase29_outcome_revalidated_1y.csv) was written
+    when the participation signal was still spelled "Breadth"; the live engine
+    emits "Equal-weight participation". Translating here — rather than rewriting
+    the historical file — puts both on the same coordinate. Before this, every
+    live query was forced to 0.0 on that axis while historical rows carried
+    their real value, so nearest-neighbour distances were systematically wrong.
+    """
     try: arr=json.loads(row.get("signals_json") or "[]")
     except Exception: arr=[]
-    return {str(x.get("name")):fnum(x.get("score")) for x in arr if isinstance(x,dict)}
+    raw={str(x.get("name")):fnum(x.get("score")) for x in arr if isinstance(x,dict)}
+    return canonicalize_signal_keys(raw)
 def _vec(row:Dict[str,Any])->List[float]:
     s=_signals(row)
     return [(fnum(row.get("bullish_probability"),50)-50)/50,fnum(row.get("score")),fnum(row.get("confidence"))/100,*[s.get(n,0.0) for n in CORE]]

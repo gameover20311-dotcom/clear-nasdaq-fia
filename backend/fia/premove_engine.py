@@ -10,22 +10,36 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from .signal_identity import (
+    CANONICAL_EQUAL_WEIGHT_PARTICIPATION,
+    canonical_signal_name,
+    canonicalize_signal_keys,
+)
+
 DEFAULT_HISTORY = Path(__file__).resolve().parents[1] / "fia_premove" / "data" / "premove_history.jsonl"
 MAX_HISTORY_ROWS = int(os.getenv("FIA_PREMOVE_MAX_HISTORY", "2500"))
 
+# These sets are keyed by the CANONICAL signal name. The equal-weighted
+# participation signal used to be looked up here as the legacy "Breadth", which
+# the live engine has not emitted since the truthfulness rename. The effect was
+# measurable and wrong: a fully healthy snapshot still reported 'Breadth' as a
+# missing critical signal, and its 0.08 weight never reached the leading score.
 LEADING_SIGNAL_NAMES = {
     "SPX confirmation",
     "DXY",
     "US10Y",
     "Mega-cap leadership",
     "Semiconductors",
-    "Breadth",
+    CANONICAL_EQUAL_WEIGHT_PARTICIPATION,
     "News",
     "Macro calendar",
     "Earnings/guidance",
 }
 PRICE_SIGNAL_NAMES = {"NQ structure"}
-CRITICAL_SIGNALS = {"DXY", "US10Y", "Mega-cap leadership", "Semiconductors", "Breadth"}
+CRITICAL_SIGNALS = {
+    "DXY", "US10Y", "Mega-cap leadership", "Semiconductors",
+    CANONICAL_EQUAL_WEIGHT_PARTICIPATION,
+}
 
 
 def _get(obj: Any, key: str, default=None):
@@ -79,7 +93,9 @@ def _fresh(signal: Any) -> bool:
 def _signals_map(forecast: Any) -> Dict[str, Dict[str, float]]:
     out: Dict[str, Dict[str, float]] = {}
     for signal in list(_get(forecast, "signals", []) or []):
-        name = str(_get(signal, "name", "") or "")
+        # Read boundary: translate legacy spellings onto the canonical name so a
+        # signal can never occupy two keys and never be counted twice.
+        name = canonical_signal_name(_get(signal, "name", "") or "")
         if not name:
             continue
         out[name] = {
@@ -173,6 +189,10 @@ def snapshot_row(forecast: Any, snapshot: Dict[str, Any] | None = None) -> Dict[
 
 def _signal_acceleration(history: List[Dict[str, Any]], current: Dict[str, Any]) -> Dict[str, float]:
     rows = (history + [current])[-8:]
+    # Read boundary: historical premove rows written before the truthfulness
+    # rename carry the legacy spelling. Canonicalise on read (files are never
+    # rewritten) so one signal yields one time-series instead of two fragments.
+    rows = [dict(r, signals=canonicalize_signal_keys(r.get("signals") or {})) for r in rows]
     names = set()
     for row in rows:
         names.update((row.get("signals") or {}).keys())

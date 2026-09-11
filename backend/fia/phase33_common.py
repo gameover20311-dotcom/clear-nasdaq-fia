@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from .signal_identity import canonical_signal_name
+
 
 def fnum(v: Any, default: float = 0.0) -> float:
     try:
@@ -46,7 +48,9 @@ def raw_snapshot(snapshot: Any) -> Dict[str, Any]:
 def signal_map(forecast: Any) -> Dict[str, Dict[str, Any]]:
     out={}
     for s in list(get(forecast,"signals",[]) or []):
-        name=str(get(s,"name","") or "").strip()
+        # Read boundary: canonical signal identity, so phase33/34 consumers and
+        # the analog database share one coordinate per signal.
+        name=canonical_signal_name(get(s,"name","") or "")
         if not name: continue
         fresh=str(get(s,"freshness","unknown") or "unknown")
         out[name]={"score": fnum(get(s,"score",0.0)), "weight": max(0.0,fnum(get(s,"weight",0.0))), "freshness":fresh}
