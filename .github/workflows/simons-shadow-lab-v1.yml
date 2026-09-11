@@ -10,6 +10,7 @@ on:
       - 'backend/run_simons_shadow_lab_v1.py'
       - 'backend/tests/test_simons_shadow_lab_v1.py'
       - 'backend/tests/test_simons_shadow_lab_v1_metrics.py'
+      - 'backend/tests/test_simons_shadow_lab_v1_causal.py'
       - '.github/workflows/simons-shadow-lab-v1.yml'
 
 jobs:
@@ -26,11 +27,34 @@ jobs:
             backend/simons_shadow_lab_v1/__init__.py \
             backend/simons_shadow_lab_v1/lab.py \
             backend/simons_shadow_lab_v1/research_metrics.py \
+            backend/simons_shadow_lab_v1/causal_features.py \
+            backend/simons_shadow_lab_v1/causal_discovery.py \
+            backend/simons_shadow_lab_v1/causal_candidate.py \
+            backend/simons_shadow_lab_v1/durable_reader.py \
+            backend/simons_shadow_lab_v1/experiment_registry.py \
             backend/run_simons_shadow_lab_v1.py
+      - name: Verify real test discovery count
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import unittest
+          names = [
+              'tests.test_simons_shadow_lab_v1',
+              'tests.test_simons_shadow_lab_v1_metrics',
+              'tests.test_simons_shadow_lab_v1_causal',
+          ]
+          loader = unittest.TestLoader()
+          suite = unittest.TestSuite(loader.loadTestsFromName(n) for n in names)
+          count = suite.countTestCases()
+          print('DISCOVERED_TESTS=', count)
+          if count < 15:
+              raise SystemExit('Refusing green CI: fewer than 15 real tests discovered')
+          PY
       - name: Run Shadow Lab regression tests
         working-directory: backend
         run: |
           python -m unittest \
             tests.test_simons_shadow_lab_v1 \
             tests.test_simons_shadow_lab_v1_metrics \
+            tests.test_simons_shadow_lab_v1_causal \
             -v
