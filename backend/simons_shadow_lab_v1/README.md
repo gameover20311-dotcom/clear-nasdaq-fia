@@ -99,6 +99,17 @@ python run_simons_shadow_lab_v1.py \
 
 V1 deliberately never emits `PROVEN`.
 
+## Current validation truth
+
+The software architecture and regression tests can pass while the research result remains scientifically empty. Until a frozen candidate accumulates genuinely new post-freeze observations, there is no valid forward candidate sample to judge.
+
+Therefore:
+
+- engineering integrity may be PASS;
+- candidate edge remains `NOT_PROVEN`;
+- profitability remains `NOT_PROVEN`;
+- no production promotion is allowed.
+
 ## Current limits
 
 V1 still does not claim a strategy. Richer causal evidence extraction, predeclared state-transition candidates, measured execution-cost ingestion, adverse-excursion/drawdown metrics when genuinely available, and a separate research UI remain future work.
