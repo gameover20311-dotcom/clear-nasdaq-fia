@@ -60,6 +60,12 @@ class ShadowLabAdvancedMetricsTests(unittest.TestCase):
         self.assertIsNotNone(report["ece"])
         self.assertEqual(report["scientific_status"], "INSUFFICIENT_SAMPLE_NOT_PROVEN")
 
+    def test_empty_calibration_stays_insufficient(self):
+        report = calibration_report([], 4)
+        self.assertEqual(report["n"], 0)
+        self.assertIsNone(report["brier_score"])
+        self.assertEqual(report["scientific_status"], "INSUFFICIENT_SAMPLE_NOT_PROVEN")
+
     def test_regime_and_transition_reports_keep_small_groups_exploratory(self):
         regimes = regime_report(_rows(), 4, min_group_n=3)
         self.assertEqual({g["regime"] for g in regimes["groups"]}, {"CONFLICTED", "TREND"})
@@ -128,6 +134,10 @@ class ShadowLabAdvancedMetricsTests(unittest.TestCase):
         self.assertEqual(report["net_average_points_after_assumed_friction"], 7.0)
         self.assertFalse(report["predictive_edge_proven"])
         self.assertFalse(report["automatic_production_promotion"])
+
+    def test_negative_friction_is_rejected(self):
+        with self.assertRaises(ValueError):
+            candidate_forward_metrics([], round_trip_cost_points=-1.0)
 
     def test_full_diagnostic_contains_no_auto_strategy_selection(self):
         report = full_research_diagnostic(_rows(), 8)
