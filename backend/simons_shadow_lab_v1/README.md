@@ -41,6 +41,29 @@ Writes are allowed only under the separate lab root (default `simons_shadow_lab_
 - no historical row can be relabeled as forward validation;
 - no result can auto-update BASE_FIA.
 
+## Advanced research diagnostics
+
+`research_metrics.py` adds research-only diagnostics without modifying the immutable core:
+
+- Brier score;
+- log loss;
+- expected calibration error (ECE);
+- climatology baseline and Brier skill comparison;
+- regime-wise hit rate and Brier diagnostics;
+- previous-regime -> current-regime state-transition analysis;
+- one-at-a-time threshold perturbation to expose knife-edge/fragile candidates;
+- gross directional move in NQ points;
+- explicit assumed round-trip friction scenario in points;
+- early-vs-late forward sample comparison as a simple signal-decay warning.
+
+These diagnostics are deliberately labeled `DISCOVERY_ONLY_NOT_PROVEN`, `DISCOVERY_ROBUSTNESS_ONLY_NOT_VALIDATION`, or other NOT_PROVEN states. They do not select or promote strategies automatically.
+
+## Friction policy
+
+The lab keeps raw statistical evidence separate from execution assumptions.
+
+`candidate_forward_metrics()` accepts an explicit `round_trip_cost_points` scenario and reports gross and net points separately. It does not size positions, model leverage, or turn an assumed friction number into a claimed measured cost.
+
 ## CLI
 
 From `backend`:
@@ -64,6 +87,7 @@ python run_simons_shadow_lab_v1.py \
 ## Status vocabulary
 
 - `DISCOVERY_ONLY_NOT_PROVEN`
+- `DISCOVERY_ROBUSTNESS_ONLY_NOT_VALIDATION`
 - `FORWARD_VALIDATION_READY_NOT_PROVEN`
 - `INSUFFICIENT_SAMPLE_NOT_PROVEN`
 - `FORWARD_VALIDATING_NOT_PROVEN`
@@ -73,6 +97,8 @@ V1 deliberately never emits `PROVEN`.
 
 ## Current limits
 
-V1 is the scientific skeleton, not the final strategy engine. It does not yet include execution-cost modeling, drawdown/expectancy, state-transition models, regime decay scoring, richer causal evidence extraction, or a UI. Those should be added only after isolation and real Forward-OOS ingestion are verified on the target runtime.
+V1 still does not claim a strategy. Richer causal evidence extraction, predeclared state-transition candidates, measured execution-cost ingestion, adverse-excursion/drawdown metrics when genuinely available, and a separate research UI remain future work.
+
+Those additions must not weaken isolation, candidate freezing, discovery/validation separation, or Forward-OOS integrity.
 
 Engineering tests passing does **not** mean a profitable strategy or predictive edge exists.
