@@ -298,10 +298,17 @@ def install_final_cockpit_routes(app, hub, build_forecast, backend_root=None):
         from fia.forward_oos_monitor import build_campaign_status
         campaign = build_campaign_status(root / 'fia_forward_oos')
         base['forward_oos_campaign'] = campaign
+        # Existing dashboard clients use truth_ready/status for their overall
+        # PASS label. Both must include OOS integrity, not only the new field.
+        system_ready = cockpit_truth['truth_ready'] and campaign.get('operational_ok') is True
         base['final_cockpit']={
             **cockpit_truth,'research_only':True,'broker_execution':False,
-            'system_status': ('READY' if cockpit_truth['truth_ready'] and
-                              campaign.get('operational_ok') is True else 'DEGRADED'),
+            'data_truth_ready': cockpit_truth['truth_ready'],
+            'data_status': cockpit_truth['status'],
+            'truth_ready': system_ready,
+            'status': (cockpit_truth['status'] if system_ready or cockpit_truth['status'] == 'UNAVAILABLE'
+                       else 'DEGRADED'),
+            'system_status': ('READY' if system_ready else 'DEGRADED'),
             'forward_oos_status': campaign.get('status', 'UNAVAILABLE'),
             'no_mock_performance':True,'historical_and_forward_oos_separate':True,
             'dashboard_contract':'ATOMIC_LIVE_BASE_PLUS_TRUTH_LABELED_LOCAL_VALIDATION_OVERLAYS',

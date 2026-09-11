@@ -95,7 +95,7 @@ def main():
                     "/api/forward-oos/durability": lambda d: d.get("durable") is False and d.get("durability") != "DURABLE",
                     "/api/forward-oos/report": lambda d: d.get("ok") is False and d.get("stage") == "BLOCKED_LEDGER_INTEGRITY",
                     "/api/final/status": lambda d: d.get("overall") != "PASS" and d.get("checks", {}).get("forward_oos_operational") is False,
-                    "/api/final/dashboard": lambda d: d.get("final_cockpit", {}).get("system_status") != "READY" and d.get("forward_oos_campaign", {}).get("ledger_ok") is False and d.get("forward_oos_campaign", {}).get("verified_directional_n") == 0,
+                    "/api/final/dashboard": lambda d: d.get("final_cockpit", {}).get("system_status") != "READY" and d.get("final_cockpit", {}).get("truth_ready") is False and d.get("final_cockpit", {}).get("status") not in {"LIVE", "PASS", "READY", "HEALTHY"} and d.get("forward_oos_campaign", {}).get("ledger_ok") is False and d.get("forward_oos_campaign", {}).get("verified_directional_n") == 0,
                 }
                 for path, predicate in predicates.items():
                     result = {"path": path, "result": "FAIL"}

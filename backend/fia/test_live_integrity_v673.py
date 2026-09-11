@@ -15,7 +15,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from fia import forward_oos as fo, forward_oos_durable as dur, forward_oos_monitor as mon
 from fia.premove_watch import _catalyst_risk
@@ -268,6 +268,37 @@ class StorageRecovery(unittest.TestCase):
 
 
 class TruthReporting(unittest.TestCase):
+    def test_healthy_feed_cannot_hide_failed_campaign_on_dashboard(self):
+        # Exercise the actual dashboard handler with an explicitly isolated
+        # healthy feed fixture. This is a unit fixture, not live provider E2E.
+        from fastapi import FastAPI
+        from fia_final_cockpit import api
+        app = FastAPI()
+        with tempfile.TemporaryDirectory(prefix="fia_TEST_dashboard_") as directory:
+            api.install_final_cockpit_routes(app, None, None, backend_root=directory)
+            endpoint = next(route.endpoint for route in app.routes
+                            if getattr(route, "path", None) == "/api/final/dashboard")
+            base = {"live": {"snapshot": {"status": "LIVE"}, "forecast": {"status": "LIVE"}}}
+            truth = {"provider_overall": "LIVE", "critical_missing": [], "stale_sources": []}
+            for campaign in ({}, {"operational_ok": False, "status": "DEGRADED"},
+                             {"operational_ok": True, "status": "READY"}):
+                with self.subTest(campaign=campaign), \
+                     patch("fia.dashboard_api.build_dashboard_payload", new=AsyncMock(return_value=copy.deepcopy(base))), \
+                     patch.object(api, "data_truth_overlay", return_value=truth), \
+                     patch.object(api, "whole_system_overlay", return_value={}), \
+                     patch.object(api, "phase25_status", return_value={}), \
+                     patch.object(api, "brain_status", return_value={}), \
+                     patch.object(mon, "build_campaign_status", return_value=campaign):
+                    result = asyncio.run(endpoint())
+                cockpit = result["final_cockpit"]
+                ready = campaign.get("operational_ok") is True
+                self.assertEqual(cockpit["truth_ready"], ready)
+                self.assertEqual(cockpit["status"], "LIVE" if ready else "DEGRADED")
+                self.assertEqual(cockpit["system_status"], "READY" if ready else "DEGRADED")
+                self.assertTrue(cockpit["data_truth_ready"])
+                self.assertEqual(cockpit["data_status"], "LIVE")
+                self.assertEqual(result["live"], base["live"])
+
     def test_partial_calendar_cannot_report_low(self):
         for macro, earnings, expected in ((None, False, "UNKNOWN"), (False, None, "UNKNOWN"),
                                           (None, None, "UNKNOWN"), (False, False, "LOW"),
