@@ -94,12 +94,12 @@ No neutral probability, proxy evidence or synthetic production row is invented b
 
 ## Final CI evidence
 
-Final GitHub Actions run `34588791783`, job `103229052298`, on hybrid head `eea762a15ff1fef9cd3f082c548d19af0c757fcc` verified:
+Final branch-head GitHub Actions run `34588890948`, job `103229361907`, on head `474b52119abb875ad111d71a0d72a73122780366` verified:
 
 - Compilation: **PASS**
 - Real test-discovery guard: **PASS**
 - `DISCOVERED_TESTS = 50`
-- `Ran 50 tests in 2.923s`
+- `Ran 50 tests in 1.391s`
 - **50/50 PASS**
 
 The nine added control tests cover:
