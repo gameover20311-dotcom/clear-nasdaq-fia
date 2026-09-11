@@ -59,6 +59,14 @@ def discover_causal_grid(
     # from feature extraction, preserving the mechanical lock-time barrier.
     features_by_h = {h: [extract_lock_time_features(r, h) for r in rows] for h in (4, 8)}
     outcomes_by_h = {h: [_actual(r, h) for r in rows] for h in (4, 8)}
+    baselines: Dict[int, Dict[str, float | None]] = {}
+    for h, outcomes in outcomes_by_h.items():
+        valid = [x for x in outcomes if x in {"BULLISH", "BEARISH"}]
+        if valid:
+            bull_rate = sum(1 for x in valid if x == "BULLISH") / len(valid)
+            baselines[h] = {"BULLISH": bull_rate, "BEARISH": 1.0 - bull_rate}
+        else:
+            baselines[h] = {"BULLISH": None, "BEARISH": None}
 
     results: List[Dict[str, Any]] = []
     rule_masks: List[Dict[str, Any]] = []
@@ -66,6 +74,7 @@ def discover_causal_grid(
         outcomes = outcomes_by_h[hours]
         for direction in ("BULLISH", "BEARISH"):
             prob_field = "bullish_probability" if direction == "BULLISH" else "bearish_probability"
+            baseline = baselines[hours][direction]
             for pthr in probability_thresholds:
                 for cthr in confidence_thresholds:
                     for athr in alignment_thresholds:
@@ -89,8 +98,10 @@ def discover_causal_grid(
                                     ids.append(str(row.get("forecast_id") or ""))
                                     correct += int(actual == direction)
                                 n = len(indexes)
-                                pvalue = binomial_upper_tail(correct, n, 0.5) if n >= min_n else 1.0
+                                p50 = binomial_upper_tail(correct, n, 0.5) if n >= min_n else 1.0
+                                pbase = binomial_upper_tail(correct, n, float(baseline)) if n >= min_n and baseline is not None else 1.0
                                 low, high = wilson_interval(correct, n)
+                                hit = correct / n if n else None
                                 result = {
                                     "horizon_hours": hours,
                                     "predicted_direction": direction,
@@ -103,9 +114,12 @@ def discover_causal_grid(
                                     },
                                     "n": n,
                                     "correct": correct,
-                                    "hit_rate": correct / n if n else None,
+                                    "hit_rate": hit,
                                     "wilson_95": [low, high],
-                                    "p_value_vs_50pct": pvalue,
+                                    "unconditional_direction_baseline": baseline,
+                                    "lift_vs_unconditional_baseline": (hit - baseline) if hit is not None and baseline is not None else None,
+                                    "p_value_vs_50pct": p50,
+                                    "p_value_vs_unconditional_baseline": pbase,
                                     "eligible_min_n": n >= min_n,
                                     "discovery_forecast_ids": ids,
                                 }
@@ -119,7 +133,7 @@ def discover_causal_grid(
     tests_run = len(results)
     if tests_run != expected_tests:
         raise RuntimeError(f"search accounting mismatch: expected={expected_tests} actual={tests_run}")
-    qvalues = bh_qvalues([float(r["p_value_vs_50pct"]) for r in results])
+    qvalues = bh_qvalues([float(r["p_value_vs_unconditional_baseline"]) for r in results])
     null = search_wide_permutation_null(
         outcomes_by_horizon=outcomes_by_h,
         rule_masks=rule_masks,
@@ -129,7 +143,7 @@ def discover_causal_grid(
     )
     maxima = list(null.get("maxima") or [])
     for result, q in zip(results, qvalues):
-        p = float(result["p_value_vs_50pct"])
+        p = float(result["p_value_vs_unconditional_baseline"])
         hit = result.get("hit_rate")
         empirical = None
         if hit is not None and maxima:
@@ -153,6 +167,8 @@ def discover_causal_grid(
         "tests_run": tests_run,
         "full_grid_is_multiplicity_denominator": True,
         "min_n": min_n,
+        "unconditional_direction_baselines": {str(k): v for k, v in baselines.items()},
+        "primary_parametric_null": "UNCONDITIONAL_HORIZON_DIRECTION_RATE",
         "multiple_testing_control": ["BENJAMINI_HOCHBERG", "BONFERRONI", "SEARCH_WIDE_PERMUTATION_NULL"],
         "search_wide_permutation_null": compact_null,
         "automatic_candidate_selection": False,
