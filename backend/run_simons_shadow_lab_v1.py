@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI for SIMONS SHADOW LAB V1.
+"""CLI for SIMONS SHADOW LAB V2 HYBRID.
 
 Production Forward-OOS is read-only. All writes go under --lab-root.
 """
@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 
 from simons_shadow_lab_v1.causal_candidate import CausalCandidateLab, CausalCandidateSpec
@@ -14,6 +15,7 @@ from simons_shadow_lab_v1.causal_discovery import discover_causal_grid, state_di
 from simons_shadow_lab_v1.durable_reader import DurableForwardOOSReader
 from simons_shadow_lab_v1.experiment_registry import ExperimentRegistry
 from simons_shadow_lab_v1.integrity import audit_lab_storage, package_manifest
+from simons_shadow_lab_v1.isolation_guard import tree_seal
 from simons_shadow_lab_v1.lab import ShadowLab, discover_threshold_grid
 from simons_shadow_lab_v1.reporting import build_snapshot_report, render_html, render_markdown
 from simons_shadow_lab_v1.research_metrics import candidate_forward_metrics, full_research_diagnostic, parameter_robustness_report
@@ -29,16 +31,25 @@ def _row(lab: ShadowLab, snapshot_id: str, forecast_id: str):
     return found
 
 
+def _aware_dt(text: str | None):
+    if not text: return None
+    value = text[:-1] + "+00:00" if text.endswith("Z") else text
+    dt = datetime.fromisoformat(value)
+    if dt.tzinfo is None: raise ValueError("--as-of must include timezone/UTC offset")
+    return dt
+
+
 def main():
-    parser = argparse.ArgumentParser(description="SIMONS SHADOW LAB V1")
+    parser = argparse.ArgumentParser(description="SIMONS SHADOW LAB V2 HYBRID")
     parser.add_argument("--source-root", default="fia_forward_oos")
     parser.add_argument("--lab-root", default="simons_shadow_lab_data")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("audit"); sub.add_parser("snapshot"); sub.add_parser("durable-campaigns"); sub.add_parser("experiment-audit"); sub.add_parser("final-audit"); sub.add_parser("package-manifest")
+    seal = sub.add_parser("production-tree-seal"); seal.add_argument("--production-root", required=True)
     da = sub.add_parser("durable-audit"); da.add_argument("--campaign-id", required=True)
-    ds = sub.add_parser("durable-snapshot"); ds.add_argument("--campaign-id", required=True)
+    ds = sub.add_parser("durable-snapshot"); ds.add_argument("--campaign-id", required=True); ds.add_argument("--as-of", default=None)
     d = sub.add_parser("discover"); d.add_argument("--snapshot-id", required=True); d.add_argument("--min-n", type=int, default=12)
-    cd = sub.add_parser("causal-discover"); cd.add_argument("--snapshot-id", required=True); cd.add_argument("--min-n", type=int, default=12)
+    cd = sub.add_parser("causal-discover"); cd.add_argument("--snapshot-id", required=True); cd.add_argument("--min-n", type=int, default=12); cd.add_argument("--permutations", type=int, default=200); cd.add_argument("--seed", type=int, default=20260911); cd.add_argument("--max-tests", type=int, default=10000)
     sd = sub.add_parser("state-distribution"); sd.add_argument("--snapshot-id", required=True); sd.add_argument("--horizon", type=int, choices=(4, 8), required=True)
     tr = sub.add_parser("transitions"); tr.add_argument("--snapshot-id", required=True); tr.add_argument("--horizon", type=int, choices=(4, 8), required=True); tr.add_argument("--min-n", type=int, default=12)
     diag = sub.add_parser("diagnostic"); diag.add_argument("--snapshot-id", required=True); diag.add_argument("--horizon", type=int, choices=(4, 8), required=True)
@@ -56,13 +67,27 @@ def main():
 
     if args.command == "audit": emit(lab.audit_source())
     elif args.command == "snapshot": emit(lab.create_snapshot())
+    elif args.command == "production-tree-seal": emit(tree_seal(Path(args.production_root)))
     elif args.command == "durable-campaigns": emit(DurableForwardOOSReader().campaigns())
     elif args.command == "durable-audit": emit(DurableForwardOOSReader().audit(args.campaign_id))
-    elif args.command == "durable-snapshot": emit(DurableForwardOOSReader().create_snapshot(args.campaign_id, root))
+    elif args.command == "durable-snapshot": emit(DurableForwardOOSReader().create_snapshot(args.campaign_id, root, now=_aware_dt(args.as_of)))
     elif args.command == "discover":
-        manifest, rows = lab.load_snapshot(args.snapshot_id); result = discover_threshold_grid(rows, min_n=args.min_n); result["snapshot_id"] = manifest["snapshot_id"]; registry.append("PREDECLARED_THRESHOLD_GRID", args.snapshot_id, {"min_n": args.min_n}, result); emit(result)
+        manifest, rows = lab.load_snapshot(args.snapshot_id); result = discover_threshold_grid(rows, min_n=args.min_n); result["snapshot_id"] = manifest["snapshot_id"]; registry.append("PREDECLARED_THRESHOLD_GRID", args.snapshot_id, {"min_n": args.min_n}, result, search_family="BASE_THRESHOLD_GRID"); emit(result)
     elif args.command == "causal-discover":
-        manifest, rows = lab.load_snapshot(args.snapshot_id); result = discover_causal_grid(rows, min_n=args.min_n); result["snapshot_id"] = manifest["snapshot_id"]; event = registry.append("PREDECLARED_CAUSAL_FEATURE_GRID_V1", args.snapshot_id, result["search_space"], result); result["experiment_event_hash"] = event["event_hash"]; emit(result)
+        manifest, rows = lab.load_snapshot(args.snapshot_id)
+        result = discover_causal_grid(rows, min_n=args.min_n, permutations=args.permutations, permutation_seed=args.seed, max_tests=args.max_tests)
+        result["snapshot_id"] = manifest["snapshot_id"]
+        event = registry.append(
+            "PREDECLARED_CAUSAL_FEATURE_GRID_V2_HYBRID",
+            args.snapshot_id,
+            result["search_space"],
+            result,
+            origin="SYSTEMATIC",
+            correction_method="BH+BONFERRONI+SEARCH_WIDE_PERMUTATION",
+            acceptance_criteria={"bh_q_lte": 0.05, "search_wide_permutation_p_lte": 0.05, "candidate_freeze_required": True, "post_freeze_validation_required": True},
+            search_family="REAL_SCHEMA_CAUSAL_GRID",
+        )
+        result["experiment_event_hash"] = event["event_hash"]; emit(result)
     elif args.command == "state-distribution": _, rows = lab.load_snapshot(args.snapshot_id); emit(state_distribution(rows, args.horizon))
     elif args.command == "transitions": _, rows = lab.load_snapshot(args.snapshot_id); emit(state_transition_candidates(rows, args.horizon, args.min_n))
     elif args.command == "diagnostic": manifest, rows = lab.load_snapshot(args.snapshot_id); result = full_research_diagnostic(rows, args.horizon); result["snapshot_id"] = manifest["snapshot_id"]; emit(result)
