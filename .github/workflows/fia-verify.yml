@@ -34,7 +34,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           python - <<'PY'
-          import importlib
+          import importlib.util
           missing = [m for m in ("fastapi","yfinance","httpx","pydantic","uvicorn","starlette")
                      if not importlib.util.find_spec(m)]
           print("MISSING:", missing or "none")
