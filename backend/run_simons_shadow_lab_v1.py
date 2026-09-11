@@ -17,8 +17,10 @@ from simons_shadow_lab_v1.experiment_registry import ExperimentRegistry
 from simons_shadow_lab_v1.integrity import audit_lab_storage, package_manifest
 from simons_shadow_lab_v1.isolation_guard import tree_seal
 from simons_shadow_lab_v1.lab import ShadowLab, discover_threshold_grid
+from simons_shadow_lab_v1.negative_controls import run_negative_control_harness
 from simons_shadow_lab_v1.reporting import build_snapshot_report, render_html, render_markdown
 from simons_shadow_lab_v1.research_metrics import candidate_forward_metrics, full_research_diagnostic, parameter_robustness_report
+from simons_shadow_lab_v1.sequential_testing import AlphaSpendingPlan, SequentialAlphaLedger, alpha_schedule
 
 
 def emit(value): print(json.dumps(value, indent=2, sort_keys=True))
@@ -39,6 +41,12 @@ def _aware_dt(text: str | None):
     return dt
 
 
+def _alpha_plan(path: str) -> AlphaSpendingPlan:
+    raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(raw, dict): raise ValueError("alpha plan file must contain a JSON object")
+    return AlphaSpendingPlan(**raw)
+
+
 def main():
     parser = argparse.ArgumentParser(description="SIMONS SHADOW LAB V2 HYBRID")
     parser.add_argument("--source-root", default="fia_forward_oos")
@@ -50,6 +58,10 @@ def main():
     ds = sub.add_parser("durable-snapshot"); ds.add_argument("--campaign-id", required=True); ds.add_argument("--as-of", default=None)
     d = sub.add_parser("discover"); d.add_argument("--snapshot-id", required=True); d.add_argument("--min-n", type=int, default=12)
     cd = sub.add_parser("causal-discover"); cd.add_argument("--snapshot-id", required=True); cd.add_argument("--min-n", type=int, default=12); cd.add_argument("--permutations", type=int, default=200); cd.add_argument("--seed", type=int, default=20260911); cd.add_argument("--max-tests", type=int, default=10000)
+    nc = sub.add_parser("negative-control"); nc.add_argument("--snapshot-id", required=True); nc.add_argument("--trials", type=int, default=100); nc.add_argument("--min-n", type=int, default=12); nc.add_argument("--discovery-permutations", type=int, default=100); nc.add_argument("--alpha", type=float, default=0.05); nc.add_argument("--seed", type=int, default=20260911); nc.add_argument("--max-tests", type=int, default=10000)
+    aps = sub.add_parser("alpha-schedule"); aps.add_argument("--plan-file", required=True)
+    apf = sub.add_parser("alpha-freeze"); apf.add_argument("--plan-file", required=True)
+    apl = sub.add_parser("alpha-look"); apl.add_argument("--hypothesis-id", required=True); apl.add_argument("--look-index", required=True, type=int); apl.add_argument("--p-value", required=True, type=float); apl.add_argument("--observed-n", required=True, type=int)
     sd = sub.add_parser("state-distribution"); sd.add_argument("--snapshot-id", required=True); sd.add_argument("--horizon", type=int, choices=(4, 8), required=True)
     tr = sub.add_parser("transitions"); tr.add_argument("--snapshot-id", required=True); tr.add_argument("--horizon", type=int, choices=(4, 8), required=True); tr.add_argument("--min-n", type=int, default=12)
     diag = sub.add_parser("diagnostic"); diag.add_argument("--snapshot-id", required=True); diag.add_argument("--horizon", type=int, choices=(4, 8), required=True)
@@ -88,6 +100,25 @@ def main():
             search_family="REAL_SCHEMA_CAUSAL_GRID",
         )
         result["experiment_event_hash"] = event["event_hash"]; emit(result)
+    elif args.command == "negative-control":
+        manifest, rows = lab.load_snapshot(args.snapshot_id)
+        result = run_negative_control_harness(rows, trials=args.trials, min_n=args.min_n, discovery_permutations=args.discovery_permutations, alpha=args.alpha, seed=args.seed, max_tests=args.max_tests)
+        result["snapshot_id"] = manifest["snapshot_id"]
+        event = registry.append(
+            "SCRAMBLED_LABEL_NEGATIVE_CONTROL_V1",
+            args.snapshot_id,
+            {"trials": args.trials, "min_n": args.min_n, "discovery_permutations": args.discovery_permutations, "alpha": args.alpha, "seed": args.seed, "max_tests": args.max_tests},
+            result,
+            origin="SYSTEMATIC",
+            correction_method="NEGATIVE_CONTROL_PIPELINE_DIAGNOSTIC",
+            acceptance_criteria={"minimum_trials": 100, "wilson_95_upper_false_positive_rate_lte": args.alpha},
+            search_family="NEGATIVE_CONTROL",
+        )
+        result["experiment_event_hash"] = event["event_hash"]; emit(result)
+    elif args.command == "alpha-schedule": emit(alpha_schedule(_alpha_plan(args.plan_file)))
+    elif args.command == "alpha-freeze":
+        plan = _alpha_plan(args.plan_file); emit(SequentialAlphaLedger(root, plan.hypothesis_id).freeze_plan(plan))
+    elif args.command == "alpha-look": emit(SequentialAlphaLedger(root, args.hypothesis_id).append_look(args.look_index, args.p_value, args.observed_n))
     elif args.command == "state-distribution": _, rows = lab.load_snapshot(args.snapshot_id); emit(state_distribution(rows, args.horizon))
     elif args.command == "transitions": _, rows = lab.load_snapshot(args.snapshot_id); emit(state_transition_candidates(rows, args.horizon, args.min_n))
     elif args.command == "diagnostic": manifest, rows = lab.load_snapshot(args.snapshot_id); result = full_research_diagnostic(rows, args.horizon); result["snapshot_id"] = manifest["snapshot_id"]; emit(result)
