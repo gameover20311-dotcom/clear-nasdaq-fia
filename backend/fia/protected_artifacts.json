@@ -92,15 +92,12 @@
   "fia_forward_oos/V3_AUDIT_ARCHIVE_20260904/evidence/NQ-FOOS-20260903.json": "43f657f956b36b442c38d90d9609fb79517c292ab70282d4e387e7d9c700de8c",
   "fia_forward_oos/V4_SEAL_ARCHIVE_20260906/FORWARD_OOS_CAMPAIGN_SEAL_V4.json": "cd2336dbf8b9f78dbeae8200b51028eefd18c12c298befd6720e7c0c41123cee",
   "fia_phase33/data/phase33_calibration.json": "dde5d2336371460fb684f0d6700202026464d321cfa968fda75417737630419b",
-  "fia_phase33/data/phase33_history.jsonl": "e07d284cd6ade4052b59a93a27da875f78a3ef29a276a0efe2f3cf4f40a6cec8",
   "fia_phase35/data/backfill_manifest.json": "c7a2d3b6b6ab5c4ad281a114c352da60a45e7746b0fd6fc734991eed6b109112",
   "fia_phase35/data/enriched_pti.jsonl": "f771753abe08e6ee7538f8e80c9b4395ec900fcd9bb9a1355cdbb5c46399dec7",
   "fia_phase35/data/enrichment_summary.json": "b93f73cf3a770316f2608199ccb8bd3fb8afb1fd6e92b9afdf1dc3fb9bea5347",
   "fia_phase35/data/existing_futures.json": "68f03e2d18bd70a179d72597e98bb2482e34a8413a52d7e96166a518b8699535",
   "fia_phase35/data/fred_daily.json": "5c38111361d73a0dc636c10b055e37e96fc333e965db87b20cb6e7b8b216947f",
   "fia_phase35/data/public_hourly.json": "c29347a4deee2dd9eb64f75ef3c499cea9ed8e9c18c84efec088409be14d86f8",
-  "fia_premove/data/premove_history.jsonl": "d062a5f28248a81199d5c4b9e98f367b683c57a985ef36f74002735dabe1f97a",
-  "fia_premove/data/premove_max_history.jsonl": "aefc2bff7b8c99981165e7b980ab2c1450eaef9e1f9918830099f02c614cb4e4",
   "fia_whole_system_backtest/results/PRE_DEEP_TRUTH_AUDIT_ARCHIVE_20260904/progress.json": "250014fd7e8efc7cb70a003f3fb1c9f31f8ef043c26cfd408a435ec8a7b74aa6",
   "fia_whole_system_backtest/results/PRE_DEEP_TRUTH_AUDIT_ARCHIVE_20260904/v6_6_dual_resolution_4h_8h_350a1064467b.jsonl": "a0a074d48c9418cb9f26002ad06c270cde3fb2b53217b48afe19c6517d58ef1c",
   "fia_whole_system_backtest/results/PRE_DEEP_TRUTH_AUDIT_ARCHIVE_20260904/v6_6_historical_8h_350a1064467b.jsonl": "6c86c83e8f96c9d95ead4a1d11d0ada9d3d98c36f88afd398399dd5ec3ed9afa",
@@ -110,8 +107,25 @@
   "fia_whole_system_backtest/results/v6_6_historical_8h_350a1064467b.jsonl": "6c86c83e8f96c9d95ead4a1d11d0ada9d3d98c36f88afd398399dd5ec3ed9afa",
   "fia_whole_system_backtest/results/whole_system_backtest_report.json": "c73d927c8b7b434351f46c31bfe3ac9d7c3ebd5904bb54a8ed459418bd3cfbff"
  },
- "count": 109,
+ "count": 106,
+ "manifest_id": "b20e24a6802f90402d1403ca863b2b98e62417544a9b8baf789bde7ab42986e4",
+ "manifest_id_note": "SHA-256 over {schema, artifacts}. Also pinned in fia/artifact_guard.py as EXPECTED_MANIFEST_ID. Both must be updated together, deliberately, in a reviewable diff. A mismatch is evidence of mutation, never a prompt to re-record.",
  "note": "SHA-256 of canonical scientific artifacts as they exist in version control. Recorded, never regenerated to match drift. A mismatch is evidence, not a reason to re-record.",
  "recorded_at_commit": "332698bfb363cf88b05338a93ce48b961b837ecc",
+ "runtime_append_artifacts": {
+  "honesty_note": "The recorded hashes are preserved above rather than deleted. This entry corrects a MIS-REGISTRATION; it is NOT a re-recording of a hash to make observed drift disappear. No artifact bytes were changed: the appended line was reverted with git checkout.",
+  "paths": [
+   "fia_premove/data/premove_history.jsonl",
+   "fia_premove/data/premove_max_history.jsonl",
+   "fia_phase33/data/phase33_history.jsonl"
+  ],
+  "reason": "These are RUNTIME APPEND LOGS, not sealed scientific results. _history_append() grows them on every live forecast, and that behaviour is required in production because the history feeds signal acceleration and analog matching. Registering them as byte-immutable canonical artifacts was a mis-registration on my part: the very first A6.1 verification appended one line to premove_history.jsonl and correctly reported a mismatch.",
+  "removed_recorded_hashes": {
+   "fia_phase33/data/phase33_history.jsonl": "e07d284cd6ade4052b59a93a27da875f78a3ef29a276a0efe2f3cf4f40a6cec8",
+   "fia_premove/data/premove_history.jsonl": "d062a5f28248a81199d5c4b9e98f367b683c57a985ef36f74002735dabe1f97a",
+   "fia_premove/data/premove_max_history.jsonl": "aefc2bff7b8c99981165e7b980ab2c1450eaef9e1f9918830099f02c614cb4e4"
+  },
+  "residual_gap": "Consequence: these three files are now outside byte-identity enforcement, so a test that calls analyze_premove still appends to the version-controlled copy. Closing that needs either routing _history_append through the guard with an explicit production write mode, or removing these seeds from version control. Both touch the predictive path or the repo layout, so neither is done here. OWNER DECISION REQUIRED."
+ },
  "schema": "FIA_PROTECTED_ARTIFACTS_V1"
 }

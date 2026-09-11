@@ -53,16 +53,77 @@ BACKEND = Path(__file__).resolve().parents[1]
 CLASSIFICATION_PATH = Path(__file__).resolve().parent / "identity_classification.json"
 
 IDENTITY_SCHEMA_VERSION = "FIA_IDENTITY_V1"
+CLASSIFICATION_SCHEMA = "FIA_IDENTITY_CLASSIFICATION_V1"
 IDENTITIES = ("MODEL", "PROTOCOL", "INFRASTRUCTURE")
 
+# A7.2 — the three digests are only meaningful alongside the manifest that
+# produced them. A successor seal must be able to prove WHICH classification
+# generated MODEL/PROTOCOL/INFRASTRUCTURE, otherwise the same file set could be
+# re-partitioned later and the digests silently mean something different.
+# Pinned in code and stored in the JSON; both change together, deliberately.
+EXPECTED_CLASSIFICATION_MANIFEST_ID = (
+    "0d9164edf52031460d24e875612204ac9e0f984073f6d39b586769cd22823e0e"
+)
+
+
+class ClassificationIntegrityError(RuntimeError):
+    """Raised when the classification manifest cannot be trusted."""
+
+
 _CLS: Optional[Dict[str, Any]] = None
+
+
+def compute_classification_manifest_id(schema: str, classification: Dict[str, str]) -> str:
+    core = {"schema": schema, "classification": dict(classification)}
+    return hashlib.sha256(
+        json.dumps(core, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
 
 
 def _classification() -> Dict[str, Any]:
     global _CLS
     if _CLS is None:
-        _CLS = json.loads(CLASSIFICATION_PATH.read_text(encoding="utf-8"))
+        if not CLASSIFICATION_PATH.exists():
+            raise ClassificationIntegrityError(f"CLASSIFICATION_MISSING: {CLASSIFICATION_PATH}")
+        try:
+            doc = json.loads(CLASSIFICATION_PATH.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ClassificationIntegrityError(f"CLASSIFICATION_MALFORMED_JSON: {exc}") from exc
+        if doc.get("schema") != CLASSIFICATION_SCHEMA:
+            raise ClassificationIntegrityError(
+                f"CLASSIFICATION_INVALID_SCHEMA: got {doc.get('schema')!r}")
+        cls = doc.get("classification")
+        if not isinstance(cls, dict) or not cls:
+            raise ClassificationIntegrityError("CLASSIFICATION_INVALID_SCHEMA: empty classification")
+        bad = sorted(k for k, v in cls.items() if v not in IDENTITIES)
+        if bad:
+            raise ClassificationIntegrityError(f"CLASSIFICATION_INVALID_IDENTITY: {bad[:5]}")
+        recomputed = compute_classification_manifest_id(doc["schema"], cls)
+        if doc.get("manifest_id") != recomputed:
+            raise ClassificationIntegrityError(
+                f"CLASSIFICATION_MANIFEST_MISMATCH: stored={doc.get('manifest_id')!r} "
+                f"recomputed={recomputed!r}")
+        if recomputed != EXPECTED_CLASSIFICATION_MANIFEST_ID:
+            raise ClassificationIntegrityError(
+                f"CLASSIFICATION_NOT_THE_PINNED_MANIFEST: pinned="
+                f"{EXPECTED_CLASSIFICATION_MANIFEST_ID!r} found={recomputed!r}")
+        _CLS = doc
     return _CLS
+
+
+def classification_manifest_id() -> str:
+    _classification()
+    return EXPECTED_CLASSIFICATION_MANIFEST_ID
+
+
+def blocked_pending_split() -> Dict[str, Any]:
+    """Modules the owner decided to split, where the split is not yet verifiable."""
+    return dict(_classification().get("blocked_pending_split") or {})
+
+
+def resolved_classifications() -> Dict[str, Any]:
+    """Evidence-backed resolutions, with the call paths that produced them."""
+    return dict(_classification().get("resolved") or {})
 
 
 def classification_map() -> Dict[str, str]:
@@ -141,7 +202,11 @@ def all_fingerprints(backend_root: Path = BACKEND, include_files: bool = False) 
     out: Dict[str, Any] = {
         "schema_version": IDENTITY_SCHEMA_VERSION,
         "classification_schema": _classification().get("schema"),
+        # A7.2 — which manifest produced these digests.
+        "classification_manifest_id": classification_manifest_id(),
         "review_required": sorted(review_required().keys()),
+        "blocked_pending_split": sorted(blocked_pending_split().get("coverage", {}).keys())
+        and blocked_pending_split().get("status"),
     }
     for ident in IDENTITIES:
         fp = fingerprint(ident, backend_root)

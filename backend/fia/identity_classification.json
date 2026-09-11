@@ -1,18 +1,23 @@
 {
- "schema": "FIA_IDENTITY_CLASSIFICATION_V1",
- "note": "Every file in the fingerprint scope is assigned to exactly one identity. Assignments are explicit, not heuristic, so they can be audited. Entries under review_required are proposals and MUST be signed off before any successor campaign seal.",
- "counts": {
-  "MODEL": 63,
-  "PROTOCOL": 20,
-  "INFRASTRUCTURE": 17
- },
- "review_required": {
-  "fia/accuracy_engine.py": "scores forecast quality; MODEL if it feeds output, PROTOCOL if evaluation-only",
-  "fia/nq_liquidity_truth.py": "computes features AND selects the quarterly contract (instrument eligibility)",
-  "fia/phase33_llm.py": "LLM adapter; MODEL only if its output reaches a probability",
-  "fia/phase33_rust.py": "native accelerator binding; INFRA only if numerically identical to the python path",
-  "fia/providers.py": "6427 lines mixing transport (INFRA) with source eligibility/fallback/staleness (PROTOCOL)",
-  "fia/identity.py": "defines which files constitute MODEL vs PROTOCOL identity; classified PROTOCOL because changing it changes how the experiment is identified and evaluated, but an argument for INFRASTRUCTURE (pure hashing) exists"
+ "blocked_pending_split": {
+  "coverage": {
+   "env_blocked": 8,
+   "env_blocked_tests": [
+    "fia/test_candle_fallback_cloud.py",
+    "fia/test_live_candle_fallback_security_v671.py",
+    "fia/test_live_news_fallback_v672.py",
+    "fia/test_truth_fixes_v664.py",
+    "fia_backtest_phase19/full_backtest.py",
+    "fia_backtest_phase19/full_backtest.before_earnings_pti.py",
+    "fia_backtest_phase20/full_backtest.py",
+    "fia_backtest_phase21/full_backtest.py"
+   ],
+   "runnable_pass": 5
+  },
+  "note": "No physical split attempted. Declaring a 47-method decomposition behaviour-preserving on 5/13 coverage would be an unverified claim of exactly the kind this project exists to prevent.",
+  "reason": "The owner requires a behaviour-preserving split proven on identical source selection, identical stale/fallback decisions, identical engine outputs, identical probabilities and identical abstention. 8 of the 13 active tests covering providers.py cannot run in this container (fastapi/yfinance uninstallable; PyPI unreachable), and the blocked 8 are exactly the fallback/end-to-end ones.",
+  "status": "BLOCKED_INSUFFICIENT_VERIFICATION_COVERAGE",
+  "structure": "providers.py is a single class ProviderHub: 6427 lines, 47 methods, 0 top-level functions and 0 module-level policy constants. The split is a class decomposition touching every method and call site, not a file-boundary move."
  },
  "classification": {
   "fia/__init__.py": "INFRASTRUCTURE",
@@ -69,7 +74,7 @@
   "fia/phase33_event.py": "MODEL",
   "fia/phase33_execution_sim.py": "PROTOCOL",
   "fia/phase33_institutional.py": "MODEL",
-  "fia/phase33_llm.py": "MODEL",
+  "fia/phase33_llm.py": "INFRASTRUCTURE",
   "fia/phase33_news.py": "MODEL",
   "fia/phase33_orderflow.py": "MODEL",
   "fia/phase33_regime.py": "MODEL",
@@ -115,5 +120,59 @@
   "fia/three_way_confluence.py": "MODEL",
   "main.py": "INFRASTRUCTURE",
   "run_forward_oos_daemon.py": "INFRASTRUCTURE"
- }
+ },
+ "counts": {
+  "INFRASTRUCTURE": 18,
+  "MODEL": 62,
+  "PROTOCOL": 20
+ },
+ "manifest_id": "0d9164edf52031460d24e875612204ac9e0f984073f6d39b586769cd22823e0e",
+ "manifest_id_note": "SHA-256 over {schema, classification}. Pinned in fia/identity.py as EXPECTED_CLASSIFICATION_MANIFEST_ID. Both change together in one reviewable diff.",
+ "note": "Every file in the fingerprint scope is assigned to exactly one identity. Assignments are explicit, not heuristic, so they can be audited. Entries under review_required are proposals and MUST be signed off before any successor campaign seal.",
+ "resolved": {
+  "fia/accuracy_engine.py": {
+   "call_path": [
+    "accuracy_engine.build_accuracy_assessment",
+    "main.py:361/390/517/621/650 and final_integration.py:122",
+    "three_way_confluence.py:130 consumes setup_grade in confluence aggregation [MODEL]",
+    "learning_engine.record_forward_forecast:200-205 writes acc evidence into learning row"
+   ],
+   "identity": "MODEL",
+   "method": "import graph + consumer trace",
+   "reaches_learning_state": true,
+   "reaches_live_probability": false,
+   "verdict": "MODEL under the stated rule: feeds learning state and is consumed by a MODEL-classified aggregator, even though it never reaches bullish_probability."
+  },
+  "fia/identity.py": {
+   "identity": "PROTOCOL",
+   "method": "user-approved",
+   "verdict": "Defines scientific identity semantics; changes affect how experiments are identified and compared."
+  },
+  "fia/phase33_llm.py": {
+   "call_path": [
+    "imported ONLY by phase33_api.py:6",
+    "phase33_api.py:30 attaches llm_evidence_review(r, prompt) to the RESPONSE after r is computed",
+    "phase33_engine.py contains zero 'llm' references"
+   ],
+   "disabled_by_default": true,
+   "identity": "INFRASTRUCTURE",
+   "method": "import graph + mutation check",
+   "mutates_input": false,
+   "verdict": "Outside the predictive path; an API-surface annotation. Cannot reach probability/score/abstention."
+  },
+  "fia/phase33_rust.py": {
+   "call_path": [
+    "phase33_engine.py:63 rust=rust_status()",
+    "phase33_engine.py:96 emitted as 'rust_acceleration' status field only"
+   ],
+   "identity": "INFRASTRUCTURE",
+   "method": "full-file read (9 lines)",
+   "verdict": "NOT an accelerator. The entire module is a capability probe returning AVAILABLE / SOURCE_INCLUDED_NOT_COMPILED with python_fallback=True. There is no alternate numeric path, so changing it cannot alter live numerical output. Numerical-equivalence condition is satisfied vacuously because only one numeric path exists."
+  }
+ },
+ "review_required": {
+  "fia/nq_liquidity_truth.py": "SPLIT DECIDED by owner but BLOCKED: see blocked_pending_split. Provisionally PROTOCOL.",
+  "fia/providers.py": "SPLIT DECIDED by owner but BLOCKED: see blocked_pending_split. Provisionally PROTOCOL."
+ },
+ "schema": "FIA_IDENTITY_CLASSIFICATION_V1"
 }

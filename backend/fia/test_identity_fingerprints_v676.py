@@ -108,6 +108,34 @@ check("A7-13 a pre-split campaign reports UNAVAILABLE, not a reconstructed diges
 allfp = ident.all_fingerprints(BACKEND)
 check("A7-14 all three identities are individually reportable",
       all(allfp[i.lower()]["digest"] for i in ident.IDENTITIES))
+
+# ---------------------------------------------------------------- A7.2 manifest
+doc = ident._classification()
+check("A7.2-1 classification manifest id is deterministic",
+      ident.compute_classification_manifest_id(doc["schema"], doc["classification"])
+      == ident.compute_classification_manifest_id(
+          doc["schema"], dict(reversed(list(doc["classification"].items())))))
+check("A7.2-2 live manifest matches the code-pinned id",
+      ident.classification_manifest_id() == ident.EXPECTED_CLASSIFICATION_MANIFEST_ID)
+check("A7.2-3 fingerprint report states WHICH manifest produced the digests",
+      allfp["classification_manifest_id"] == ident.EXPECTED_CLASSIFICATION_MANIFEST_ID)
+
+repartitioned = dict(doc["classification"])
+first_model = sorted(k for k, v in repartitioned.items() if v == "MODEL")[0]
+repartitioned[first_model] = "INFRASTRUCTURE"
+check("A7.2-4 re-partitioning the SAME files changes the manifest id",
+      ident.compute_classification_manifest_id(doc["schema"], repartitioned)
+      != ident.EXPECTED_CLASSIFICATION_MANIFEST_ID)
+
+check("A7.2-5 every resolved module carries call-path evidence",
+      all(("call_path" in v or v.get("method") == "user-approved") and "verdict" in v
+          for v in ident.resolved_classifications().values()),
+      str(sorted(ident.resolved_classifications())))
+blocked = ident.blocked_pending_split()
+check("A7.2-6 unverifiable splits are recorded as BLOCKED, not silently assigned",
+      blocked.get("status") == "BLOCKED_INSUFFICIENT_VERIFICATION_COVERAGE"
+      and blocked.get("coverage", {}).get("env_blocked", 0) > 0,
+      str(blocked.get("status")))
 check("A7-15 legacy whole-backend digest is retained and labelled, not replaced",
       bool(allfp["legacy_deployment_fingerprint"]["digest"]))
 
