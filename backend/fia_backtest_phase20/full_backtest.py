@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fia.providers import ProviderHub
+from fia.artifact_guard import guarded_output_path
 from fia_backtest_phase19.full_engine import build_forecast
 from fia_backtest_phase19.full_snapshot import (
     SYMBOLS,
@@ -1540,7 +1541,10 @@ async def main():
             rows[0].keys()
         )
 
-        with CSV_PATH.open(
+        # A6: sealed-artifact guard. The canonical result is evidence, so a
+        # default run writes to a non-canonical per-run directory instead.
+        csv_target = guarded_output_path(CSV_PATH)
+        with csv_target.open(
             "w",
             newline="",
             encoding="utf-8",
@@ -1705,10 +1709,11 @@ async def main():
         "polygon_cache_path": str(
             POLYGON_CACHE_PATH
         ),
-        "csv_path": str(CSV_PATH),
+        "csv_path": str(csv_target) if rows else str(CSV_PATH),
     }
 
-    JSON_PATH.write_text(
+    json_target = guarded_output_path(JSON_PATH)
+    json_target.write_text(
         json.dumps(
             summary,
             indent=2,
@@ -1970,11 +1975,11 @@ async def main():
 
     print(
         "CSV =",
-        CSV_PATH,
+        csv_target if rows else CSV_PATH,
     )
     print(
         "SUMMARY =",
-        JSON_PATH,
+        json_target,
     )
     print(
         "=== FIA PHASE 20 "

@@ -8,6 +8,7 @@ import httpx
 from dotenv import load_dotenv
 
 from fia.providers import ProviderHub
+from fia.artifact_guard import guarded_output_path
 
 load_dotenv()
 
@@ -193,7 +194,9 @@ async def main():
             )
 
             # Save after every completed window so progress is not lost.
-            CACHE_PATH.write_text(
+            # A6: sealed-artifact guard. This output is registered canonical
+            # evidence, so a default run writes to a per-run directory instead.
+            guarded_output_path(CACHE_PATH).write_text(
                 json.dumps(
                     {
                         "start": START.isoformat(),
