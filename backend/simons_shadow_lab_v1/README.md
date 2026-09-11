@@ -72,6 +72,10 @@ From `backend`:
 python run_simons_shadow_lab_v1.py audit
 python run_simons_shadow_lab_v1.py snapshot
 python run_simons_shadow_lab_v1.py discover --snapshot-id <SNAPSHOT_ID> --min-n 12
+python run_simons_shadow_lab_v1.py diagnostic --snapshot-id <SNAPSHOT_ID> --horizon 4
+python run_simons_shadow_lab_v1.py diagnostic --snapshot-id <SNAPSHOT_ID> --horizon 8
+python run_simons_shadow_lab_v1.py robustness --candidate-id <CANDIDATE_ID>
+python run_simons_shadow_lab_v1.py forward-metrics --candidate-id <CANDIDATE_ID> --cost-points 0
 python run_simons_shadow_lab_v1.py report --candidate-id <CANDIDATE_ID>
 ```
 
