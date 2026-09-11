@@ -83,6 +83,15 @@ class ShadowLabV2HybridTests(unittest.TestCase):
         self.assertTrue(all("bonferroni_p_value" in r for r in result["results"]))
         self.assertTrue(all("search_wide_permutation_p_value" in r for r in result["results"] if r["hit_rate"] is not None))
 
+    def test_discovery_uses_unconditional_direction_baseline(self):
+        rows = [_row(i, "BULLISH") for i in range(30)] + [_row(100+i, "BEARISH") for i in range(10)]
+        result = discover_causal_grid(rows, min_n=10, permutations=10, permutation_seed=1)
+        self.assertAlmostEqual(result["unconditional_direction_baselines"]["4"]["BULLISH"], 0.75)
+        bull = next(r for r in result["results"] if r["predicted_direction"] == "BULLISH" and r["n"] >= 10)
+        self.assertAlmostEqual(bull["unconditional_direction_baseline"], 0.75)
+        self.assertIn("p_value_vs_unconditional_baseline", bull)
+        self.assertEqual(result["primary_parametric_null"], "UNCONDITIONAL_HORIZON_DIRECTION_RATE")
+
     def test_discovery_permutation_null_is_deterministic(self):
         rows = [_row(i, "BULLISH" if i % 2 == 0 else "BEARISH") for i in range(30)]
         a = discover_causal_grid(rows, min_n=10, permutations=10, permutation_seed=99)
