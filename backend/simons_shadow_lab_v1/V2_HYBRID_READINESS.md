@@ -6,7 +6,7 @@ Status date: 2026-09-11
 
 **RESEARCH INFRASTRUCTURE: READY**
 
-This verdict is intentionally limited to the research infrastructure. It is not a claim of predictive edge, profitability, trading readiness, or replication of Renaissance Technologies / Medallion.
+This verdict is intentionally limited to research infrastructure. It is not a claim of predictive edge, profitability, trading readiness, or replication of Renaissance Technologies / Medallion.
 
 - Predictive edge: **NOT PROVEN**
 - Profitability: **NOT PROVEN**
@@ -33,7 +33,7 @@ V2 Hybrid was built on the real-project-integrated Shadow Lab V1 and independent
 - Brier score, log loss, ECE/calibration, climatology comparison and regime diagnostics.
 - Explicit assumed-friction reporting separated from statistical evidence.
 
-### Added / strengthened from the independent Cloud design
+### Added / strengthened in V2 Hybrid
 
 - Structural `LockTimeRowView` leakage barrier; `.get()` cannot access outcome/resolution/future fields.
 - Recursive blocking of post-outcome/future-like fields.
@@ -51,47 +51,99 @@ V2 Hybrid was built on the real-project-integrated Shadow Lab V1 and independent
 - Causally correct durable `as-of` snapshots that exclude events occurring after the snapshot cutoff.
 - Machine-readable contract exclusions; missing/malformed required evidence is excluded rather than imputed.
 
+## Finalized negative-control harness
+
+`negative_controls.py` adds a deterministic scrambled-label pipeline diagnostic.
+
+- Resolved bullish/bearish labels are shuffled **within each horizon**.
+- Exact bullish/bearish marginal counts are preserved.
+- Unresolved-row locations are preserved.
+- Every lock-time feature is verified unchanged before the control search runs.
+- The same declared discovery machinery is re-run on scrambled labels.
+- A broken pipeline that continues to produce robust discoveries on scrambled labels is explicitly failed.
+- A PASS requires at least **100 control trials** and the **95% Wilson upper bound** of the false-discovery trial rate to be <= the declared alpha.
+- Fewer trials cannot produce a PASS.
+- Passing negative controls never upgrades predictive edge to proven.
+- If real resolved data are insufficient, the harness returns `INSUFFICIENT_REAL_RESOLUTIONS`; it does not synthesize observations.
+
+This is a pipeline falsification test, not proof of market edge.
+
+## Finalized sequential alpha spending
+
+`sequential_testing.py` prevents repeated peeking at the same forward hypothesis from silently spending alpha over and over.
+
+- Information fractions must be pre-registered, strictly increasing, and end at `1.0`.
+- Family alpha is Bonferroni-allocated across the pre-registered hypothesis family first.
+- Each hypothesis then receives an O'Brien-Fleming-shaped cumulative spending schedule.
+- Ordinary p-values are compared only with the **incremental alpha budget** for that look.
+- By the union bound, the sum of the repeated-look Type-I budgets is bounded by the pre-allocated hypothesis alpha even when look statistics are dependent.
+- The implementation explicitly does **not** claim to reproduce exact canonical Lan-DeMets group-sequential boundaries.
+- The plan is immutable and SHA256-sealed before the first look.
+- Look events are append-only and hash-chained.
+- Duplicate/out-of-order looks are rejected.
+- Once a sequential threshold is crossed, later peeking is blocked and the status is only `STOP_FOR_STATISTICAL_REVIEW` / `SEQUENTIAL_THRESHOLD_MET_REQUIRES_REVIEW`.
+- Threshold crossing never auto-promotes a candidate and never sets predictive edge to proven.
+
+This is deliberately conservative: scientific validity is preferred over squeezing maximum power from tiny samples.
+
 ## Actual-schema decision
 
 The independent Cloud package was not copied blindly. Its proposed schema was built without the real CLEAR NASDAQ installation and included assumptions that do not match the current production row contract. V2 Hybrid therefore uses the project's actual 4H/8H two-way bullish/bearish probabilities and preserves missing fields as missing.
 
 No neutral probability, proxy evidence or synthetic production row is invented by the hybrid adapter.
 
-## CI evidence
+## CI evidence for the new controls
 
-GitHub Actions run `34563122789`, job `103149747079`, on hybrid head `b5a5998c3c07703fc3ee37199cb0fbfa752d5cc0` verified:
+GitHub Actions run `34588710025`, job `103228792342`, on hybrid head `edaed490a929688dc1150a93f6df3ad73b092992` verified:
 
 - Compilation: **PASS**
 - Real test-discovery guard: **PASS**
-- `DISCOVERED_TESTS = 41`
-- `Ran 41 tests in 0.190s`
-- **41/41 PASS**
+- `DISCOVERED_TESTS = 50`
+- `Ran 50 tests in 1.386s`
+- **50/50 PASS**
 
-The suite includes all prior V1 regressions plus V2 tests for structural leakage blocking, outcome-invariant features, actual probability contract validation, whole-grid multiplicity, search-wide permutation determinism, actual direction baseline, search-budget fail-closed, drift calibration, statistical power floor, production write blocking, tree-seal change detection, experiment metadata sealing, as-of future-resolution exclusion, timestamp regression rejection and explicit contract exclusions.
+The nine added control tests cover:
+
+1. Total sequential alpha never exceeds the family-allocated hypothesis budget.
+2. Invalid/non-final information schedules fail closed.
+3. Early looks use incremental alpha rather than reusing the full 0.05.
+4. The immutable sequential ledger rejects duplicate/out-of-order looks and stops after threshold crossing.
+5. Scrambled outcomes preserve class marginals and all lock-time features.
+6. Negative controls fail closed when genuine resolved observations are insufficient.
+7. A deliberately broken search that always finds a fake edge is detected and failed.
+8. Too few negative-control trials cannot produce a PASS.
+9. A clean control can PASS only after the strict 100-trial/Wilson gate is satisfied.
+
+All prior V1/V2 regressions continue to pass in the same suite.
 
 ## Real durable Forward-OOS truth at final implementation check
 
-A read-only Render Postgres query on 2026-09-11 found:
+The latest read-only durable check available during this implementation found:
 
 - `CLEAR-NASDAQ-FORWARD-OOS-V5-V662`: one real `ABSTENTION_OBSERVATION`.
 - `CLEAR-NASDAQ-FORWARD-OOS-V6-V672`: one real `FORECAST_LOCK`.
 - V6 real `RESOLUTION_4H`: **0**.
 - V6 real `RESOLUTION_8H`: **0**.
 
+Therefore the **real-data negative-control gate is not yet statistically runnable** for V6. Its correct present state is `INSUFFICIENT_REAL_RESOLUTIONS`, not PASS or FAIL.
+
+Likewise, no sequential alpha plan is frozen for a real candidate yet because no scientifically accepted candidate exists. Creating a plan now for an invented candidate would be fake pre-registration.
+
 Therefore no real V6 candidate performance, calibration, predictive edge or profitability can currently be inferred. This is an evidence limitation, not a software failure.
 
 ## Remaining scientific limitations
 
-1. The Python write barrier is defense in depth, not a kernel security boundary. The production tree should still be mounted/readable under filesystem permissions that deny lab writes where practical.
-2. Multiple testing inside each declared search is accounted for. Repeated testing across many separately initiated future searches is a higher-level research-governance problem and must remain visible in the experiment registry.
-3. Correlation/redundancy among candidate rules is not yet modeled as portfolio-independent evidence.
-4. Capacity, order-book market impact and latency sensitivity are not modeled. No sizing or execution claim is made.
-5. MFE/MAE can only be evaluated if genuine source data provides them causally; V2 does not synthesize them.
-6. More complex Bayesian, regularized, clustering or survival models are not automatically superior on the present tiny genuine sample. They should only be added with a declared search budget and adequate unseen evidence.
-7. Historical/state-transition findings remain discovery until frozen and evaluated on genuinely new post-freeze observations.
+1. The Python write barrier is defense in depth, not a kernel security boundary. Filesystem permissions remain the stronger boundary.
+2. Sequential alpha spending controls repeated looks **after a family is pre-registered**. Starting new hypothesis families indefinitely is still a research-governance problem and must remain visible in the experiment registry.
+3. Negative controls can reveal a broken pipeline but cannot prove the market contains an exploitable signal.
+4. Correlation/redundancy among candidate rules is not yet modeled as portfolio-independent evidence.
+5. Capacity, order-book market impact and latency sensitivity are not modeled. No sizing or execution claim is made.
+6. MFE/MAE can only be evaluated if genuine source data provides them causally; V2 does not synthesize them.
+7. More complex Bayesian, regularized, clustering or survival models are not automatically superior on the present tiny genuine sample. They should only be added with a declared search budget and adequate unseen evidence.
+8. Historical/state-transition findings remain discovery until frozen and evaluated on genuinely new post-freeze observations.
 
 ## Final scientific rule
 
-**FIA predicts -> Forward-OOS locks reality -> Shadow Lab discovers hypotheses -> candidate freezes -> only genuinely new post-freeze observations validate -> human research review only.**
+**FIA predicts -> Forward-OOS locks reality -> Shadow Lab characterizes/calibrates -> negative controls challenge the pipeline -> hypotheses are preregistered -> candidate freezes -> sequential alpha plan freezes -> only genuinely new post-freeze observations validate -> human research review only.**
 
 Engineering success never upgrades `NOT PROVEN` to predictive edge.
