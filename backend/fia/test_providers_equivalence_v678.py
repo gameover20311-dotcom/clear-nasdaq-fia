@@ -113,7 +113,15 @@ for i, a in enumerate(ARTICLES):
 safe("filter_news_quality", hub.filter_news_quality, list(ARTICLES))
 safe("apply_news_trust_scores", hub.apply_news_trust_scores, list(ARTICLES))
 safe("detect_duplicate_news", hub.detect_duplicate_news, list(ARTICLES))
-safe("calculate_source_confirmation_score", hub.calculate_source_confirmation_score, list(ARTICLES))
+# Takes a single article, not a list. Passing a list recorded __RAISED__ and
+# left this method with no real coverage at all.
+for i, a in enumerate(ARTICLES):
+    safe(f"calculate_source_confirmation_score[{i}]",
+         hub.calculate_source_confirmation_score, a)
+for _n in (0, 1, 2, 3, 4, 5, 9):
+    safe(f"calculate_source_confirmation_score[count:{_n}]",
+         hub.calculate_source_confirmation_score,
+         {"fia_source_confirmation_count": _n})
 safe("news_headline_similarity[0v2]", hub.news_headline_similarity,
      ARTICLES[0]["title"], ARTICLES[2]["title"])
 safe("news_headline_similarity[0v1]", hub.news_headline_similarity,
@@ -133,7 +141,138 @@ safe("resolve_news_event_conflicts_v3", hub.resolve_news_event_conflicts_v3, lis
 safe("current_nq_futures_symbol", hub.current_nq_futures_symbol)
 for name in ("asia", "london", "new_york"):
     safe(f"session_window_for_date[{name}]", hub.session_window_for_date, name, FIXED_NOW.date())
-safe("_latest_candle_start", ProviderHub._latest_candle_start, hub, "60")
+# Takes the candles payload alone. The old call passed (hub, "60") and raised
+# TypeError, so this method had no real coverage either.
+for _label, _payload in (
+    ("empty", {}),
+    ("none", None),
+    ("ordered", {"t": [1748790000, 1748793600, 1748797200]}),
+    ("unordered", {"t": [1748797200, 1748790000, 1748793600]}),
+    ("dirty", {"t": [1748790000, "x", None, 1748797200]}),
+    ("no_t", {"c": [1, 2, 3]}),
+):
+    safe(f"_latest_candle_start[{_label}]",
+         ProviderHub._latest_candle_start, _payload)
+
+# ---- phase20 provider path (TEST-FIXTURE-ONLY) --------------------------
+# WHY THIS SECTION EXISTS
+# fia_backtest_phase20/full_backtest.py is permanently blocked on
+# MISSING_CANONICAL_DATA: polygon_news_20250901_20260831.json is unrecoverable,
+# so phase20 dies at load_polygon_archive_cache() and never reaches the provider
+# surface it would otherwise exercise. That leaves a hole in the pre-split
+# evidence exactly where a provider refactor is riskiest.
+#
+# Resolved statically, phase20 touches eight ProviderHub methods after imports:
+#   analyze_nasdaq_relevance_v3      analyze_news_context
+#   analyze_news_context_v3_calibrated  apply_news_trust_scores
+#   detect_duplicate_news            filter_news_quality
+#   calculate_news_recency_score     get
+# The first seven are already covered above. get() is the transport entry point
+# and was the only one with no deterministic coverage at all.
+#
+# THESE FIXTURES ARE NOT EVIDENCE. They are refactor-equivalence inputs and
+# nothing else: not historical data, not predictive data, not a substitute for
+# the missing archive. They do NOT and must NOT make phase20 or phase28 green;
+# both stay honestly red on MISSING_CANONICAL_DATA.
+import asyncio                                                    # noqa: E402
+import types                                                      # noqa: E402
+
+import httpx                                                      # noqa: E402
+
+
+class _StubResponse:
+    def __init__(self, payload, status=200, raise_exc=None):
+        self._payload, self.status_code, self._raise = payload, status, raise_exc
+
+    def raise_for_status(self):
+        if self._raise is not None:
+            raise self._raise
+
+    def json(self):
+        return self._payload
+
+
+class _StubClient:
+    """Deterministic stand-in for httpx.AsyncClient. No socket is ever opened."""
+
+    def __init__(self, response=None, exc=None, **_kw):
+        self._response, self._exc = response, exc
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_a):
+        return False
+
+    async def get(self, url, params=None, headers=None):
+        if self._exc is not None:
+            raise self._exc
+        return self._response
+
+
+def _with_transport(response=None, exc=None):
+    """Run hub.get() against a stubbed transport and capture stdout."""
+    import io, contextlib
+    real = httpx.AsyncClient
+    httpx.AsyncClient = lambda **kw: _StubClient(response=response, exc=exc, **kw)
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            out = asyncio.run(hub.get(
+                "https://finnhub.io/api/v1/company-news",
+                params={"symbol": "AAPL", "token": "SECRET-TOKEN-VALUE"},
+                headers={"X-Test": "1"}))
+    finally:
+        httpx.AsyncClient = real
+    return {"returned": out, "printed": buf.getvalue().strip()}
+
+
+# Branch 1: success -> the decoded JSON body is returned unchanged.
+safe("get[success]", _with_transport, _StubResponse({"ok": True, "rows": [1, 2, 3]}))
+
+# Branch 2: HTTP status error -> None, and the status is reported.
+_status_exc = httpx.HTTPStatusError(
+    "429 Too Many Requests",
+    request=httpx.Request("GET", "https://finnhub.io/api/v1/company-news?token=SECRET-TOKEN-VALUE"),
+    response=httpx.Response(429))
+safe("get[http_status_error]", _with_transport, None, _status_exc)
+
+# Branch 3: transport error -> None, and only the exception type is reported.
+safe("get[transport_error]", _with_transport, None, httpx.ConnectError("refused"))
+
+# Branch 4: malformed body -> None rather than a raised decode error.
+class _BadJSON(_StubResponse):
+    def json(self):
+        raise ValueError("not json")
+
+
+safe("get[undecodable_body]", _with_transport, _BadJSON(None))
+
+# The security contract this method exists to hold: a provider credential in the
+# query string must never reach the log, on ANY branch. Asserted as a recorded
+# observation so a refactor that reintroduces the leak changes the digest.
+_leak = []
+for _k in ("get[http_status_error]", "get[transport_error]", "get[undecodable_body]"):
+    _printed = obs.get(_k, {})
+    _printed = _printed.get("printed", "") if isinstance(_printed, dict) else str(_printed)
+    if "SECRET-TOKEN-VALUE" in _printed or "token=" in _printed:
+        _leak.append(_k)
+rec("get[credential_never_logged]", not _leak)
+rec("get[failure_branches_return_none]", all(
+    isinstance(obs.get(k), dict) and obs[k].get("returned") is None
+    for k in ("get[http_status_error]", "get[transport_error]", "get[undecodable_body]")))
+
+# The composition order phase20 applies to its news pool, pinned end to end so a
+# split cannot reorder the pipeline without changing the digest.
+_pool = list(ARTICLES)
+safe("phase20_pipeline[dedup]", hub.detect_duplicate_news, list(_pool))
+safe("phase20_pipeline[quality]", hub.filter_news_quality, list(_pool))
+safe("phase20_pipeline[trust]", hub.apply_news_trust_scores, list(_pool))
+for _i, _a in enumerate(ARTICLES):
+    safe(f"phase20_pipeline[recency:{_i}]", hub.calculate_news_recency_score, _a)
+    safe(f"phase20_pipeline[context:{_i}]", hub.analyze_news_context, _a)
+    safe(f"phase20_pipeline[calibrated:{_i}]", hub.analyze_news_context_v3_calibrated, _a)
+    safe(f"phase20_pipeline[relevance:{_i}]", hub.analyze_nasdaq_relevance_v3, _a)
 
 
 def canonical(value):
