@@ -135,6 +135,15 @@ class StorageRecovery(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(evidence.read_bytes(), b"TEST tampered")
         self.assertFalse(fo.verify_ledger(self.root)["ok"])
+        self.assertFalse(dur.durability_status(self.root)["durable"])
+
+    def test_local_anchor_conflict_cannot_report_durable(self):
+        self.observation()
+        anchor = self.root / "LEDGER_HEAD.json"
+        anchor.chmod(0o644)
+        anchor.write_bytes(b"TEST corrupt anchor")
+        self.assertFalse(fo.verify_ledger(self.root)["ok"])
+        self.assertFalse(dur.durability_status(self.root)["durable"])
 
     def test_corrupt_saved_evidence_is_not_restored(self):
         self.observation()

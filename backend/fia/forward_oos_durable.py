@@ -251,6 +251,11 @@ def durability_status(root: Path | str) -> Dict[str, Any]:
         for path in (root / "events").glob("*.json"):
             if path.is_symlink() or saved.get(path.name) != path.read_bytes():
                 issues.append("local_event_not_mirrored:%s" % path.name)
+        # A recoverable archive does not make a conflicting live ledger healthy.
+        # Do not label local evidence/anchor corruption DURABLE while verify fails.
+        from fia.forward_oos import verify_ledger
+        local_audit = verify_ledger(root, recover=False)
+        issues.extend("local_integrity:" + issue for issue in local_audit["issues"])
         complete = not issues
         return {"durable": complete, "backend": "postgres",
                 "durability": "DURABLE" if complete else "DEGRADED",
