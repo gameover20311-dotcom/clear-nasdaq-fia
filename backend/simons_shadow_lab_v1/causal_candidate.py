@@ -1,7 +1,8 @@
-"""Immutable causal-candidate lifecycle for SIMONS SHADOW LAB V1.
+"""Immutable causal-candidate lifecycle for SIMONS SHADOW LAB V2 hybrid.
 
 Research-only: never modifies BASE_FIA or production Forward-OOS and never
-auto-promotes a candidate.
+auto-promotes a candidate. V2 keeps the original real-source lifecycle and adds
+power/sample context, Wilson uncertainty and permutation-calibrated decay checks.
 """
 from __future__ import annotations
 
@@ -11,7 +12,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from .causal_features import extract_lock_time_features, state_signature
+from .drift_monitor import permutation_drift_report
 from .lab import GENESIS, LAB_SCHEMA_VERSION, ShadowLab, _float, _parse_dt, _read_json, _write_new_json, canonical_bytes, sha256_bytes
+from .scientific_stats import required_sample_for_rate_difference, wilson_interval
 
 
 @dataclass(frozen=True)
@@ -92,7 +95,8 @@ class CausalCandidateLab:
             "created_at_utc": now.astimezone(timezone.utc).isoformat(),
             "spec": normalized,
             "discovery_rows_sha256": manifest.get("rows_sha256"),
-            "feature_policy": "LOCK_TIME_ONLY_OUTCOMES_FORBIDDEN_AT_DECISION",
+            "discovery_snapshot_row_count": manifest.get("row_count"),
+            "feature_policy": "LOCK_TIME_STRUCTURAL_BARRIER_OUTCOMES_FORBIDDEN_AT_DECISION",
             "status": "FORWARD_VALIDATION_READY_NOT_PROVEN",
             "automatic_production_promotion": False,
             "production_modified": False,
@@ -171,6 +175,7 @@ class CausalCandidateLab:
             "features": features,
             "state_signature": state_signature(features),
             "outcome_information_read": False,
+            "lock_time_structural_barrier_enforced": True,
             "production_modified": False,
         }, now)
 
@@ -211,11 +216,30 @@ class CausalCandidateLab:
         resolutions = {e.get("forecast_id"): e for e in events if e.get("event_type") == "CAUSAL_DECISION_RESOLUTION"}
         resolved = [resolutions[e.get("forecast_id")] for e in fired if e.get("forecast_id") in resolutions and (resolutions[e.get("forecast_id")].get("payload") or {}).get("correct") is not None]
         n = len(resolved)
-        correct = sum(1 for e in resolved if (e.get("payload") or {}).get("correct") is True)
+        correct_series = [1.0 if (e.get("payload") or {}).get("correct") is True else 0.0 for e in resolved]
+        correct = int(sum(correct_series))
         gross = [_float((e.get("payload") or {}).get("gross_points_directional")) for e in resolved]
         gross = [x for x in gross if x is not None]
         net = [x-assumed_round_trip_cost_points for x in gross]
-        status = "INSUFFICIENT_SAMPLE_NOT_PROVEN" if n < 30 else "FORWARD_VALIDATING_NOT_PROVEN" if n < 50 else "RESEARCH_REVIEW_ELIGIBLE_NOT_PRODUCTION_APPROVED"
+        hit = correct/n if n else None
+        ci_low, ci_high = wilson_interval(correct, n)
+        # Planning floor for detecting an 8 percentage-point lift over 50% with
+        # 80% power. It is context, not a promise that N rows prove an edge.
+        power_floor = required_sample_for_rate_difference(0.50, 0.58, 0.05, 0.80)
+        drift = permutation_drift_report(correct_series, permutations=300, alpha=0.01, min_segment=10) if n else permutation_drift_report([], permutations=300, alpha=0.01, min_segment=10)
+        power_met = n >= power_floor
+        lower_beats_baseline = ci_low is not None and ci_low > 0.50
+        net_positive = bool(net) and (sum(net)/len(net) > 0.0)
+        stable = not bool(drift.get("degrading"))
+        review_eligible = bool(n >= 50 and power_met and lower_beats_baseline and net_positive and stable)
+        if n < 30:
+            status = "INSUFFICIENT_SAMPLE_NOT_PROVEN"
+        elif not power_met:
+            status = "INSUFFICIENT_POWER_NOT_PROVEN"
+        elif review_eligible:
+            status = "RESEARCH_REVIEW_ELIGIBLE_NOT_PRODUCTION_APPROVED"
+        else:
+            status = "FORWARD_VALIDATING_NOT_PROVEN"
         return {
             "schema_version": LAB_SCHEMA_VERSION,
             "candidate_id": candidate_id,
@@ -225,11 +249,23 @@ class CausalCandidateLab:
             "abstentions": len(decisions)-len(fired),
             "resolved_fires": n,
             "correct": correct,
-            "hit_rate": correct/n if n else None,
+            "hit_rate": hit,
+            "wilson_95_hit_rate": [ci_low, ci_high],
+            "baseline_hit_rate": 0.50,
+            "power_planning": {
+                "target_lift_percentage_points": 8.0,
+                "alpha": 0.05,
+                "power": 0.80,
+                "approx_required_resolved_fires": power_floor,
+                "sample_floor_met": power_met,
+                "warning": "Power floor is planning context, not proof of edge.",
+            },
+            "permutation_drift": drift,
             "gross_average_points": sum(gross)/len(gross) if gross else None,
             "assumed_round_trip_cost_points": assumed_round_trip_cost_points,
             "net_average_points_after_assumed_friction": sum(net)/len(net) if net else None,
             "friction_is_assumption_not_measured_cost": True,
+            "research_review_eligible": review_eligible,
             "predictive_edge_proven": False,
             "profitability_proven": False,
             "automatic_production_promotion": False,
