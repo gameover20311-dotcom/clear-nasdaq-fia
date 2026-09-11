@@ -92,14 +92,14 @@ The independent Cloud package was not copied blindly. Its proposed schema was bu
 
 No neutral probability, proxy evidence or synthetic production row is invented by the hybrid adapter.
 
-## CI evidence for the new controls
+## Final CI evidence
 
-GitHub Actions run `34588710025`, job `103228792342`, on hybrid head `edaed490a929688dc1150a93f6df3ad73b092992` verified:
+Final GitHub Actions run `34588791783`, job `103229052298`, on hybrid head `eea762a15ff1fef9cd3f082c548d19af0c757fcc` verified:
 
 - Compilation: **PASS**
 - Real test-discovery guard: **PASS**
 - `DISCOVERED_TESTS = 50`
-- `Ran 50 tests in 1.386s`
+- `Ran 50 tests in 2.923s`
 - **50/50 PASS**
 
 The nine added control tests cover:
@@ -118,18 +118,22 @@ All prior V1/V2 regressions continue to pass in the same suite.
 
 ## Real durable Forward-OOS truth at final implementation check
 
-The latest read-only durable check available during this implementation found:
+A fresh read-only Render Postgres query on 2026-09-11 found:
 
 - `CLEAR-NASDAQ-FORWARD-OOS-V5-V662`: one real `ABSTENTION_OBSERVATION`.
 - `CLEAR-NASDAQ-FORWARD-OOS-V6-V672`: one real `FORECAST_LOCK`.
-- V6 real `RESOLUTION_4H`: **0**.
-- V6 real `RESOLUTION_8H`: **0**.
+- No production `RESOLUTION_4H` event.
+- No production `RESOLUTION_8H` event.
 
 Therefore the **real-data negative-control gate is not yet statistically runnable** for V6. Its correct present state is `INSUFFICIENT_REAL_RESOLUTIONS`, not PASS or FAIL.
 
 Likewise, no sequential alpha plan is frozen for a real candidate yet because no scientifically accepted candidate exists. Creating a plan now for an invented candidate would be fake pre-registration.
 
 Therefore no real V6 candidate performance, calibration, predictive edge or profitability can currently be inferred. This is an evidence limitation, not a software failure.
+
+## Production isolation at final compare
+
+Relative to production `main` (`ebaadf876e5e78ce6ced2b99936aa3eac209d588`), the hybrid branch is **61 commits ahead, 0 behind**. The compare contains **31 changed files and every one is ADDED**. Existing production files modified: **0**. Existing production files deleted: **0**.
 
 ## Remaining scientific limitations
 
