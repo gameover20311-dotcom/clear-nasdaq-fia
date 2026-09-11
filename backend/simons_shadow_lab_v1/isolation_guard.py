@@ -3,7 +3,7 @@
 Adapted from the strongest part of the independent Cloud build: isolation is
 measured, not merely asserted. The guard can seal a production tree with SHA256,
 verify it after a lab run, and optionally install a process-wide barrier that
-blocks common write paths targeting the protected tree.
+blocks common Python write/mutation paths targeting the protected tree.
 
 This is defense in depth. Filesystem permissions remain the real kernel-level
 control; subprocess/C-extension writes are outside this Python barrier.
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import builtins
 import hashlib
+import io
 import os
 from contextlib import contextmanager
 from pathlib import Path
@@ -36,8 +37,11 @@ def tree_seal(root: Path) -> Dict[str, Any]:
     if root.exists():
         for path in sorted(p for p in root.rglob("*") if p.is_file()):
             rel = str(path.relative_to(root))
-            files[rel] = {"sha256": _sha256_file(path), "size": path.stat().st_size}
-    body = "\n".join(f"{k}\t{v['size']}\t{v['sha256']}" for k, v in sorted(files.items())).encode("utf-8")
+            st = path.stat()
+            files[rel] = {"sha256": _sha256_file(path), "size": st.st_size, "mode": st.st_mode & 0o7777}
+    body = "\n".join(
+        f"{k}\t{v['size']}\t{v['mode']}\t{v['sha256']}" for k, v in sorted(files.items())
+    ).encode("utf-8")
     return {"root": str(root), "file_count": len(files), "files": files, "tree_sha256": hashlib.sha256(body).hexdigest()}
 
 
@@ -81,17 +85,28 @@ def _flags_write(flags: int) -> bool:
 def production_write_barrier(production_root: Path) -> Iterator[None]:
     root = Path(production_root).resolve()
     original_open = builtins.open
+    original_io_open = io.open
     original_os_open = os.open
-    original_remove = os.remove
-    original_unlink = os.unlink
-    original_rename = os.rename
-    original_replace = os.replace
-    original_mkdir = os.mkdir
+    originals = {
+        "remove": os.remove,
+        "unlink": os.unlink,
+        "rename": os.rename,
+        "replace": os.replace,
+        "mkdir": os.mkdir,
+        "rmdir": os.rmdir,
+        "chmod": os.chmod,
+        "utime": os.utime,
+    }
 
     def guarded_open(file, mode="r", *args, **kwargs):
         if _inside(file, root) and _mode_writes(mode):
             raise ReadOnlyViolation(f"write blocked inside production tree: {file}")
         return original_open(file, mode, *args, **kwargs)
+
+    def guarded_io_open(file, mode="r", *args, **kwargs):
+        if _inside(file, root) and _mode_writes(mode):
+            raise ReadOnlyViolation(f"io.open write blocked inside production tree: {file}")
+        return original_io_open(file, mode, *args, **kwargs)
 
     def guarded_os_open(path, flags, *args, **kwargs):
         if _inside(path, root) and _flags_write(flags):
@@ -113,22 +128,30 @@ def production_write_barrier(production_root: Path) -> Iterator[None]:
         return wrapped
 
     builtins.open = guarded_open
+    io.open = guarded_io_open
     os.open = guarded_os_open
-    os.remove = block_one(original_remove)
-    os.unlink = block_one(original_unlink)
-    os.rename = block_two(original_rename)
-    os.replace = block_two(original_replace)
-    os.mkdir = block_one(original_mkdir)
+    os.remove = block_one(originals["remove"])
+    os.unlink = block_one(originals["unlink"])
+    os.rename = block_two(originals["rename"])
+    os.replace = block_two(originals["replace"])
+    os.mkdir = block_one(originals["mkdir"])
+    os.rmdir = block_one(originals["rmdir"])
+    os.chmod = block_one(originals["chmod"])
+    os.utime = block_one(originals["utime"])
     try:
         yield
     finally:
         builtins.open = original_open
+        io.open = original_io_open
         os.open = original_os_open
-        os.remove = original_remove
-        os.unlink = original_unlink
-        os.rename = original_rename
-        os.replace = original_replace
-        os.mkdir = original_mkdir
+        os.remove = originals["remove"]
+        os.unlink = originals["unlink"]
+        os.rename = originals["rename"]
+        os.replace = originals["replace"]
+        os.mkdir = originals["mkdir"]
+        os.rmdir = originals["rmdir"]
+        os.chmod = originals["chmod"]
+        os.utime = originals["utime"]
 
 
 class ProductionGuard:
