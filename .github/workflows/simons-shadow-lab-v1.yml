@@ -14,6 +14,7 @@ on:
       - 'backend/tests/test_simons_shadow_lab_v1_causal.py'
       - 'backend/tests/test_simons_shadow_lab_v1_readiness.py'
       - 'backend/tests/test_simons_shadow_lab_v2_hybrid.py'
+      - 'backend/tests/test_simons_shadow_lab_v2_durable.py'
       - '.github/workflows/simons-shadow-lab-v1.yml'
 
 jobs:
@@ -53,13 +54,14 @@ jobs:
               'tests.test_simons_shadow_lab_v1_causal',
               'tests.test_simons_shadow_lab_v1_readiness',
               'tests.test_simons_shadow_lab_v2_hybrid',
+              'tests.test_simons_shadow_lab_v2_durable',
           ]
           loader = unittest.TestLoader()
           suite = unittest.TestSuite(loader.loadTestsFromName(n) for n in names)
           count = suite.countTestCases()
           print('DISCOVERED_TESTS=', count)
-          if count < 35:
-              raise SystemExit('Refusing green CI: fewer than 35 real tests discovered')
+          if count < 40:
+              raise SystemExit('Refusing green CI: fewer than 40 real tests discovered')
           PY
       - name: Run Shadow Lab regression tests
         working-directory: backend
@@ -70,4 +72,5 @@ jobs:
             tests.test_simons_shadow_lab_v1_causal \
             tests.test_simons_shadow_lab_v1_readiness \
             tests.test_simons_shadow_lab_v2_hybrid \
+            tests.test_simons_shadow_lab_v2_durable \
             -v
