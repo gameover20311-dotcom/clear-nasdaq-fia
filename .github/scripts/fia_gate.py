@@ -139,8 +139,11 @@ def main():
             if record["status"] in FAILING_STATUSES:
                 evidence = record.get("evidence", {})
                 print(f"\n  {record['status']}  {entry}")
-                print(f"      {evidence.get('exception_type')}: "
-                      f"{evidence.get('exception_message')}")
+                if evidence.get("exception_type"):
+                    print(f"      {evidence.get('exception_type')}: "
+                          f"{evidence.get('exception_message')}")
+                for line in evidence.get("printed_failure", []):
+                    print(f"      reported: {line}")
                 print(f"      {evidence.get('reason')}")
 
     failed = [name for name, ok, _ in gates if not ok]

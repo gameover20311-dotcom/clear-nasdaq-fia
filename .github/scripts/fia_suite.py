@@ -201,6 +201,18 @@ def classify(returncode, output, timed_out):
         evidence["reason"] = "imports resolved; a required input was absent"
         return "MISSING_FIXTURE_OR_DATA", evidence
 
+    if exc_type is None:
+        # Several checks report their own failures and exit non-zero without
+        # raising, so there is no traceback to read. Reporting "None: None" for
+        # those would hide evidence the check already printed, so the last
+        # non-empty output lines are kept instead.
+        printed = [line.strip() for line in output.strip().splitlines() if line.strip()]
+        evidence["printed_failure"] = printed[-5:]
+        evidence["reason"] = (
+            "non-zero exit with no traceback; the check reported its own failure"
+        )
+        return "FAIL", evidence
+
     evidence["reason"] = "non-zero exit after imports resolved"
     return "FAIL", evidence
 
@@ -293,9 +305,12 @@ def main():
             continue
         evidence = record["evidence"]
         print(f"\n--- {record['status']}  {entry}")
-        print(f"    exception : {evidence.get('exception_type')}: "
-              f"{evidence.get('exception_message')}")
-        print(f"    frame     : {evidence.get('final_frame')}")
+        if evidence.get("exception_type"):
+            print(f"    exception : {evidence.get('exception_type')}: "
+                  f"{evidence.get('exception_message')}")
+            print(f"    frame     : {evidence.get('final_frame')}")
+        for line in evidence.get("printed_failure", []):
+            print(f"    reported  : {line}")
         print(f"    reason    : {evidence.get('reason')}")
 
     # Always succeed. This step reports; the final gate decides the build.
