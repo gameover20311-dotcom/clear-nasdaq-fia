@@ -1,0 +1,307 @@
+{
+ "schema": "FIA_PROVIDERS_SPLIT_MAP_V1",
+ "status": "DESIGN_ONLY_NOT_APPLIED",
+ "finding": "providers.py is THREE-way mixed, not two-way. It contains ~2,000 lines of NEWS SENTIMENT SCORING that produces the engine's News signal, which is MODEL code, not transport or policy.",
+ "proof_chain": [
+  "providers.py:3522 analyze_news_context_v3_calibrated(article)  [news scoring]",
+  "providers.py:6149 data['news'] = mean(sentiment_values)          [raw snapshot value]",
+  "engine.py:416    ('News', raw.get('news'), 0.07, ...)            [becomes the News signal]"
+ ],
+ "consequence": "Applying the owner's 2-way spec literally would place forecast-producing code into INFRASTRUCTURE or PROTOCOL. A later change to news scoring would then NOT move the MODEL fingerprint - the exact failure A7 exists to prevent, inverted.",
+ "method_counts": {
+  "MODEL": 15,
+  "PROTOCOL": 17,
+  "INFRASTRUCTURE": 15,
+  "UNASSIGNED": 0
+ },
+ "approx_line_counts": {
+  "MODEL": 3508,
+  "PROTOCOL": 2327,
+  "INFRASTRUCTURE": 552,
+  "UNASSIGNED": 0
+ },
+ "methods": {
+  "__init__": {
+   "identity": "INFRASTRUCTURE",
+   "start": 42,
+   "end": 81,
+   "lines": 40
+  },
+  "get": {
+   "identity": "INFRASTRUCTURE",
+   "start": 82,
+   "end": 124,
+   "lines": 43
+  },
+  "clamp": {
+   "identity": "INFRASTRUCTURE",
+   "start": 125,
+   "end": 128,
+   "lines": 4
+  },
+  "normalize_change": {
+   "identity": "MODEL",
+   "start": 129,
+   "end": 147,
+   "lines": 19
+  },
+  "completed_bar_structure": {
+   "identity": "MODEL",
+   "start": 148,
+   "end": 233,
+   "lines": 86
+  },
+  "normalize_yield": {
+   "identity": "MODEL",
+   "start": 234,
+   "end": 249,
+   "lines": 16
+  },
+  "safe_float": {
+   "identity": "INFRASTRUCTURE",
+   "start": 250,
+   "end": 261,
+   "lines": 12
+  },
+  "finnhub_quote": {
+   "identity": "INFRASTRUCTURE",
+   "start": 262,
+   "end": 279,
+   "lines": 18
+  },
+  "_yahoo_chart_candles": {
+   "identity": "INFRASTRUCTURE",
+   "start": 280,
+   "end": 374,
+   "lines": 95
+  },
+  "_latest_candle_start": {
+   "identity": "PROTOCOL",
+   "start": 375,
+   "end": 385,
+   "lines": 11
+  },
+  "finnhub_candles": {
+   "identity": "PROTOCOL",
+   "start": 386,
+   "end": 536,
+   "lines": 151
+  },
+  "fred_series": {
+   "identity": "INFRASTRUCTURE",
+   "start": 537,
+   "end": 558,
+   "lines": 22
+  },
+  "price_action_snapshot": {
+   "identity": "INFRASTRUCTURE",
+   "start": 559,
+   "end": 610,
+   "lines": 52
+  },
+  "_normalize_live_news_article": {
+   "identity": "PROTOCOL",
+   "start": 611,
+   "end": 630,
+   "lines": 20
+  },
+  "_news_article_age_seconds": {
+   "identity": "PROTOCOL",
+   "start": 631,
+   "end": 652,
+   "lines": 22
+  },
+  "live_news_articles": {
+   "identity": "PROTOCOL",
+   "start": 653,
+   "end": 727,
+   "lines": 75
+  },
+  "news_sentiment": {
+   "identity": "INFRASTRUCTURE",
+   "start": 728,
+   "end": 749,
+   "lines": 22
+  },
+  "finnhub_market_news": {
+   "identity": "INFRASTRUCTURE",
+   "start": 750,
+   "end": 767,
+   "lines": 18
+  },
+  "finnhub_company_news": {
+   "identity": "INFRASTRUCTURE",
+   "start": 768,
+   "end": 799,
+   "lines": 32
+  },
+  "unified_news_feed": {
+   "identity": "PROTOCOL",
+   "start": 800,
+   "end": 986,
+   "lines": 187
+  },
+  "evaluate_news_quality": {
+   "identity": "PROTOCOL",
+   "start": 987,
+   "end": 1399,
+   "lines": 413
+  },
+  "filter_news_quality": {
+   "identity": "PROTOCOL",
+   "start": 1400,
+   "end": 1425,
+   "lines": 26
+  },
+  "calculate_news_recency_score": {
+   "identity": "PROTOCOL",
+   "start": 1426,
+   "end": 1566,
+   "lines": 141
+  },
+  "calculate_news_trust_score": {
+   "identity": "PROTOCOL",
+   "start": 1567,
+   "end": 1760,
+   "lines": 194
+  },
+  "apply_news_trust_scores": {
+   "identity": "PROTOCOL",
+   "start": 1761,
+   "end": 1790,
+   "lines": 30
+  },
+  "_news_normalized_words": {
+   "identity": "PROTOCOL",
+   "start": 1791,
+   "end": 1824,
+   "lines": 34
+  },
+  "news_headline_similarity": {
+   "identity": "PROTOCOL",
+   "start": 1825,
+   "end": 1859,
+   "lines": 35
+  },
+  "detect_duplicate_news": {
+   "identity": "PROTOCOL",
+   "start": 1860,
+   "end": 1990,
+   "lines": 131
+  },
+  "calculate_source_confirmation_score": {
+   "identity": "PROTOCOL",
+   "start": 1991,
+   "end": 2028,
+   "lines": 38
+  },
+  "analyze_news_context": {
+   "identity": "MODEL",
+   "start": 2029,
+   "end": 2528,
+   "lines": 500
+  },
+  "analyze_news_context_v3": {
+   "identity": "MODEL",
+   "start": 2529,
+   "end": 2837,
+   "lines": 309
+  },
+  "analyze_news_context_v3_weighted": {
+   "identity": "MODEL",
+   "start": 2838,
+   "end": 3194,
+   "lines": 357
+  },
+  "resolve_news_event_conflicts_v3": {
+   "identity": "MODEL",
+   "start": 3195,
+   "end": 3521,
+   "lines": 327
+  },
+  "analyze_news_context_v3_calibrated": {
+   "identity": "MODEL",
+   "start": 3522,
+   "end": 3924,
+   "lines": 403
+  },
+  "analyze_nasdaq_relevance_v3": {
+   "identity": "MODEL",
+   "start": 3925,
+   "end": 4601,
+   "lines": 677
+  },
+  "now_ny": {
+   "identity": "INFRASTRUCTURE",
+   "start": 4602,
+   "end": 4605,
+   "lines": 4
+  },
+  "datetime_to_ts": {
+   "identity": "INFRASTRUCTURE",
+   "start": 4606,
+   "end": 4612,
+   "lines": 7
+  },
+  "get_period_liquidity": {
+   "identity": "MODEL",
+   "start": 4613,
+   "end": 4792,
+   "lines": 180
+  },
+  "session_window_for_date": {
+   "identity": "MODEL",
+   "start": 4793,
+   "end": 4875,
+   "lines": 83
+  },
+  "get_session_liquidity": {
+   "identity": "MODEL",
+   "start": 4876,
+   "end": 5022,
+   "lines": 147
+  },
+  "current_nq_futures_symbol": {
+   "identity": "PROTOCOL",
+   "start": 5023,
+   "end": 5043,
+   "lines": 21
+  },
+  "polygon_futures_candles": {
+   "identity": "INFRASTRUCTURE",
+   "start": 5044,
+   "end": 5204,
+   "lines": 161
+  },
+  "get_nq_session_liquidity_yahoo": {
+   "identity": "MODEL",
+   "start": 5205,
+   "end": 5263,
+   "lines": 59
+  },
+  "get_nq_liquidity_intelligence": {
+   "identity": "MODEL",
+   "start": 5264,
+   "end": 5571,
+   "lines": 308
+  },
+  "liquidity": {
+   "identity": "MODEL",
+   "start": 5572,
+   "end": 5608,
+   "lines": 37
+  },
+  "get_nq_futures_live_price": {
+   "identity": "INFRASTRUCTURE",
+   "start": 5609,
+   "end": 5630,
+   "lines": 22
+  },
+  "snapshot": {
+   "identity": "PROTOCOL",
+   "start": 5631,
+   "end": 6428,
+   "lines": 798
+  }
+ }
+}

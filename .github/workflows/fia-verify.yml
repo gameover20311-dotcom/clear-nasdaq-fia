@@ -1,0 +1,126 @@
+# CLEAR NASDAQ — full verification in an environment that can install deps.
+#
+# WHY THIS EXISTS
+# The sandbox used for the Step A / A6 / A7 work cannot reach PyPI, so 16 of
+# 55 active checks were reported honestly as NOT TESTED (ENV) and never as
+# PASS. Eight of those cover providers.py fallback and end-to-end numeric
+# behaviour, which is exactly what a providers.py split must be proven not to
+# change. This workflow exists so that proof can actually be produced.
+name: FIA verify
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python - <<'PY'
+          import importlib
+          missing = [m for m in ("fastapi","yfinance","httpx","pydantic","uvicorn","starlette")
+                     if not importlib.util.find_spec(m)]
+          print("MISSING:", missing or "none")
+          raise SystemExit(1 if missing else 0)
+          PY
+
+      # Artifact integrity is asserted around the whole suite, not just inside it.
+      - name: Snapshot protected artifacts (pre)
+        run: |
+          python - <<'PY'
+          import sys, json; sys.path.insert(0, ".")
+          from fia.artifact_guard import snapshot_protected, verify_protected, registry_manifest_id
+          json.dump(snapshot_protected(), open("/tmp/pre.json", "w"))
+          v = verify_protected()
+          print("registry manifest:", registry_manifest_id())
+          print("verify ok:", v["ok"], "count:", v["count"], "mismatched:", v["mismatched"])
+          raise SystemExit(0 if v["ok"] else 1)
+          PY
+
+      - name: Report three scientific identities
+        run: |
+          python - <<'PY'
+          import sys, json; sys.path.insert(0, ".")
+          from fia.identity import all_fingerprints
+          d = all_fingerprints()
+          for k in ("model", "protocol", "infrastructure"):
+              f = d[k]; print(f"{f['identity']:<15} {f['digest']}  files={f['file_count']}")
+          print("CLASSIFICATION_MANIFEST", d["classification_manifest_id"])
+          print("LEGACY_DEPLOYMENT      ", d["legacy_deployment_fingerprint"]["digest"])
+          PY
+
+      - name: Full active regression suite
+        run: |
+          python - <<'PY'
+          import subprocess, sys, os, json, glob
+          entries = sorted(set(
+              glob.glob("fia/test_*.py") + glob.glob("fia_backtest_*/*test*.py") +
+              glob.glob("fia_final_cockpit/test_*.py") + glob.glob("fia_forward_oos/test_*.py") +
+              glob.glob("phase21_live_engine_smoke_test.py") +
+              glob.glob("test_reseal_refuses_any_observation_v672.py") +
+              glob.glob("clear_nasdaq_brain/tests/run_all.py")))
+          res = {}
+          for e in entries:
+              p = subprocess.run([sys.executable, e], capture_output=True, text=True, timeout=900)
+              out = (p.stdout or "") + (p.stderr or "")
+              if p.returncode == 0:
+                  res[e] = "PASS"
+              elif "ModuleNotFoundError" in out or "ImportError" in out:
+                  res[e] = "NOT_TESTED_ENV"
+              else:
+                  res[e] = "FAIL"
+          json.dump(res, open("/tmp/suite.json", "w"), indent=1)
+          c = {}
+          for v in res.values():
+              c[v] = c.get(v, 0) + 1
+          print(json.dumps(c))
+          for k, v in sorted(res.items()):
+              if v != "PASS":
+                  print(f"{v:<16} {k}")
+          # NOT_TESTED must be zero here: this environment can install everything.
+          if c.get("NOT_TESTED_ENV"):
+              print("::error::dependency-blocked checks must not occur in CI")
+              raise SystemExit(1)
+          PY
+
+      - name: Prove protected artifacts byte-identical (post)
+        run: |
+          python - <<'PY'
+          import sys, json; sys.path.insert(0, ".")
+          from fia.artifact_guard import snapshot_protected, verify_protected
+          before = json.load(open("/tmp/pre.json")); after = snapshot_protected()
+          changed = sorted(k for k in before if before[k] != after[k])
+          print("protected changed by full suite:", len(changed), changed[:10] or "-> NONE")
+          v = verify_protected()
+          print("verify ok:", v["ok"], "mismatched:", v["mismatched"])
+          raise SystemExit(0 if (not changed and v["ok"]) else 1)
+          PY
+
+      - name: Fail if the working tree was mutated
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          git status --porcelain
+          test -z "$(git status --porcelain)" || { echo "::error::suite mutated tracked files"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fia-verify-results
+          path: /tmp/suite.json
