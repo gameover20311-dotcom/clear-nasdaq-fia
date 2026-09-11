@@ -156,7 +156,7 @@ def try_lock(pm, root, now, fc=None):
 
 
 import tempfile                                                     # noqa: E402
-from datetime import datetime, timezone                             # noqa: E402
+from datetime import datetime, timedelta, timezone                           # noqa: E402
 
 tmp = Path(tempfile.mkdtemp(prefix="foos_freeze_"))
 # A moment inside the live checkpoint window, expressed deterministically.
@@ -168,10 +168,18 @@ for hh in range(24):
         break
 check("a deterministic in-window checkpoint instant exists", state_probe is not None)
 
-# The lock is also age-gated. Prove that gate fires, then stamp the fixture
-# forecast at the probe instant so the ABSTENTION guard is what is under test.
+# The lock is also age-gated, in both directions: >15 minutes old is refused as
+# FORECAST_NOT_FRESH_ENOUGH_TO_LOCK, and anything newer than now+5s is refused as
+# FORECAST_TIMESTAMP_IN_FUTURE. base_fc is built from the frozen snapshot at RUN
+# time, so its generated_at is the real wall clock. The probe instant is the
+# fixed date 2026-09-09, so once real time passed that date this check started
+# exercising the FUTURE guard instead of the staleness guard it names, and failed
+# on the reason string. Stamp the fixture explicitly, an hour before the probe,
+# so the staleness gate is the one under test on any date.
+stale_fc = copy.deepcopy(base_fc)
+stale_fc["generated_at"] = (state_probe - timedelta(hours=1)).isoformat()
 with _Seal():
-    stale_probe = try_lock(premove, tmp, state_probe, fc=base_fc)
+    stale_probe = try_lock(premove, tmp, state_probe, fc=stale_fc)
 check("[3g] a forecast older than the lock window is refused",
       stale_probe["created"] is False
       and stale_probe["reason"] == "FORECAST_NOT_FRESH_ENOUGH_TO_LOCK",
@@ -218,12 +226,35 @@ check("[3d] a broken model fingerprint fails the lock closed",
       r_seal["ok"] is False
       and r_seal["reason"] == "CAMPAIGN_SEAL_OR_MODEL_FINGERPRINT_INVALID",
       json.dumps(r_seal)[:160])
+# The V6 campaign (CLEAR-NASDAQ-FORWARD-OOS-V6-V672, sealed 2026-09-08) is
+# RETIRED and permanently unverifiable. Step A repaired the canonical signal
+# identity and A6/A7 added the artifact guard and the three-identity split,
+# which together changed eight files inside the sealed production fingerprint
+# and added three more. The seal FILE is untouched and still hashes correctly;
+# what no longer matches is the model fingerprint it pinned.
+#
+# This check previously asserted the seal was still VALID "required before
+# freeze". Under the repaired identity that can only be made true by resealing
+# the retired campaign against the new code, which would silently adopt a
+# changed model into a campaign whose results were produced by the old one.
+# The scientifically correct assertion is the opposite: the legacy campaign
+# stays invalid and validation-ineligible, and no successor has started.
 _live_seal = forward_oos.verify_campaign_seal()
-check("[3d2] the campaign seal is currently VALID (required before freeze)",
-      _live_seal.get("ok") is True
-      and _live_seal.get("model_fingerprint_match") is True,
+check("[3d2] the retired V6 seal FILE is untampered (hash still verifies)",
+      _live_seal.get("seal_hash_valid") is True,
       json.dumps({k: _live_seal.get(k) for k in
                   ("ok", "seal_hash_valid", "model_fingerprint_match")}))
+check("[3d2b] the retired V6 campaign is NOT valid under the repaired identity",
+      _live_seal.get("ok") is False
+      and _live_seal.get("model_fingerprint_match") is False,
+      json.dumps({k: _live_seal.get(k) for k in
+                  ("ok", "seal_hash_valid", "model_fingerprint_match")}))
+check("[3d2c] it is still the V6 campaign; no successor has been sealed",
+      _live_seal.get("campaign_id") == "CLEAR-NASDAQ-FORWARD-OOS-V6-V672",
+      str(_live_seal.get("campaign_id")))
+check("[3d2d] no directional forecast has been locked (alpha spent = 0)",
+      forward_oos.verify_ledger(forward_oos.DEFAULT_ROOT).get("forecast_locks") == 0,
+      str(forward_oos.verify_ledger(forward_oos.DEFAULT_ROOT).get("forecast_locks")))
 
 r_out = asyncio.run(forward_oos.lock_live_forecast(
     base_fc, snapshot, root=tmp, now=datetime(2026, 9, 9, 3, 0, tzinfo=timezone.utc),

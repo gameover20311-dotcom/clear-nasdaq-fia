@@ -15,6 +15,7 @@ if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
 from fia.forward_oos import (
+    DEFAULT_ROOT,
     MODEL_NAME,
     _append_event,
     _completed_close_from_polygon_payload,
@@ -92,10 +93,46 @@ async def main():
     check("summer wrong UTC hour blocked", checkpoint_state(datetime(2026, 9, 3, 18, 5, tzinfo=timezone.utc))["eligible_now"] is False)
     check("weekend blocked", checkpoint_state(datetime(2026, 9, 5, 17, 5, tzinfo=timezone.utc))["eligible_now"] is False)
     check("missed backfill explicitly false", checkpoint_state(datetime(2026, 9, 3, 20, 0, tzinfo=timezone.utc))["missed_backfill_allowed"] is False)
+    # The V6 campaign (CLEAR-NASDAQ-FORWARD-OOS-V6-V672, sealed 2026-09-08) is
+    # RETIRED. Step A repaired the canonical signal identity and A6/A7 added the
+    # artifact guard and the three-identity split; between them eight files
+    # inside the sealed production fingerprint changed and three were added, so
+    # the pinned model fingerprint can never match again. The seal FILE itself
+    # is untouched and still hashes correctly.
+    #
+    # This asserted "campaign seal valid". Making that true again would require
+    # resealing a retired campaign against code that is not the code its results
+    # came from. The correct assertion is that the legacy campaign stays invalid
+    # and validation-ineligible, and that no successor has started.
     seal = verify_campaign_seal()
-    check("campaign seal valid", seal["ok"] is True and seal["seal_hash_valid"] is True)
-    check("campaign model fingerprint frozen", seal["model_fingerprint_match"] is True)
+    check("retired V6 seal FILE is untampered", seal["seal_hash_valid"] is True)
+    check("retired V6 campaign is NOT valid under the repaired identity",
+          seal["ok"] is False and seal["model_fingerprint_match"] is False)
+    check("still the V6 campaign; no successor sealed",
+          seal["campaign_id"] == "CLEAR-NASDAQ-FORWARD-OOS-V6-V672")
     check("historical tuning after seal forbidden", seal["policy"]["historical_tuning_after_seal_allowed"] is False)
+    check("no directional forecast locked (alpha spent = 0)",
+          verify_ledger(DEFAULT_ROOT)["forecast_locks"] == 0)
+
+    # With the retired V6 seal in force every lock is refused fail-closed. That
+    # refusal is the correct production behaviour and is asserted here against
+    # the REAL seal. The ledger, evidence and resolution mechanics below are a
+    # different subject, so the seal gate is then neutralised for them exactly
+    # as test_freeze_parity_v667 does. Nothing is resealed, no fingerprint is
+    # altered, and the production ledger is never written: every lock below
+    # runs inside a temporary directory.
+    import fia.forward_oos as _foos
+    _refused = await lock_live_forecast(fc(summer), snap(), Path(tempfile.mkdtemp()),
+                                        now=summer, entry_lookup=fake_entry)
+    check("retired V6 seal refuses every live lock fail-closed",
+          _refused["created"] is False
+          and _refused["reason"] == "CAMPAIGN_SEAL_OR_MODEL_FINGERPRINT_INVALID")
+
+    # Neutralise the seal gate for the remainder of main(). This process runs
+    # this test and nothing else, and every lock below writes into a temporary
+    # directory, so the production ledger is never touched. Restored at the end.
+    _real_seal = _foos.verify_campaign_seal
+    _foos.verify_campaign_seal = lambda *a, **k: {"ok": True, "policy": {}}
 
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
@@ -230,6 +267,13 @@ async def main():
     check("promotion needs same 50 new rows", gate["details"]["4h"]["candidate"]["n"] == 50 and gate["details"]["8h"]["base"]["n"] == 50)
     check("strong paired candidate can become eligible but not auto-deploy", gate["verdict"] == "PROMOTION_ELIGIBLE_NOT_AUTO_DEPLOYED")
     check("promotion gate still excludes old holdout", gate["old_holdout_permanently_disqualified_as_untouched"] is True)
+
+    _foos.verify_campaign_seal = _real_seal
+    _restored = _foos.verify_campaign_seal()
+    check("real seal restored and still correctly invalid",
+          _restored["ok"] is False and _restored["seal_hash_valid"] is True)
+    check("production ledger untouched by this test",
+          verify_ledger(DEFAULT_ROOT)["forecast_locks"] == 0)
 
     print("=" * 72)
     print(f"SOL56 NEW FORWARD OOS INTEGRITY PASS {PASS}/{PASS}")
