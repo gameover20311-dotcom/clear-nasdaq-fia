@@ -1,8 +1,8 @@
-# CLOUD AI — UMSE MASTER V2 FULL FINAL HOSTILE AUDIT
+# CLOUD AI — UMSE MASTER V2 FULL POST-REPAIR HOSTILE RE-AUDIT
 
-You are auditing **CLEAR NASDAQ FIA — UMSE MASTER V2 FULL**.
+You are performing a **read-only hostile re-audit** of CLEAR NASDAQ FIA — UMSE MASTER V2 FULL after the first hostile audit repair pass.
 
-This is a hostile scientific/engineering audit, not a code-review formality. Do not reward complexity, test count, documentation quality, or ambition. Your job is to try to prove the system wrong, identify unsupported claims, delete redundant machinery, find leakage/identity/protocol defects, and determine whether the V2 research build is genuinely ready for real-data calibration and later Forward-OOS work.
+Do not inherit the repair report as truth. Independently reproduce, attack and falsify the repaired implementation.
 
 ## Scope
 
@@ -10,337 +10,201 @@ Repository: `gameover20311-dotcom/clear-nasdaq-fia`
 
 Branch: `research/umse-master-v2-full`
 
-Production base that must remain untouched: `1ab93b09d22b77e2bdce99fcfc1418395cbdf78d`
+Production base that must remain untouched:
 
-V2 source/identity checkpoint to audit first: `5a8104c314d52c45fed46a8aa647549b0e5403d9`
+`1ab93b09d22b77e2bdce99fcfc1418395cbdf78d`
 
-Dedicated V2 CI run: `34696256826`
+Pre-audit source checkpoint:
 
-Expected V2 identities at that checkpoint:
+`5a8104c314d52c45fed46a8aa647549b0e5403d9`
 
-- MODEL: `0594b5ca955176e52ea6173072dab5d9234c5db0ed3ca7ca5773c8328e784afc`
-- PROTOCOL: `9949ee06182ef679261c73aac3cd7d8e35774fbaf3b3f6affb878ff632add58c`
-- INFRASTRUCTURE: `2f4d8ebff162cf719b23a137620ff5440b77154a1ed54b65179112a6c751b8cb`
-- Classification manifest: `6209ec304e8f2789ba36434c2182d33cb247213153bf19958deacf055144f1d2`
+Repaired source/identity checkpoint to audit:
 
-Read:
+`fa748fd557abade69445f691e69ac00e1e6d9dba`
 
+Dedicated repaired CI run:
+
+`34698054213`
+
+Expected repaired identities — recompute independently rather than trusting them:
+
+- MODEL: `3c77dabaf853d33e04f567ad1fc835b328254141218a72918457157884a24229`
+- PROTOCOL: `e62ae32400b3f2d3e2f6d3fb726a11674ca1a985fb44b0a361ff5ba1bfb9bc81`
+- INFRASTRUCTURE: `70a93eecf7f36c227f6715e3059a0f12e944fcfba77b7f6236f5cd29e88a3b75`
+- Classification manifest: `7de6809074cf39441e7c8cd606e2e6864c0bd0ecb1daf29f5f9852f2190999e4`
+
+Read at minimum:
+
+- `research/umse_master_v2/UMSE_V2_CLOUD_AUDIT_REPAIR_REPORT.md`
 - `research/umse_master_v2/UMSE_V2_FINAL_RESEARCH_REPORT.md`
 - `research/umse_master_v2/UMSE_V2_BUILD_MANIFEST.json`
-- all files under `research/umse_master_v2/src/umse_master_v2/`
-- all files under `research/umse_master_v2/tests/`
+- every file under `research/umse_master_v2/src/umse_master_v2/`
+- every file under `research/umse_master_v2/tests/`
 - `.github/workflows/umse-v2-research.yml`
-- relevant repaired V1 dependencies under `research/umse_master/src/umse_master/`
+- repaired V1 dependencies under `research/umse_master/src/umse_master/`, especially `validation.py` and `significance.py`
 
-## Non-negotiable current scientific status
+## FIRST PASS MUST REMAIN READ-ONLY
 
-Do not upgrade these without actual unseen evidence:
+Do not modify files.
+Do not open a PR.
+Do not repair anything.
+Do not invent missing market data.
+Do not reinterpret synthetic tests as predictive evidence.
 
-- `SUCCESSOR_CAMPAIGN_STARTED=false`
-- `ALPHA_SPENT=0`
-- `PREDICTIVE_EDGE=NOT_PROVEN`
-- `PRODUCTION_INTEGRATION=false`
-- `PREDICTIVE_MAPPING_FROZEN=false`
-- `REAL_MBO_CALIBRATION=NOT_DONE`
-- `FORWARD_OOS_EDGE=NOT_PROVEN`
+Return the re-audit report first.
 
-A green CI run proves engineering contracts only. It does not prove market skill.
+## Mandatory original-finding closure table
 
-## FIRST PASS MUST BE READ-ONLY
+Your previous hostile audit contained 17 findings. Re-run **all 17 original findings**, not only the five HIGH findings summarized to the owner.
 
-Do **not** modify files on the first pass.
-Do **not** open a PR.
-Do **not** repair anything yet.
-Do **not** invent missing market data.
-Do **not** reinterpret synthetic tests as predictive evidence.
+For every original finding return exactly one state:
 
-Return findings first. Repairs happen only after findings are accepted.
+- `CLOSED_BY_REPAIR`
+- `STILL_OPEN`
+- `PARTIALLY_CLOSED`
+- `NOT_REPRODUCED`
+- `SCIENTIFIC_LIMIT_REMAINS`
 
-## Audit objectives
+For each item show the exact adversarial reproduction command/test or equivalent evidence.
 
-### 1. Production isolation
+At minimum independently retest these disclosed blockers:
 
-Prove from Git history/diff, not assumption, that the branch does not alter production behavior outside the explicitly allowed research paths/workflow.
+### V2-01 — queue chronology
 
-Challenge the workflow isolation grep and look for bypasses, symlinks, generated files, import side effects, packaging surprises, workflow changes, or path tricks.
+Attempt to reproduce the former case where sequence order and event time disagree and a terminal precedes its ADD.
 
-### 2. MBO / L2 / market-data truth
+The repaired system must never turn a negative lifetime into zero or return clean `OBSERVED` exact survival.
 
-Attack the MBO contract and queue-survival logic.
+Attack resets, reused sequence ranges, multi-channel normalization and equal timestamps.
 
-Check whether any aggregate L2, trades/quotes, proxy, reconstructed book, synthetic event, or incomplete sequence could accidentally gain order-by-order/MBO semantics.
+### V2-02 — age-window left truncation
 
-Specifically challenge:
+Attempt to reproduce an old ADD plus recent terminal event with `max_age_seconds`.
 
-- order ID uniqueness assumptions
-- sequence-domain completeness
-- sequence resets/restarts
-- multi-channel/multi-source sequence spaces
-- modify/cancel/trade semantics
-- partial fills
-- reused order IDs
-- price/side mutation assumptions
-- session resets
-- packet loss
-- historical feed normalization
-- hidden provider-specific semantics
-- event-time vs available-time vs ingest-time
-- stale data handling
-- queue-position claims
-- trader-identity claims
+The repair must not preferentially manufacture short lifetimes by dropping the ADD and retaining its terminal event.
 
-Any exact queue claim that cannot survive real CME/Rithmic/NinjaTrader semantics must be downgraded.
+Challenge multiple open orders crossing the window boundary and orders added before the window but partially modified inside it.
 
-### 3. Causal integrity / future leakage
+### V2-03 — unreachable mechanism hypotheses
 
-Try to inject future information into every path.
+Re-run the previous random-search/adversarial mechanism distinguishability attack.
 
-Audit all uses of:
+Verify passive accumulation/distribution and bid/ask absorption are no longer mathematically dominated.
 
-- `event_time_utc`
-- `available_time_utc`
-- `ingested_time_utc`
-- decision time
-- outcome time
-- horizon resolution time
-- state-point eligibility
-- book snapshots
-- shocks
-- cross-market lead/lag
-- replay/validation
+Then go further: determine whether the repaired distinctions are scientifically identifiable from the stated observables or merely reachable heuristic score regions.
 
-Check whether sorting, normalization, standardization, state geometry, topology, or any batch computation uses observations that would not have existed at the historical decision time.
+Do not confuse reachability with market identifiability.
 
-### 4. Information velocity / lead-lag nulls
+### V2-04 — common-driver lead/lag
 
-Challenge whether the lead/lag methods can report significance from:
+Re-run the exact previous common-driver attack that produced 60/60 apparent significance.
 
-- shared market clock
-- autocorrelation
+Verify that the final directional screen now fails when both directions are significant.
+
+Then attack the reverse-direction repair with:
+
+- asymmetric common-driver latency
+- autocorrelated bursts
 - repeated shocks
-- event clustering
-- exchange/feed latency asymmetry
+- periodic clocks
 - duplicated events
-- deterministic periodicity
-- common-driver effects
-- multiple testing
-- parameter search over lag windows
-- circular-shift artifacts
+- unequal source/target event counts
+- feed latency differences
+- parameter search across lag windows
 
-Confirm that a significant screen cannot become calibration, causal evidence, a forecast probability, or promotion evidence.
+A directional screen still does not establish economic causality.
 
-### 5. Queue lifetime / survival analysis
+### V2-05 — isolation workflow trigger
 
-Attack censoring semantics and survival estimates.
+Prove that a push touching only `backend/**` on the V2 branch now triggers the V2 workflow and fails the production-isolation diff check.
 
-Check:
+Do not actually mutate production main.
 
-- all-censored behavior
-- informative censoring
-- session-end censoring
-- partial-order survival
-- competing risks (cancel vs trade)
-- time-varying covariates
-- sequence gaps
-- minimum sample behavior
-- misuse of median/restricted mean survival
+Challenge symlinks, generated files, workflow changes and path tricks.
 
-Do not accept a persistence claim if the observation process itself explains it.
+### Inherited alpha bug
 
-### 6. Order-book memory
+Verify a plan with `alpha=0.01` produces a 99% bootstrap interval rather than silently using 90%.
 
-Challenge conversion of snapshot-step autocorrelation into physical time.
+Check whether the bootstrap tail indexing and interpretation are internally consistent with that confidence level.
 
-Check:
+### Incremental-information question
 
-- irregular sampling
-- missing snapshots
-- bursty updates
-- stale books
-- duplicate snapshots
-- session breaks
-- nonstationarity
-- normalization leakage
+Verify V2 now explicitly exposes the null-calibrated test for:
 
-If half-life cannot be defended in seconds, the cross-scale gate must remain closed.
+`I(UMSE_t ; Y_future | FIA_t) > 0`
 
-### 7. Resistance field
+Attack it with pure noise, conditional confounding, sparse cells, high-cardinality FIA strata, multiple feature searches and repeated experimentation.
 
-Try to prove that the field is merely a transformed depth imbalance or silently assumes unavailable flow.
+A significant screen must remain non-promotional and uncalibrated.
 
-Check whether provision/depletion semantics are provider-correct, whether missing components become zeros, whether scores are bounded only cosmetically, and whether any directional interpretation exceeds the evidence.
+## Mandatory full mutation re-run
 
-### 8. Latent mechanism competition
+Re-run your **complete original 18-mutation battery** against the repaired suite.
 
-This is a high-risk area for storytelling.
+Do not accept the existence of 51 tests as evidence of mutation strength.
 
-Challenge every mechanism score:
+For each original mutation report:
 
-- informed buying/selling
-- short covering
-- long liquidation
-- passive accumulation/distribution
-- liquidity vacuum up/down
-- bid/ask absorption
-- balanced/noise
+- mutation description
+- whether tests detect it
+- exact failing test(s)
+- whether the mutation affects MODEL / PROTOCOL / INFRA
 
-Determine whether different mechanisms are observationally distinguishable with the stated inputs. Identify redundant hypotheses and mechanisms that should be marked `NOT_IDENTIFIABLE_WITH_CURRENT_DATA`.
+The earlier audit found 13/18 survived. Give the new exact detected/18 result. If any scientifically material mutation still survives, classify it as a current TEST_GAP.
 
-Verify that softmax weights are never described or consumed as calibrated posterior probabilities.
-
-Verify no trader identity or strategic equilibrium is inferred from MBO order identity.
-
-### 9. Counterfactual layer
-
-Attack the observational counterfactual design.
-
-Check:
-
-- overlap/positivity
-- post-treatment conditioning
-- collider bias
-- unmeasured confounding
-- endogenous treatment assignment
-- regime-dependent selection
-- treatment definition stability
-- SUTVA/interference violations in a market
-- temporal dependence
-
-If the design cannot support causal language, force it to stay falsification/diagnostic only.
-
-### 10. Topological regime layer
-
-Challenge the 0D persistence/MST interpretation.
-
-Check:
-
-- standardization leakage
-- window dependence
-- sample-size dependence
-- distance metric sensitivity
-- duplicate/near-duplicate states
-- arbitrary fragmentation thresholds
-- relation to simpler clustering/variance metrics
-
-Try to show the topology layer is redundant. If a simpler statistic contains the same information, say so and recommend deletion unless incremental information is demonstrated.
-
-### 11. Cross-scale transport
-
-Attack the idea that microstructure evidence can survive into 4H/8H.
-
-Check whether transport gates genuinely require measured persistence and whether any fallback/default opens them without empirical support.
-
-No micro signal should influence 4H/8H merely because it is intuitively plausible.
-
-### 12. Complexity/model competition
-
-Try to make the complex model win by construction.
-
-Challenge:
-
-- parameter counting
-- effective degrees of freedom
-- feature selection leakage
-- repeated experimentation
-- data reuse
-- tiny sample sizes
-- in-sample fit masquerading as information
-
-Confirm the complexity result remains diagnostic and never becomes predictive proof.
-
-### 13. V2 paired Forward-OOS validation
-
-This is critical.
-
-Audit:
+At minimum ensure the suite detects destruction of:
 
 - fixed-N enforcement
-- preregistration time strictly before first forecast
-- MODEL fingerprint match
-- PROTOCOL fingerprint match
-- evidence hash presence
-- duplicate forecast IDs
-- horizon separation
-- outcome not resolved early
-- 8H primary endpoint
-- 4H separate secondary endpoint
-- no optional stopping
-- no alpha reuse
-- no historical data entering confirmation
-- block bootstrap adequacy
-- degeneracy handling
-- calibration metrics
-- same-sample BASE vs candidate comparison
+- outcome-horizon enforcement
+- Kaplan-Meier survival update
+- resistance depletion sign
+- mechanism competition behavior
+- queue chronology
+- age-window lineage handling
+- lead/lag common-driver guard
+- plan alpha propagation
+- incremental-information null behavior
 
-Try to construct adversarial records that bypass the gate.
+## Module-reachability / integration audit
 
-### 14. Identity/fingerprint system
+The repaired report no longer claims every V2 module is live-pipeline integrated.
 
-Recompute identities independently.
+Verify the stated architecture split:
 
-Challenge:
+**live/pre-outcome shadow core** versus **separate research/validation surfaces**.
 
-- self-inclusive infrastructure fingerprint behavior
-- manifest completeness
-- files excluded from scope
-- unclassified source files
-- source files able to change scientific behavior while fingerprint class remains unchanged
-- docs/config/workflow that should actually be protocol identity
+Determine whether any separate module is truly dead/unreachable code or whether separation is scientifically appropriate.
 
-A commit hash alone is not scientific identity.
+Do **not** recommend wiring outcome-dependent validation into the pre-outcome live pipeline merely to improve coverage numbers.
 
-### 15. Tests
+For mechanism competition, topology and counterfactual layers, decide whether they should remain separate, be integrated later after real-data calibration, or be deleted for redundancy.
 
-Do not count tests. Attack them.
+## Repeat the full hostile audit areas
 
-Look for:
+Independently challenge:
 
-- tautological assertions
-- tests that only confirm constants
-- synthetic scenarios that are too easy
-- missing negative/adversarial cases
-- non-determinism
-- false-green mocks
-- tests disconnected from real provider semantics
-- tests that certify statistical gates using hand-designed perfect outcomes
+1. production isolation
+2. MBO/L2/provider truth
+3. causal integrity and future leakage
+4. information velocity / lead-lag nulls
+5. queue lifetime / censoring
+6. order-book memory
+7. resistance field
+8. latent mechanism competition
+9. counterfactual layer
+10. topological regime layer
+11. cross-scale transport
+12. complexity/model competition
+13. paired Forward-OOS validation
+14. identity/fingerprint integrity
+15. test strength
+16. mathematical correctness
+17. incremental value / redundancy against FIA
 
-Classify each important test family as:
+## Required classifications
 
-- STRONG CONTRACT TEST
-- USEFUL BUT SYNTHETIC
-- WEAK / TAUTOLOGICAL
-- MISSING REALITY TEST
-
-### 16. Mathematical correctness
-
-Re-derive or challenge the mathematics used in:
-
-- queue survival
-- Kaplan-Meier/restricted survival summaries
-- information/lead-lag nulls
-- cross-scale exponential survival
-- complexity penalty
-- Brier difference
-- circular block bootstrap
-- 0D persistence/MST equivalence
-- mechanism weighting
-- observational stratified counterfactual contrast
-
-Report any mathematically valid calculation whose interpretation is still scientifically invalid.
-
-### 17. Incremental value / redundancy
-
-The ultimate research question is not whether UMSE V2 is sophisticated. It is:
-
-`I(UMSE_t ; Y_future | FIA_t) > 0 ?`
-
-Try to show every V2 feature is redundant with existing FIA information.
-
-Require marginal/incremental evidence before retaining complexity. Recommend deleting modules that add no independently testable information.
-
-## Required finding format
-
-For every finding, classify it as exactly one of:
+Use exactly:
 
 - `CRITICAL_GENUINE_BUG`
 - `HIGH_GENUINE_BUG`
@@ -353,16 +217,15 @@ For every finding, classify it as exactly one of:
 - `DOCUMENTATION_OR_CLAIM_ISSUE`
 - `ALREADY_DEFENDED_CORRECTLY`
 
-For each genuine defect provide:
+For every current defect provide:
 
-1. exact file/function/line or smallest precise location
+1. exact file/function/smallest precise location
 2. why it is wrong
-3. a concrete adversarial example
-4. scientific/engineering consequence
-5. minimum defensible repair
+3. concrete adversarial example
+4. consequence
+5. smallest defensible repair
 6. required regression test
-
-Do not propose speculative rewrites when a smaller repair is sufficient.
+7. MODEL / PROTOCOL / INFRA identity impact
 
 ## Mandatory final verdict table
 
@@ -395,10 +258,22 @@ Allowed verdict words:
 - `NOT_ESTABLISHED`
 - `NOT_APPLICABLE`
 
-## Final required statement
+## Non-negotiable scientific status
 
-Unless genuine unseen market evidence exists that is not currently in this branch, the predictive conclusion must remain exactly:
+Do not upgrade these without genuine unseen market evidence:
 
-`PREDICTIVE_EDGE = NOT_PROVEN`
+`SUCCESSOR_CAMPAIGN_STARTED=false`
 
-Stop after the audit report. Do not modify code until explicitly authorized.
+`ALPHA_SPENT=0`
+
+`PREDICTIVE_EDGE=NOT_PROVEN`
+
+`PRODUCTION_INTEGRATION=false`
+
+`PREDICTIVE_MAPPING_FROZEN=false`
+
+`REAL_MBO_CALIBRATION=NOT_DONE`
+
+`FORWARD_OOS_EDGE=NOT_PROVEN`
+
+Stop after the re-audit report. Do not repair anything until explicitly authorized.
