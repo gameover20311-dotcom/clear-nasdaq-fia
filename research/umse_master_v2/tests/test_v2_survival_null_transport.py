@@ -70,11 +70,15 @@ class LeadLagNullTests(unittest.TestCase):
         self.assertEqual(result.status, EvidenceStatus.INSUFFICIENT_DATA)
         self.assertFalse(result.significant_screen)
 
-    def test_clear_alignment_beats_shift_null_but_is_not_predictive_proof(self):
+    def test_clear_irregular_alignment_beats_shift_null_but_is_not_predictive_proof(self):
         shocks = []
+        elapsed = 0.0
         for i in range(30):
-            source = T0 + timedelta(seconds=20 * i)
-            target = source + timedelta(seconds=1)
+            # Deliberately irregular spacing avoids a periodic train whose
+            # circularly shifted copies could alias back onto the source train.
+            elapsed += 7.0 + float((i * 13) % 17)
+            source = T0 + timedelta(seconds=elapsed)
+            target = source + timedelta(seconds=0.25)
             shocks.append(TimedShock("ES", source, source, f"es-{i}", float(i % 3 - 1)))
             shocks.append(TimedShock("NQ", target, target, f"nq-{i}", float(i % 3 - 1)))
         result = circular_shift_leadlag_evidence(
@@ -82,7 +86,7 @@ class LeadLagNullTests(unittest.TestCase):
             T0 + timedelta(seconds=1000),
             source_node="ES",
             target_node="NQ",
-            max_lag_seconds=3.0,
+            max_lag_seconds=2.0,
             permutations=199,
             alpha=0.01,
             minimum_events_per_node=20,
