@@ -1,0 +1,53 @@
+name: UMSE V2 Research Verify
+
+on:
+  push:
+    branches:
+      - research/umse-master-v2-full
+    paths:
+      - 'research/umse_master_v2/**'
+      - '.github/workflows/umse-v2-research.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Compile V1 and V2 research source
+        run: |
+          python -m compileall -q research/umse_master/src
+          python -m compileall -q research/umse_master_v2/src
+
+      - name: Run V2 microstructure truth tests
+        run: |
+          PYTHONPATH=research/umse_master/src:research/umse_master_v2/src \
+            python -m unittest discover -s research/umse_master_v2/tests -p 'test_*.py' -v
+
+      - name: Prove production isolation
+        run: |
+          git fetch origin main --depth=1
+          bad=$(git diff --name-only origin/main...HEAD | grep -Ev '^(research/umse_master/|research/umse_master_v2/|\.github/workflows/umse-research\.yml$|\.github/workflows/umse-v2-research\.yml$)' || true)
+          if [ -n "$bad" ]; then
+            echo "Unexpected non-research files changed:"
+            echo "$bad"
+            exit 1
+          fi
+          echo "Production isolation: PASS"
+
+      - name: Preserve scientific status
+        run: |
+          echo 'SUCCESSOR_CAMPAIGN_STARTED=false'
+          echo 'ALPHA_SPENT=0'
+          echo 'PREDICTIVE_EDGE=NOT_PROVEN'
+          echo 'PRODUCTION_INTEGRATION=false'
