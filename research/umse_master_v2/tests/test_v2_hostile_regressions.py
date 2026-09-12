@@ -295,7 +295,11 @@ class ValidationProtocolMutationTests(unittest.TestCase):
             power_design_reference="hostile-regression",
         )
         result = evaluate_paired_candidate(base, candidate, outcomes, plan=plan, seed=9)
-        self.assertAlmostEqual(result.ci_confidence, 0.99)
+        # The gate is ONE-SIDED (lower bound above zero), so a two-sided
+        # (1 - alpha) interval would run the test at alpha/2. The stored
+        # two-sided confidence is 1 - 2*alpha, which puts exactly alpha in the
+        # lower tail and makes the declared alpha the real test level.
+        self.assertAlmostEqual(result.ci_confidence, 0.98)
 
 
 class IncrementalInformationRegressionTests(unittest.TestCase):
@@ -336,7 +340,14 @@ class IncrementalInformationRegressionTests(unittest.TestCase):
 
 class WorkflowIsolationRegressionTests(unittest.TestCase):
     def test_isolation_workflow_is_not_path_gated(self):
-        text = Path(".github/workflows/umse-v2-research.yml").read_text(encoding="utf-8")
+        # Resolve from this file, not the working directory. A CWD-relative
+        # path made the guard raise FileNotFoundError whenever the suite ran
+        # from anywhere but the repository root, so it errored instead of
+        # validating -- and that error masked the true mutation-battery result.
+        workflow = (Path(__file__).resolve().parents[3]
+                    / ".github" / "workflows" / "umse-v2-research.yml")
+        self.assertTrue(workflow.is_file(), f"workflow not found at {workflow}")
+        text = workflow.read_text(encoding="utf-8")
         self.assertNotIn("    paths:\n", text)
         self.assertIn("Prove production isolation", text)
 

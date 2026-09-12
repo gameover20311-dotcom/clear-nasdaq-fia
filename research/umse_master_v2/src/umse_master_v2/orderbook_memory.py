@@ -15,6 +15,7 @@ from .contracts import EvidenceStatus
 class OrderBookMemory:
     status: EvidenceStatus
     sample_count: int
+    duplicate_snapshots_dropped: int
     median_interval_seconds: float | None
     lag1_imbalance_correlation: float | None
     lag1_depth_correlation: float | None
@@ -69,10 +70,26 @@ def estimate_orderbook_memory(
 
     eligible = [s for s in snapshots if s.eligible_at(decision_time_utc)]
     eligible.sort(key=lambda s: (s.event_time_utc, s.provenance_id))
+
+    # REPUBLICATION IS NOT MEMORY.
+    # A feed that re-emits an unchanged book on a timer, a heartbeat, or a
+    # recovery replay inserts consecutive identical states. Those drive the
+    # lag-1 autocorrelation toward 1 and manufacture persistence that belongs
+    # to the publishing cadence, not the market: the audit measured lag-1
+    # imbalance moving from -0.0981 to +0.4565 on republication alone.
+    deduped: list[OrderBookSnapshot] = []
+    dropped = 0
+    for snap in eligible:
+        if deduped and _series(deduped[-1]) == _series(snap):
+            dropped += 1
+            continue
+        deduped.append(snap)
+    eligible = deduped
     if len(eligible) < 6:
         return OrderBookMemory(
             EvidenceStatus.INSUFFICIENT_DATA,
             len(eligible),
+            dropped,
             None,
             None,
             None,
@@ -133,9 +150,13 @@ def estimate_orderbook_memory(
     if half_life_steps is None:
         reasons.append("HALF_LIFE_NOT_CROSSED_WITHIN_OBSERVED_LAGS")
 
+    if dropped:
+        reasons.append("DUPLICATE_SNAPSHOTS_DROPPED")
+
     return OrderBookMemory(
         status=status,
         sample_count=len(eligible),
+        duplicate_snapshots_dropped=dropped,
         median_interval_seconds=med_interval,
         lag1_imbalance_correlation=lag1_i,
         lag1_depth_correlation=lag1_d,

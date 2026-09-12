@@ -108,7 +108,20 @@ def reconstruct_queue_survival(
             reasons=("MIXED_SOURCE_OR_INSTRUMENT_SEQUENCE_SPACE",),
         )
 
-    ordered = tuple(sorted(rows, key=lambda r: (r.sequence, r.event_time_utc, r.provenance_id)))
+    # A repeated packet is not a second market event. Left in place a duplicated
+    # fill decremented the remaining size twice and closed a half-filled order
+    # as a completed exit with a fabricated lifetime.
+    seen_keys: set = set()
+    deduped = []
+    duplicate_records = 0
+    for row in sorted(rows, key=lambda r: (r.sequence, r.event_time_utc, r.provenance_id)):
+        key = (row.sequence, row.order_id, row.action, row.side, row.price, row.size)
+        if key in seen_keys:
+            duplicate_records += 1
+            continue
+        seen_keys.add(key)
+        deduped.append(row)
+    ordered = tuple(deduped)
     sequences = [r.sequence for r in ordered]
     sequence_unique = len(sequences) == len(set(sequences))
     numerically_contiguous = sequence_unique and all(b == a + 1 for a, b in zip(sequences, sequences[1:]))
@@ -138,6 +151,8 @@ def reconstruct_queue_survival(
     lineage_complete = True
     reasons: list[str] = []
 
+    if duplicate_records:
+        reasons.append("DUPLICATE_RECORDS_DROPPED")
     if not sequence_domain_complete:
         reasons.append("SEQUENCE_DOMAIN_COMPLETENESS_NOT_PROVEN")
     if not sequence_unique:

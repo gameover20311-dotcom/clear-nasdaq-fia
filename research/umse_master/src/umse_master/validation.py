@@ -165,8 +165,8 @@ class ConfirmatoryPlan:
             raise ValueError("preregistered_n must be > 0")
         if not math.isfinite(float(self.target_delta)) or self.target_delta <= 0:
             raise ValueError("target_delta must be finite and > 0")
-        if not math.isfinite(float(self.alpha)) or not 0.0 < float(self.alpha) < 1.0:
-            raise ValueError("alpha must be finite and in (0,1)")
+        if not math.isfinite(float(self.alpha)) or not 0.0 < float(self.alpha) < 0.5:
+            raise ValueError("alpha must be finite and in (0,0.5)")
         if int(self.block_size) <= 0:
             raise ValueError("block_size must be > 0")
         if self.registered_at_utc.tzinfo is None:
@@ -196,7 +196,7 @@ class PairedValidationResult:
     blocking_reasons: Tuple[str, ...]
     note: str
     plan_id: Optional[str] = None
-    ci_confidence: float = 0.90
+    ci_confidence: float = 0.80
 
 
 def evaluate_paired_candidate(
@@ -213,7 +213,12 @@ def evaluate_paired_candidate(
         raise ValueError("length mismatch")
 
     target_delta = plan.target_delta if plan is not None else 0.010
-    ci_confidence = 1.0 - plan.alpha if plan is not None else 0.90
+    # THE GATE IS ONE-SIDED. It asks only whether the lower bound clears zero.
+    # A two-sided (1 - alpha) interval puts alpha/2 in each tail, so pairing it
+    # with a one-sided decision silently ran the test at alpha/2 rather than the
+    # declared alpha. Using (1 - 2*alpha) makes the lower tail exactly alpha, so
+    # the declared alpha is the alpha of the test actually performed.
+    ci_confidence = 1.0 - 2.0 * plan.alpha if plan is not None else 0.80
     reasons = []
 
     if n == 0:

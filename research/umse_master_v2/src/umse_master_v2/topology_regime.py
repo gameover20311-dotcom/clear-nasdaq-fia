@@ -51,6 +51,8 @@ class StatePoint:
 class TopologicalRegimeSignature:
     status: EvidenceStatus
     samples: int
+    duplicate_points: int
+    scale_normalised_median_merge: float | None
     dimensions: int
     mst_edge_lengths: tuple[float, ...]
     largest_merge_scale: float | None
@@ -86,7 +88,12 @@ def _distance(a: Sequence[float], b: Sequence[float]) -> float:
 
 
 def _mst_edges(points: Sequence[tuple[float, ...]]) -> list[float]:
-    """Prim MST over the complete Euclidean graph; returns n-1 edge lengths."""
+    """Prim MST over the complete Euclidean graph; returns n-1 edge lengths.
+
+    Zero-length edges are retained. Dropping them silently made the edge count
+    stop being n-1 whenever the cloud contained repeated state vectors, so the
+    persistence entropy was normalised by the wrong denominator.
+    """
     n = len(points)
     if n <= 1:
         return []
@@ -97,7 +104,7 @@ def _mst_edges(points: Sequence[tuple[float, ...]]) -> list[float]:
     for _ in range(n):
         u = min((i for i in range(n) if not used[i]), key=lambda i: best[i])
         used[u] = True
-        if best[u] > 0.0 and math.isfinite(best[u]):
+        if math.isfinite(best[u]) and len(edges) < n - 1:
             edges.append(best[u])
         for v in range(n):
             if used[v]:
@@ -133,6 +140,8 @@ def topological_regime_signature(
         return TopologicalRegimeSignature(
             status=EvidenceStatus.INSUFFICIENT_DATA,
             samples=len(eligible),
+            duplicate_points=0,
+            scale_normalised_median_merge=None,
             dimensions=len(eligible[0].vector) if eligible else 0,
             mst_edge_lengths=(),
             largest_merge_scale=None,
@@ -148,6 +157,8 @@ def topological_regime_signature(
         return TopologicalRegimeSignature(
             status=EvidenceStatus.PROTOCOL_INELIGIBLE,
             samples=len(eligible),
+            duplicate_points=0,
+            scale_normalised_median_merge=None,
             dimensions=dims,
             mst_edge_lengths=(),
             largest_merge_scale=None,
@@ -160,11 +171,14 @@ def topological_regime_signature(
 
     vectors = [p.vector for p in eligible]
     standardized = _standardize(vectors)
+    duplicates = len(standardized) - len({tuple(v) for v in standardized})
     edges = sorted(_mst_edges(standardized))
     if not edges or max(edges) <= 1e-12:
         return TopologicalRegimeSignature(
             status=EvidenceStatus.NOT_IDENTIFIABLE,
             samples=len(eligible),
+            duplicate_points=duplicates,
+            scale_normalised_median_merge=None,
             dimensions=dims,
             mst_edge_lengths=tuple(edges),
             largest_merge_scale=max(edges) if edges else 0.0,
@@ -188,16 +202,29 @@ def topological_regime_signature(
     largest = edges[-1]
     fragmentation = largest / max(sum(edges) / len(edges), 1e-12)
 
+    # MERGE SCALES ARE SAMPLE-SIZE ARTEFACTS UNLESS NORMALISED.
+    # Nearest-neighbour distance in d dimensions shrinks like n^(-1/d), so the
+    # raw median merge scale fell from 1.4539 at n=20 to 0.6036 at n=400 on the
+    # SAME distribution. Two windows with different point counts are therefore
+    # not comparable on the raw value. The normalised value divides that scaling
+    # out so signatures can be compared across windows.
+    normalised_median = med * (len(eligible) ** (1.0 / dims)) if dims > 0 else None
+
     reasons = [
         "ZERO_DIMENSIONAL_PERSISTENCE_VIA_MST_ONLY",
         "DESCRIPTIVE_REGIME_GEOMETRY_NOT_FORECAST_EDGE",
+        "RAW_MERGE_SCALES_ARE_SAMPLE_SIZE_DEPENDENT_USE_NORMALISED",
     ]
     if gap_ratio > 2.0:
         reasons.append("LARGE_COMPONENT_MERGE_GAP_PRESENT")
+    if duplicates:
+        reasons.append("DUPLICATE_STATE_POINTS_PRESENT")
 
     return TopologicalRegimeSignature(
         status=EvidenceStatus.UNCALIBRATED,
         samples=len(eligible),
+        duplicate_points=duplicates,
+        scale_normalised_median_merge=normalised_median,
         dimensions=dims,
         mst_edge_lengths=tuple(edges),
         largest_merge_scale=largest,

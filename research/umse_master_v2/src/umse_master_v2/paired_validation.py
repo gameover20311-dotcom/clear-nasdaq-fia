@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
+import math
 from typing import Mapping, Sequence
 
 from umse_master.replay import ReplayClass
@@ -56,6 +57,7 @@ class V2ValidationPlan:
     expected_protocol_fingerprint: str
     block_size: int = 5
     alpha: float = 0.05
+    max_outcome_lag_seconds: float | None = None
     power_design_reference: str = "REQUIRES_ZERO_ALPHA_FORWARD_PILOT"
     evidence_class: ReplayClass = ReplayClass.FORWARD_OOS
 
@@ -73,6 +75,8 @@ class V2ValidationPlan:
             raise ValueError("block_size must be > 0")
         if self.evidence_class is not ReplayClass.FORWARD_OOS:
             raise ValueError("V2 confirmatory plans must be FORWARD_OOS")
+        if self.max_outcome_lag_seconds is not None and float(self.max_outcome_lag_seconds) < 0:
+            raise ValueError("max_outcome_lag_seconds must be >= 0")
 
     @property
     def is_primary(self) -> bool:
@@ -150,6 +154,13 @@ def _protocol_reasons(records: Sequence[V2PairedForecastRecord], plan: V2Validat
     if len(ids) != len(set(ids)):
         reasons.append("DUPLICATE_FORECAST_ID")
 
+    # Distinct forecast ids over identical evidence are not distinct
+    # observations. Without this the same evidence could be counted N times
+    # toward a preregistered N (200/200 duplicates previously passed).
+    hashes = [r.evidence_hash for r in records]
+    if len(hashes) != len(set(hashes)):
+        reasons.append("DUPLICATE_EVIDENCE_HASH")
+
     if len(records) != plan.preregistered_n:
         reasons.append("N_DOES_NOT_MATCH_PREREGISTERED_N")
 
@@ -178,6 +189,32 @@ def _protocol_reasons(records: Sequence[V2PairedForecastRecord], plan: V2Validat
         if r.outcome_time_utc < minimum_outcome:
             reasons.append("OUTCOME_RESOLVED_BEFORE_HORIZON")
             break
+
+    # The horizon was previously a floor with no ceiling, so an 8H forecast
+    # could be scored against an outcome resolved 30 days later. That is
+    # outcome-window shopping. A plan may declare the tolerated lag; the
+    # default admits at most one extra horizon of slack.
+    slack = (float(plan.max_outcome_lag_seconds)
+             if plan.max_outcome_lag_seconds is not None
+             else float(plan.horizon.seconds))
+    for r in records:
+        latest_outcome = r.locked_at_utc + timedelta(
+            seconds=plan.horizon.seconds + slack)
+        if r.outcome_time_utc > latest_outcome:
+            reasons.append("OUTCOME_RESOLVED_AFTER_MAXIMUM_LAG")
+            break
+
+    # Overlapping forecasts violate the block bootstrap's independence
+    # assumption. An 8H horizon locked hourly is dependent across ~8 records,
+    # so a block_size of 5 understates the dependence and narrows the interval.
+    locks = sorted(r.locked_at_utc for r in records)
+    spacings = [(b - a).total_seconds() for a, b in zip(locks, locks[1:])
+                if (b - a).total_seconds() > 0]
+    if spacings:
+        min_spacing = min(spacings)
+        required = math.ceil(plan.horizon.seconds / min_spacing)
+        if plan.block_size < required:
+            reasons.append("BLOCK_SIZE_BELOW_FORECAST_OVERLAP")
 
     return list(dict.fromkeys(reasons))
 

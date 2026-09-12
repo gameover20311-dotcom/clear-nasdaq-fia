@@ -153,7 +153,12 @@ class PairedValidationTests(unittest.TestCase):
             cand_correct = 0.70 + 0.02 * (i % 4)
             base_rest = (1.0 - base_correct) / 2.0
             cand_rest = (1.0 - cand_correct) / 2.0
-            lock = T0 + timedelta(minutes=i)
+            # Non-overlapping locks. Spacing forecasts one minute apart for an
+            # 8H horizon makes every outcome window overlap ~480 deep, so the
+            # sample carries far less independent information than its row
+            # count suggests and the block bootstrap is invalid. The protocol
+            # layer now refuses that, so the fixture uses honest spacing.
+            lock = T0 + timedelta(seconds=i * horizon.seconds)
             rows.append(V2PairedForecastRecord(
                 forecast_id=f"{horizon.value}-{i}",
                 horizon=horizon,

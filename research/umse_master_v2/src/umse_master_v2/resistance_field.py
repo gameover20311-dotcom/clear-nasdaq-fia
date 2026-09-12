@@ -107,12 +107,27 @@ def estimate_resistance_field(
             ("ZERO_VISIBLE_DEPTH",),
         )
 
+    # FLOW MUST COME FROM THE SAME FEED AND THE SAME PRICE REGION AS THE DEPTH.
+    # Matching on instrument alone admitted a second vendor carrying the same
+    # market, which double counted provision on whichever side both vendors
+    # published (measured bid_provision_share 0.8889 on a balanced book).
+    # Matching on every price level admitted flow far outside the `levels`
+    # window the depth term measures (a 500-lot add 1000 points away drove
+    # bid_provision_share to 0.9980 on a levels=3 book).
+    low = min(float(x.price) for x in bids)
+    high = max(float(x.price) for x in asks)
     eligible = [
         r
         for r in mbo_records
         if r.instrument == snapshot.instrument
+        and r.source == snapshot.source
+        and low <= float(r.price) <= high
         and r.eligible_at(decision_time_utc, max_age_seconds=max_age_seconds)
     ]
+    foreign_sources = sorted(
+        {r.source for r in mbo_records
+         if r.instrument == snapshot.instrument and r.source != snapshot.source}
+    )
     provision = {Side.BID: 0.0, Side.ASK: 0.0}
     depletion = {Side.BID: 0.0, Side.ASK: 0.0}
     for row in eligible:
@@ -126,6 +141,15 @@ def estimate_resistance_field(
 
     reasons: list[str] = []
     status = EvidenceStatus.UNCALIBRATED
+    if foreign_sources:
+        return ResistanceField(
+            EvidenceStatus.PROTOCOL_INELIGIBLE,
+            None, None, None,
+            bid_depth_share, ask_depth_share,
+            None, None, None, None,
+            False,
+            ("MIXED_SOURCE_FLOW_FOR_ONE_INSTRUMENT",),
+        )
 
     needs_provision = config.provision_weight > 0
     needs_depletion = config.depletion_weight > 0

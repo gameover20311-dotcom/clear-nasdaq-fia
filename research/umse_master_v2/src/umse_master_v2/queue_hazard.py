@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Sequence
 
 from .contracts import EvidenceStatus, QueueSurvivalObservation
@@ -24,6 +25,8 @@ class QueueLifetimeDiagnostics:
     censored_count: int
     median_survival_seconds: float | None
     restricted_mean_survival_seconds: float | None
+    restricted_mean_tau_seconds: float | None
+    follow_up_reaches_tau: bool
     curve: tuple[SurvivalPoint, ...]
     calibrated: bool
     reasons: tuple[str, ...]
@@ -33,13 +36,25 @@ def kaplan_meier_queue_lifetime(
     observations: Sequence[QueueSurvivalObservation],
     *,
     minimum_orders: int = 10,
+    tau_seconds: float | None = None,
 ) -> QueueLifetimeDiagnostics:
     """Kaplan-Meier style descriptive queue-lifetime estimator.
 
     Censored active orders are retained as censored. All-censored data is
     explicitly NOT_IDENTIFIABLE rather than being interpreted as infinite or
     maximum persistence.
+
+    RESTRICTED MEAN SURVIVAL TIME REQUIRES AN EXPLICIT TAU.
+    RMST is only defined relative to a stated restriction horizon. Integrating
+    to "whatever the data happened to reach" makes the statistic a function of
+    follow-up rather than of survival: identical exit times with follow-up
+    truncated at 5s versus 500s previously produced 4.1 and 350.6. `tau_seconds`
+    must therefore be supplied for an RMST to be returned, it is echoed on the
+    result, and `follow_up_reaches_tau` records whether the observation window
+    actually extends that far.
     """
+    if tau_seconds is not None and (not math.isfinite(float(tau_seconds)) or tau_seconds <= 0):
+        raise ValueError("tau_seconds must be finite and > 0")
 
     if minimum_orders < 2:
         raise ValueError("minimum_orders must be >= 2")
@@ -52,6 +67,8 @@ def kaplan_meier_queue_lifetime(
             censored_count=sum(1 for r in rows if r.censored),
             median_survival_seconds=None,
             restricted_mean_survival_seconds=None,
+            restricted_mean_tau_seconds=tau_seconds,
+            follow_up_reaches_tau=False,
             curve=(),
             calibrated=False,
             reasons=("MINIMUM_ORDER_COUNT_NOT_MET",),
@@ -67,6 +84,8 @@ def kaplan_meier_queue_lifetime(
             censored_count=censored_total,
             median_survival_seconds=None,
             restricted_mean_survival_seconds=None,
+            restricted_mean_tau_seconds=tau_seconds,
+            follow_up_reaches_tau=False,
             curve=(),
             calibrated=False,
             reasons=("ALL_ORDERS_CENSORED",),
@@ -84,10 +103,13 @@ def kaplan_meier_queue_lifetime(
     restricted_mean = 0.0
     median_survival = None
 
+    horizon = float(tau_seconds) if tau_seconds is not None else None
     for time in sorted(by_time):
         # Survival between event times is constant, so integrate the previous
-        # survival level over the interval for restricted mean survival time.
-        restricted_mean += survival * max(0.0, time - previous_time)
+        # survival level over the interval. When a tau is supplied the integral
+        # stops there, which is what makes the value comparable across samples.
+        upper = time if horizon is None else min(time, horizon)
+        restricted_mean += survival * max(0.0, upper - previous_time)
         bucket = by_time[time]
         exits = sum(1 for r in bucket if not r.censored)
         censored = len(bucket) - exits
@@ -109,11 +131,21 @@ def kaplan_meier_queue_lifetime(
         if median_survival is None and survival <= 0.5:
             median_survival = time
         at_risk -= exits + censored
-        previous_time = time
+        previous_time = time if horizon is None else min(time, horizon)
+
+    max_observed = max(by_time) if by_time else 0.0
+    reaches_tau = horizon is not None and max_observed >= horizon
+    if horizon is not None:
+        # Carry the flat tail from the last event time out to tau.
+        restricted_mean += survival * max(0.0, horizon - previous_time)
 
     reasons: list[str] = ["DESCRIPTIVE_SURVIVAL_NOT_PREDICTIVE_CALIBRATION"]
     if median_survival is None:
         reasons.append("MEDIAN_NOT_REACHED_WITHIN_OBSERVATION_WINDOW")
+    if horizon is None:
+        reasons.append("RMST_TAU_NOT_SUPPLIED_VALUE_IS_FOLLOW_UP_DEPENDENT")
+    elif not reaches_tau:
+        reasons.append("FOLLOW_UP_DOES_NOT_REACH_TAU")
 
     return QueueLifetimeDiagnostics(
         status=EvidenceStatus.UNCALIBRATED,
@@ -122,6 +154,8 @@ def kaplan_meier_queue_lifetime(
         censored_count=censored_total,
         median_survival_seconds=median_survival,
         restricted_mean_survival_seconds=restricted_mean,
+        restricted_mean_tau_seconds=horizon,
+        follow_up_reaches_tau=reaches_tau,
         curve=tuple(curve),
         calibrated=False,
         reasons=tuple(reasons),
