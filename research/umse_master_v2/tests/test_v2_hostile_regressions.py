@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import random
 import unittest
 
 from umse_master.contracts import DataClass, QualityState
@@ -152,21 +153,23 @@ class MechanismIdentifiabilityRegressionTests(unittest.TestCase):
 
 class LeadLagConfoundRegressionTests(unittest.TestCase):
     def test_symmetric_common_driver_does_not_pass_directional_screen(self):
+        # Independent node reactions are clustered around the same external
+        # burst clock. Neither node causes the other, but a one-direction shift
+        # null sees strong apparent lead/lag in both directions.
+        rng = random.Random(1)
         shocks = []
         for i in range(30):
-            base = T0 + timedelta(seconds=i * 20)
-            # Two nodes react to the same burst with interleaved timestamps.
-            # Neither is a defensible directional cause of the other.
-            for j, sec in enumerate((1.0, 4.0)):
-                t = base + timedelta(seconds=sec)
+            base = T0 + timedelta(seconds=i * 30)
+            for j in range(8):
+                t = base + timedelta(seconds=rng.uniform(0.0, 5.0))
                 shocks.append(TimedShock("ES", t, t, f"es-{i}-{j}", 1.0))
-            for j, sec in enumerate((2.0, 3.0)):
-                t = base + timedelta(seconds=sec)
+            for j in range(8):
+                t = base + timedelta(seconds=rng.uniform(0.0, 5.0))
                 shocks.append(TimedShock("NQ", t, t, f"nq-{i}-{j}", 1.0))
 
         result = circular_shift_leadlag_evidence(
             shocks,
-            T0 + timedelta(seconds=700),
+            T0 + timedelta(seconds=1000),
             source_node="ES",
             target_node="NQ",
             max_lag_seconds=5.0,
@@ -175,6 +178,7 @@ class LeadLagConfoundRegressionTests(unittest.TestCase):
             seed=7,
             minimum_events_per_node=20,
         )
+        self.assertLessEqual(result.p_value, 0.05)
         self.assertTrue(result.reverse_significant_screen)
         self.assertFalse(result.significant_screen)
         self.assertFalse(result.directional_asymmetry_pass)
@@ -296,8 +300,6 @@ class ValidationProtocolMutationTests(unittest.TestCase):
 
 class IncrementalInformationRegressionTests(unittest.TestCase):
     def test_pure_conditional_noise_does_not_establish_incremental_information(self):
-        # Balanced deterministic design: UMSE and future outcome are independent
-        # within every FIA stratum.
         umse = []
         future = []
         fia = []
