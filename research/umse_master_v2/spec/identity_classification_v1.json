@@ -3,20 +3,24 @@
   "files": {
     "__init__.py": "INFRASTRUCTURE",
     "contracts.py": "PROTOCOL",
+    "counterfactual.py": "PROTOCOL",
     "cross_scale_transport.py": "PROTOCOL",
     "information_velocity.py": "MODEL",
     "leadlag_null.py": "PROTOCOL",
+    "mechanism_competition.py": "MODEL",
     "model_competition.py": "PROTOCOL",
     "orderbook_memory.py": "MODEL",
+    "paired_validation.py": "PROTOCOL",
     "pipeline.py": "PROTOCOL",
     "queue_hazard.py": "MODEL",
     "queue_survival.py": "MODEL",
     "resistance_field.py": "MODEL",
-    "research_identity.py": "INFRASTRUCTURE"
+    "research_identity.py": "INFRASTRUCTURE",
+    "topology_regime.py": "MODEL"
   },
   "notes": {
-    "MODEL": "Derived market-state measurements and descriptive mechanism features.",
-    "PROTOCOL": "Causal/data contracts, statistical screens, horizon transport gates, model-selection rules and scientific pipeline wiring.",
+    "MODEL": "Derived market-state measurements and descriptive mechanism/topological features. Model files remain uncalibrated research unless separately frozen and validated.",
+    "PROTOCOL": "Causal/data contracts, statistical screens, counterfactual falsification boundaries, horizon transport, paired Forward-OOS validation, model-selection rules and scientific pipeline wiring.",
     "INFRASTRUCTURE": "Package exports and identity machinery. Unlike V1, research_identity.py is inside its own fingerprint scope."
   }
 }
