@@ -31,6 +31,15 @@ def mutual_information(x: Sequence[Hashable], y: Sequence[Hashable]) -> float:
     return entropy(x) + entropy(y) - entropy(list(zip(x, y)))
 
 
+# NOTE ON THE CLAMP BELOW.
+# The hostile audit suggested the max(0.0, ...) hid negative fluctuations that
+# would have revealed finite-sample bias. That was imprecise and is recorded
+# here so it is not repeated: plug-in CMI is the CMI of the EMPIRICAL
+# distribution and is therefore non-negative by construction. Over 3000 random
+# trials the unclamped estimator never fell below -4.5e-16, so the clamp only
+# absorbs floating point error. The real defect was the absence of a reference
+# null, which significance.py now supplies. Raw values from this module are
+# descriptive statistics and are never, on their own, evidence of information.
 def conditional_mutual_information(
     x: Sequence[Hashable], y: Sequence[Hashable], z: Sequence[Hashable]
 ) -> float:
@@ -61,12 +70,26 @@ def transfer_entropy(source: Sequence[Hashable], target: Sequence[Hashable], lag
 
 @dataclass(frozen=True)
 class PIDApproximation:
+    """NOT a partial information decomposition. A minimum-MI redundancy heuristic.
+
+    Redundancy is taken as min(I(X;T), I(Z;T)), which is the MMI redundancy of
+    Barrett, not the Williams-Beer I_min it was previously named after. Because
+    the three clamps below can each bind, the decomposition does not in general
+    satisfy the PID consistency axiom; `consistency_residual` reports the gap
+    so a caller can see when it does not add up. Any claim of a full PID
+    estimator would be an overclaim and `is_full_pid` is hardcoded False.
+    """
+
     unique_x: float
     unique_z: float
     redundancy: float
     synergy: float
     joint_information: float
-    method: str = "I_MIN_STYLE_HEURISTIC_NOT_FULL_PID"
+    consistency_residual: float = 0.0
+    is_full_pid: bool = False
+    calibrated: bool = False
+    promotion_eligible: bool = False
+    method: str = "MMI_REDUNDANCY_HEURISTIC_NOT_A_PID_ESTIMATOR"
 
 
 def pid_i_min_approximation(
@@ -81,7 +104,9 @@ def pid_i_min_approximation(
     unique_x = max(0.0, ix - redundancy)
     unique_z = max(0.0, iz - redundancy)
     synergy = max(0.0, joint - unique_x - unique_z - redundancy)
-    return PIDApproximation(unique_x, unique_z, redundancy, synergy, joint)
+    residual = joint - (unique_x + unique_z + redundancy + synergy)
+    return PIDApproximation(unique_x, unique_z, redundancy, synergy, joint,
+                            consistency_residual=residual)
 
 
 @dataclass(frozen=True)

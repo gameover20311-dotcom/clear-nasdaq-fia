@@ -46,12 +46,22 @@ class HawkesInformationTests(unittest.TestCase):
         self.assertGreaterEqual(transfer_entropy(x, y), 0.0)
         pid = pid_i_min_approximation(x, y, y)
         self.assertGreaterEqual(pid.redundancy, 0)
-        self.assertEqual(pid.method, "I_MIN_STYLE_HEURISTIC_NOT_FULL_PID")
+        self.assertEqual(pid.method, "MMI_REDUNDANCY_HEURISTIC_NOT_A_PID_ESTIMATOR")
+        self.assertFalse(pid.is_full_pid)
+        self.assertFalse(pid.promotion_eligible)
 
     def test_geometry_identical_distribution_zero_shift(self):
-        g = distribution_shift([0.2, 0.3, 0.5], [0.2, 0.3, 0.5])
+        g = distribution_shift([0.2, 0.3, 0.5], [0.2, 0.3, 0.5], ordered_support=True)
         self.assertAlmostEqual(g.jensen_shannon, 0.0, places=10)
+        self.assertAlmostEqual(g.jensen_shannon_bits, 0.0, places=10)
         self.assertAlmostEqual(g.wasserstein, 0.0, places=10)
+        # REPAIRED SEMANTICS: a categorical support has no metric, so W1 is
+        # unavailable unless the caller asserts an ordered support.
+        categorical = distribution_shift([0.2, 0.3, 0.5], [0.5, 0.3, 0.2])
+        self.assertIsNone(categorical.wasserstein)
+        self.assertFalse(categorical.ordered_support)
+        self.assertGreater(categorical.jensen_shannon_bits, 0.0)
+        self.assertLessEqual(categorical.jensen_shannon_bits, 1.0)
 
     def test_fusion_discounts_redundancy_group(self):
         experts = [
@@ -63,6 +73,9 @@ class HawkesInformationTests(unittest.TestCase):
         self.assertAlmostEqual(sum(r.probabilities.values()), 1.0, places=9)
         self.assertFalse(r.predictive)
         self.assertLess(r.effective_expert_weight, 3.0)
+        # REPAIRED SEMANTICS: two of the three experts share a redundancy group.
+        self.assertEqual(r.effective_independent_experts, 2)
+        self.assertFalse(r.independence_assumed)
 
 
 if __name__ == "__main__":

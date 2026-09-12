@@ -92,8 +92,16 @@ class OrderBookSnapshot:
     def spread_ticks(self) -> float:
         return (self.best_ask - self.best_bid) / self.tick_size
 
-    def eligible_at(self, decision_time_utc: datetime) -> bool:
+    def age_seconds(self, decision_time_utc: datetime) -> float:
+        return max(0.0, (_utc(decision_time_utc) - self.event_time_utc).total_seconds())
+
+    def eligible_at(
+        self, decision_time_utc: datetime, *, max_age_seconds: float | None = None
+    ) -> bool:
+        """See CausalObservation.eligible_at for why max_age_seconds has no default."""
         decision = _utc(decision_time_utc)
+        if max_age_seconds is not None and self.age_seconds(decision) > float(max_age_seconds):
+            return False
         return (
             self.available_time_utc <= decision
             and self.event_time_utc <= decision
@@ -135,21 +143,73 @@ def _weighted_depth(levels: Sequence[BookLevel], best: float, tick: float, decay
     return total
 
 
+def _polyfit(ys: Sequence[float], degree: int) -> list:
+    """Least-squares polynomial coefficients [a0, a1, ...] for x = 0..n-1.
+
+    Solved via the normal equations with Gaussian elimination. The book depth
+    profiles here are at most a few dozen levels, so conditioning is not a
+    practical concern at degree 1 or 2.
+    """
+    n = len(ys)
+    m = degree + 1
+    xs = list(range(n))
+    # Normal equations: (X^T X) c = X^T y
+    ata = [[sum(x ** (i + j) for x in xs) for j in range(m)] for i in range(m)]
+    aty = [sum((x ** i) * ys[k] for k, x in enumerate(xs)) for i in range(m)]
+    for col in range(m):
+        pivot = max(range(col, m), key=lambda r: abs(ata[r][col]))
+        if abs(ata[pivot][col]) < 1e-12:
+            return [0.0] * m
+        ata[col], ata[pivot] = ata[pivot], ata[col]
+        aty[col], aty[pivot] = aty[pivot], aty[col]
+        inv = 1.0 / ata[col][col]
+        for r in range(m):
+            if r == col:
+                continue
+            factor = ata[r][col] * inv
+            if factor == 0.0:
+                continue
+            for c in range(col, m):
+                ata[r][c] -= factor * ata[col][c]
+            aty[r] -= factor * aty[col]
+    return [aty[i] / ata[i][i] for i in range(m)]
+
+
 def _normalized_gradient(levels: Sequence[BookLevel]) -> float:
+    """Mean slope of the depth profile, by ordinary least squares.
+
+    The previous implementation used (last - first) / (n - 1), which is the
+    mean first difference. That telescopes: it reads only the two endpoint
+    levels and discards the entire book interior, while still moving between
+    books through the normalising mean -- responding to levels it does not
+    measure. An OLS slope uses every level.
+    """
     if len(levels) < 2:
         return 0.0
     sizes = [float(x.size) for x in levels]
     scale = max(1e-12, sum(sizes) / len(sizes))
-    return (sizes[-1] - sizes[0]) / ((len(sizes) - 1) * scale)
+    slope = _polyfit(sizes, 1)[1]
+    return slope / scale
 
 
 def _normalized_curvature(levels: Sequence[BookLevel]) -> float:
+    """Second-order shape of the depth profile, by ordinary least squares.
+
+    The previous implementation summed second differences, which telescopes to
+    (s[-1] - s[-2]) - (s[1] - s[0]). The audit showed a linear ramp, a 900-lot
+    interior wall and a complete interior hole all returning exactly 0.0.
+
+    Fitting s = a + b*x + c*x^2 and reporting 2c gives a curvature that
+    responds to every level. Sign convention: positive is convex (an interior
+    dip, liquidity hollowed out in the middle), negative is concave (an
+    interior wall).
+    """
     if len(levels) < 3:
         return 0.0
     sizes = [float(x.size) for x in levels]
     scale = max(1e-12, sum(sizes) / len(sizes))
-    second = [sizes[i + 1] - 2 * sizes[i] + sizes[i - 1] for i in range(1, len(sizes) - 1)]
-    return (sum(second) / len(second)) / scale
+    quadratic = _polyfit(sizes, 2)[2]
+    return (2.0 * quadratic) / scale
 
 
 def _event_pressure(events: Iterable[MarketEvent], decision_time_utc: datetime) -> tuple[float, float, float]:
@@ -183,8 +243,9 @@ def estimate_liquidity_field(
     *,
     levels: int = 10,
     distance_decay: float = 0.35,
+    max_age_seconds: float | None = None,
 ) -> LiquidityField:
-    if not snapshot.eligible_at(decision_time_utc):
+    if not snapshot.eligible_at(decision_time_utc, max_age_seconds=max_age_seconds):
         raise ValueError("snapshot is not causally eligible at decision time")
     if levels <= 0:
         raise ValueError("levels must be > 0")

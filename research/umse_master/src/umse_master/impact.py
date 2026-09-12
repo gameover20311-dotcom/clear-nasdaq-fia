@@ -37,6 +37,11 @@ class ImpactContext:
 
 @dataclass(frozen=True)
 class ResponseSurprise:
+    # UNCALIBRATED. `eta` defaults to 1.0 and is not fitted, so `expected` is a
+    # participation-scaled quantity, not a price in index points, and the
+    # residual against an observed price change is dimensionally meaningless
+    # until eta is calibrated on real data. Retained as a research diagnostic
+    # and explicitly not promotion eligible.
     expected_price_change: float
     observed_price_change: float
     residual: float
@@ -44,6 +49,9 @@ class ResponseSurprise:
     failed_response_score: float
     direction_consistent: bool
     calibrated: bool = False
+    eta_calibrated: bool = False
+    promotion_eligible: bool = False
+    status: str = "UNCALIBRATED_NOT_PROMOTION_ELIGIBLE"
 
 
 def expected_price_impact(ctx: ImpactContext, config: ImpactModelConfig = ImpactModelConfig()) -> float:
@@ -70,7 +78,10 @@ def compute_response_surprise(
     residual = observed - expected
     scale = abs(expected) + max(config.epsilon, ctx.realized_volatility)
     normalized = residual / scale
-    direction_consistent = expected == 0 or observed == 0 or (expected > 0) == (observed > 0)
+    # A zero move is a FAILED response, not a consistent one. The previous
+    # expression returned True for observed == 0, which mislabelled exactly the
+    # case the failed-response detector exists to find.
+    direction_consistent = expected == 0 or (observed != 0 and (expected > 0) == (observed > 0))
     # Failed response asks: strong signed flow expected movement, but movement was absent or opposite.
     expected_strength = abs(expected) / (abs(expected) + 1.0)
     if expected == 0:
@@ -95,26 +106,85 @@ class ImpactDecay:
     persistence_score: float
     recovery_fraction: float
     identifiable: bool
+    fit_r_squared: float = 0.0
+    log_slope_per_step: Optional[float] = None
+    sign_reversals: int = 0
+    monotone_decay: bool = False
+    calibrated: bool = False
+
+
+MIN_DECAY_FIT_R2 = 0.90
 
 
 def estimate_impact_decay(responses: Sequence[float]) -> ImpactDecay:
-    xs = [abs(float(x)) for x in responses if math.isfinite(float(x))]
+    """Half-life of an impact response path, fitted over the WHOLE path.
+
+    The previous implementation took the geometric mean of consecutive ratios.
+    That telescopes exactly: mean(log(x[i+1]/x[i])) == log(x[-1]/x[0])/(n-1), so
+    only the two endpoints mattered. The audit showed [8, 4, 2, 1] and
+    [8, 1000, 0.001, 1] both returning a half-life of 1.0, and the in-code
+    comment claimed the geometric mean was "robust to multiplicative decay",
+    which is the reverse of the truth.
+
+    Fitting log|x| against t by least squares uses every point and yields an
+    R^2 that reveals how badly the exponential model fits. A path that is not
+    close to exponential is now reported as unidentifiable instead of being
+    assigned a manufactured half-life.
+
+    Sign is destroyed by the absolute value, as before, so `sign_reversals`
+    records how often the response actually flipped -- a reversal is not decay.
+    """
+    raw = [float(x) for x in responses if math.isfinite(float(x))]
+    xs = [abs(x) for x in raw]
     if len(xs) < 3 or xs[0] <= 0:
         return ImpactDecay(None, 0.0, 0.0, False)
-    ratios = []
-    for a, b in zip(xs, xs[1:]):
-        if a > 0 and b > 0:
-            ratios.append(b / a)
-    if not ratios:
-        return ImpactDecay(None, 0.0, 0.0, False)
-    # Geometric mean is robust to multiplicative decay. Growth/non-decay implies no finite half-life.
-    log_mean = sum(math.log(max(r, 1e-12)) for r in ratios) / len(ratios)
-    decay_ratio = math.exp(log_mean)
-    if 0 < decay_ratio < 1:
-        half_life = math.log(0.5) / math.log(decay_ratio)
-        persistence = max(0.0, min(1.0, decay_ratio))
+
+    reversals = sum(
+        1 for a, b in zip(raw, raw[1:]) if a != 0 and b != 0 and (a > 0) != (b > 0)
+    )
+
+    points = [(i, math.log(v)) for i, v in enumerate(xs) if v > 0]
+    if len(points) < 3:
+        return ImpactDecay(None, 0.0, 0.0, False, sign_reversals=reversals)
+
+    n = len(points)
+    mean_t = sum(t for t, _ in points) / n
+    mean_y = sum(y for _, y in points) / n
+    stt = sum((t - mean_t) ** 2 for t, _ in points)
+    if stt <= 1e-12:
+        return ImpactDecay(None, 0.0, 0.0, False, sign_reversals=reversals)
+    slope = sum((t - mean_t) * (y - mean_y) for t, y in points) / stt
+    intercept = mean_y - slope * mean_t
+    ss_res = sum((y - (intercept + slope * t)) ** 2 for t, y in points)
+    ss_tot = sum((y - mean_y) ** 2 for _, y in points)
+    r_squared = 1.0 if ss_tot <= 1e-12 else max(0.0, 1.0 - ss_res / ss_tot)
+
+    monotone = all(b <= a + 1e-12 for a, b in zip(xs, xs[1:]))
+    well_fitted = r_squared >= MIN_DECAY_FIT_R2
+
+    if not well_fitted:
+        # The path is not exponential. Report that rather than invent a decay.
+        return ImpactDecay(
+            None, 0.0,
+            max(0.0, min(1.0, 1.0 - xs[-1] / xs[0])),
+            False, r_squared, slope, reversals, monotone,
+        )
+
+    if slope < 0:
+        half_life = math.log(2.0) / (-slope)
+        persistence = max(0.0, min(1.0, math.exp(slope)))
     else:
         half_life = None
-        persistence = 1.0 if decay_ratio >= 1 else 0.0
-    recovery_fraction = max(0.0, min(1.0, 1.0 - xs[-1] / xs[0]))
-    return ImpactDecay(half_life, persistence, recovery_fraction, True)
+        persistence = 1.0
+
+    return ImpactDecay(
+        half_life_steps=half_life,
+        persistence_score=persistence,
+        recovery_fraction=max(0.0, min(1.0, 1.0 - xs[-1] / xs[0])),
+        identifiable=True,
+        fit_r_squared=r_squared,
+        log_slope_per_step=slope,
+        sign_reversals=reversals,
+        monotone_decay=monotone,
+        calibrated=False,
+    )

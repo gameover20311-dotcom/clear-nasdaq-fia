@@ -24,10 +24,11 @@
     "primitives.py": "MODEL",
     "replay.py": "PROTOCOL",
     "shadow_engine.py": "PROTOCOL",
+    "significance.py": "PROTOCOL",
     "state.py": "MODEL",
     "state_space.py": "MODEL",
     "survival.py": "MODEL",
     "validation.py": "PROTOCOL"
   },
-  "note": "Research-only identity split. Does not modify or replace CLEAR NASDAQ production identities. research_identity.py is the fingerprint implementation and is excluded from its own source scope."
+  "note": "Research-only identity split. Does not modify or replace CLEAR NASDAQ production identities. research_identity.py is the fingerprint implementation and is excluded from its own source scope. significance.py is PROTOCOL: it decides what counts as evidence, not what a quantity is."
 }

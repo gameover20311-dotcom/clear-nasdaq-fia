@@ -110,9 +110,31 @@ class CausalObservation:
         if self.quality_state == QualityState.PROXY and not self.is_proxy:
             raise ValueError("PROXY quality must set is_proxy=True")
 
-    def eligible_at(self, decision_time_utc: datetime) -> bool:
+    def age_seconds(self, decision_time_utc: datetime) -> float:
+        """Seconds between the event and the decision. Never negative."""
+        return max(0.0, (_utc(decision_time_utc) - self.event_time_utc).total_seconds())
+
+    def eligible_at(
+        self, decision_time_utc: datetime, *, max_age_seconds: float | None = None
+    ) -> bool:
+        """Causal eligibility, optionally including a DERIVED staleness check.
+
+        The audit found that nothing anywhere in the package derived staleness
+        from timestamps: STALE was only ever a caller-supplied label, so a book
+        or observation 30 days old was accepted in full provided somebody had
+        labelled it FRESH. That put the entire staleness guarantee on whichever
+        adapter set the label, with no defence in depth.
+
+        `max_age_seconds` adds that second line of defence. It defaults to None
+        -- meaning no age limit -- deliberately: a default value would be an
+        invented constant, and the correct maximum age is instrument- and
+        feed-specific. A real adapter MUST supply one. The label check below is
+        retained, so this strengthens the contract and never weakens it.
+        """
         decision = _utc(decision_time_utc)
         if self.available_time_utc > decision:
+            return False
+        if max_age_seconds is not None and self.age_seconds(decision) > float(max_age_seconds):
             return False
         return self.quality_state not in {
             QualityState.STALE,

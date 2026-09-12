@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
-from typing import Iterable, Sequence, Tuple
+from enum import Enum
+from typing import Iterable, Optional, Sequence, Tuple
 
 
 @dataclass(frozen=True)
@@ -12,12 +13,21 @@ class SurvivalPoint:
     hazard_at_time: float
 
 
+class SurvivalStatus(str, Enum):
+    OBSERVED = "OBSERVED"
+    INSUFFICIENT_SAMPLE = "INSUFFICIENT_SAMPLE"
+    NOT_IDENTIFIABLE_ALL_CENSORED = "NOT_IDENTIFIABLE_ALL_CENSORED"
+
+
 @dataclass(frozen=True)
 class StateSurvivalDiagnostics:
     curve: Tuple[SurvivalPoint, ...]
     median_duration: float | None
-    mean_hazard: float
-    metastability_score: float
+    mean_hazard: Optional[float]
+    metastability_score: Optional[float]
+    status: SurvivalStatus = SurvivalStatus.OBSERVED
+    observed_events: int = 0
+    censored_count: int = 0
     calibrated: bool = False
 
 
@@ -51,9 +61,37 @@ def analyze_state_survival(
     *,
     target_duration: float = 240.0,
 ) -> StateSurvivalDiagnostics:
-    curve = kaplan_meier(durations, censored)
-    if not curve:
-        return StateSurvivalDiagnostics((), None, 0.0, 0.0, False)
+    """Kaplan-Meier survival with UNKNOWN kept distinct from OBSERVED_LOW.
+
+    The previous implementation returned metastability 1.0 when every
+    observation was censored. No transition was ever observed in that case, so
+    survival never decremented and mean hazard was 0 -- absence of evidence was
+    rendered as maximum observed stability, the most costly direction for the
+    error to run.
+
+    A sample with no uncensored event now returns None with an explicit
+    NOT_IDENTIFIABLE_ALL_CENSORED status. A genuinely short-lived state returns
+    a low score with status OBSERVED. Those two are different claims and are no
+    longer expressed by the same number.
+    """
+    rows = list(durations)
+    flags = list(censored) if censored is not None else [False] * len(rows)
+    if censored is not None and len(flags) != len(rows):
+        raise ValueError("censored length mismatch")
+    observed_events = sum(1 for c in flags if not c)
+    censored_count = sum(1 for c in flags if c)
+
+    if not rows:
+        return StateSurvivalDiagnostics(
+            (), None, None, None, SurvivalStatus.INSUFFICIENT_SAMPLE, 0, 0, False)
+
+    curve = kaplan_meier(rows, flags)
+    if observed_events == 0 or not curve:
+        return StateSurvivalDiagnostics(
+            curve, None, None, None,
+            SurvivalStatus.NOT_IDENTIFIABLE_ALL_CENSORED,
+            observed_events, censored_count, False)
+
     median = next((p.time for p in curve if p.survival_probability <= 0.5), None)
     mean_hazard = sum(p.hazard_at_time for p in curve) / len(curve)
     survival_at_target = 1.0
@@ -63,4 +101,6 @@ def analyze_state_survival(
         else:
             break
     metastability = max(0.0, min(1.0, survival_at_target * (1.0 - mean_hazard)))
-    return StateSurvivalDiagnostics(curve, median, mean_hazard, metastability, False)
+    return StateSurvivalDiagnostics(
+        curve, median, mean_hazard, metastability, SurvivalStatus.OBSERVED,
+        observed_events, censored_count, False)

@@ -23,6 +23,7 @@ class InputQualityReport:
     proxies: int
     synthetic: int
     stale_or_missing: int
+    stale_by_derived_age: int
     future_unavailable: int
     quality_score: float
     evidence_ids: Tuple[str, ...]
@@ -32,6 +33,8 @@ class InputQualityReport:
 def assess_input_quality(
     observations: Iterable[CausalObservation],
     decision_time_utc: datetime,
+    *,
+    max_age_seconds: float | None = None,
 ) -> InputQualityReport:
     if decision_time_utc.tzinfo is None:
         raise ValueError("decision_time_utc must be timezone-aware")
@@ -43,6 +46,7 @@ def assess_input_quality(
     proxies = 0
     synthetic = 0
     stale_or_missing = 0
+    stale_by_derived_age = 0
     future_unavailable = 0
 
     for obs in rows:
@@ -58,7 +62,9 @@ def assess_input_quality(
             stale_or_missing += 1
         if obs.available_time_utc > decision:
             future_unavailable += 1
-        if obs.eligible_at(decision):
+        if max_age_seconds is not None and obs.age_seconds(decision) > float(max_age_seconds):
+            stale_by_derived_age += 1
+        if obs.eligible_at(decision, max_age_seconds=max_age_seconds):
             eligible.append(obs)
             if obs.can_support_predictive_validation:
                 validation_grade.append(obs)
@@ -74,6 +80,7 @@ def assess_input_quality(
         proxies=proxies,
         synthetic=synthetic,
         stale_or_missing=stale_or_missing,
+        stale_by_derived_age=stale_by_derived_age,
         future_unavailable=future_unavailable,
         quality_score=quality_score,
         evidence_ids=tuple(sorted({o.provenance_id for o in eligible})),

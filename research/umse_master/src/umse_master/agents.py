@@ -57,7 +57,11 @@ def infer_agent_pressure(
     forced = _clip01(urgency * liquidity_thinness * (1.0 - replenishment_ratio))
     passive = _clip01(failed_response_score * replenishment_ratio * (1.0 - liquidity_thinness / 2.0))
     # MBO identity improves observability of order behaviour but still does not reveal trader identity.
-    identifiability = _clip01(0.25 + 0.5 * true_mbo_identity_fraction + 0.25 * persistence)
+    # The 0.25 floor claimed partial identifiability of latent agents from zero
+    # order-identity data, contradicting the package's own hard boundary that
+    # exact queue semantics require true MBO. With no MBO identity and no
+    # persistence, identifiability is zero.
+    identifiability = _clip01(0.75 * true_mbo_identity_fraction + 0.25 * persistence)
     return AgentPressureInference(
         urgency=urgency,
         signed_inventory_pressure=signed_inventory,

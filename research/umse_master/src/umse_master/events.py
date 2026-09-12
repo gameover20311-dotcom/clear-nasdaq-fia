@@ -68,9 +68,17 @@ class MarketEvent:
         }:
             raise ValueError("order_id is only valid for MBO data classes")
 
-    def eligible_at(self, decision_time_utc: datetime) -> bool:
+    def age_seconds(self, decision_time_utc: datetime) -> float:
+        return max(0.0, (_utc(decision_time_utc) - self.event_time_utc).total_seconds())
+
+    def eligible_at(
+        self, decision_time_utc: datetime, *, max_age_seconds: float | None = None
+    ) -> bool:
+        """See CausalObservation.eligible_at for why max_age_seconds has no default."""
         decision = _utc(decision_time_utc)
         if self.available_time_utc > decision:
+            return False
+        if max_age_seconds is not None and self.age_seconds(decision) > float(max_age_seconds):
             return False
         return self.quality_state not in {
             QualityState.STALE,
@@ -109,12 +117,14 @@ class EventWindow:
         self,
         decision_time_utc: datetime,
         start_time_utc: Optional[datetime] = None,
+        *,
+        max_age_seconds: float | None = None,
     ) -> Tuple[MarketEvent, ...]:
         decision = _utc(decision_time_utc)
         start = _utc(start_time_utc) if start_time_utc else None
         out = []
         for row in self._events:
-            if not row.eligible_at(decision):
+            if not row.eligible_at(decision, max_age_seconds=max_age_seconds):
                 continue
             if start is not None and row.event_time_utc < start:
                 continue

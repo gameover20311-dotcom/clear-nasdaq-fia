@@ -17,7 +17,7 @@ from .liquidity import LiquidityField, OrderBookSnapshot, estimate_liquidity_fie
 from .mechanisms import MechanismCompetition, MechanismEvidence, compete_mechanisms
 from .mst import MSTComponents, MSTResult, compute_mst
 from .primitives import PrimitiveFeatures, compute_primitives
-from .shadow_engine import build_fail_closed_snapshot
+from .shadow_engine import assess_input_quality, build_fail_closed_snapshot
 from .state import StateEvidence, StateInference, infer_state
 
 
@@ -45,6 +45,11 @@ class UMSEShadowRun:
 
 def _hash_payload(payload: Mapping[str, object]) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()
+
+
+# Sweep count at which flow urgency is treated as saturated. UNCALIBRATED
+# protocol constant, named here rather than buried as a literal.
+SWEEP_URGENCY_SCALE = 5.0
 
 
 def run_umse_shadow(
@@ -78,12 +83,21 @@ def run_umse_shadow(
             ),
         )
     hawkes = hawkes_diagnostics(hawkes_config, rows, decision_time_utc) if hawkes_config is not None else None
+
+    # CRITICALITY.
+    # relative_liquidity_change is None here and that is deliberate. A single
+    # book snapshot contains no liquidity CHANGE, so the elasticity component
+    # is genuinely unavailable. The pre-repair pipeline passed the book's
+    # depth_imbalance into this slot, which is a cross-sectional asymmetry at
+    # one instant; a balanced book drove it to zero and the component saturated
+    # at maximum criticality. Supplying None marks the component unavailable
+    # instead of fabricating it.
     criticality = compute_criticality(
-        hawkes_spectral_radius=hawkes.spectral_radius if hawkes is not None else 0.0,
+        hawkes_spectral_radius=hawkes.spectral_radius if hawkes is not None else None,
         state_series=state_series,
         recovery_responses=recovery_responses,
-        price_change=primitives.observed_price_change or 0.0,
-        liquidity_change=(liquidity.depth_imbalance if liquidity is not None else 0.0),
+        relative_price_change=None,
+        relative_liquidity_change=None,
     )
     price_response_signed = 0.0
     if primitives.observed_price_change is not None:
@@ -102,27 +116,48 @@ def run_umse_shadow(
     state = infer_state(
         StateEvidence(
             mechanism_weights=mechanisms.hypothesis_weights,
-            criticality=criticality.candidate_index,
+            criticality=criticality.candidate_index if criticality.candidate_index is not None else 0.5,
             resilience=mech_evidence.resilience,
             liquidity_thinness=mech_evidence.liquidity_thinness,
             volatility_stress=mech_evidence.volatility_stress,
             structural_entropy=1.0 - mechanisms.concentration,
         )
     )
-    cross = assess_cross_scale(scale_evidence)
-    pressure = min(1.0, abs(primitives.aggression_imbalance))
-    info_asymmetry = min(1.0, mechanisms.concentration)
+    # The 4H/8H gate needs a MEASURED information half-life. None is available
+    # from a single decision point, so the gate stays closed.
+    cross = assess_cross_scale(scale_evidence, measured_half_life_minutes=None)
+
+    quality = assess_input_quality(observations, decision_time_utc)
+
+    # MST.
+    # Every component now names the observable it came from. The pre-repair
+    # wiring put state.entropy into structural_stress, entropy AND uncertainty,
+    # and repeated abs(aggression_imbalance) inside flow_urgency, so one
+    # variable occupied four of nine slots. Components with no independent
+    # observable are None, and compute_mst refuses to produce a value rather
+    # than filling them. MST is consequently UNAVAILABLE here, which is the
+    # honest result: the construct needs nine independent observables and this
+    # engine cannot supply nine independent observables.
+    sweep_intensity = min(1.0, (primitives.buy_sweeps + primitives.sell_sweeps) / SWEEP_URGENCY_SCALE)
     mst = compute_mst(
         MSTComponents(
-            pressure=pressure,
+            pressure=min(1.0, abs(primitives.aggression_imbalance)),
             criticality=criticality.candidate_index,
-            flow_urgency=min(1.0, abs(primitives.aggression_imbalance) + min(1.0, (primitives.buy_sweeps + primitives.sell_sweeps) / 5.0)),
-            information_asymmetry=info_asymmetry,
+            flow_urgency=sweep_intensity,
+            information_asymmetry=mechanisms.directional_identification,
             structural_stress=state.entropy,
-            entropy=state.entropy,
-            redundancy=0.0,
-            uncertainty=state.entropy,
-            data_degradation=0.0 if liquidity is not None else 1.0,
+            entropy=None,          # no observable independent of state dispersion
+            redundancy=None,       # UNKNOWN, and never silently zero
+            uncertainty=None,      # no observable independent of state dispersion
+            data_degradation=max(0.0, min(1.0, 1.0 - quality.quality_score)),
+            sources={
+                "pressure": "primitives.aggression_imbalance",
+                "criticality": "criticality.candidate_index",
+                "flow_urgency": "primitives.sweep_counts",
+                "information_asymmetry": "mechanisms.directional_identification",
+                "structural_stress": "state.entropy",
+                "data_degradation": "input_quality.quality_score",
+            },
         )
     )
     snapshot = build_fail_closed_snapshot(observations, decision_time_utc)
@@ -132,6 +167,7 @@ def run_umse_shadow(
         "book_id": book.provenance_id if book is not None else None,
         "state": state.top_state,
         "mst": mst.original_concept_value,
+        "mst_status": mst.status.value,
     }
     diagnostics = UMSEResearchDiagnostics(
         primitives=primitives,

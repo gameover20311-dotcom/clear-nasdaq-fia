@@ -11,9 +11,20 @@ def _clip01(x: float) -> float:
     return max(0.0, min(1.0, float(x)))
 
 
-def _softmax(scores: Mapping[str, float]) -> Dict[str, float]:
-    m = max(scores.values()) if scores else 0.0
-    exps = {k: math.exp(v - m) for k, v in scores.items()}
+# The score coefficients below are hand-set and UNCALIBRATED, so the softmax
+# scale is arbitrary: multiplying every coefficient by ten would produce nearly
+# one-hot weights and dividing by ten nearly uniform ones. The temperature is
+# named here so that arbitrariness is explicit and fittable rather than hidden
+# inside an implicit 1.0.
+MECHANISM_SOFTMAX_TEMPERATURE = 1.0
+
+
+def _softmax(scores: Mapping[str, float], temperature: float = MECHANISM_SOFTMAX_TEMPERATURE) -> Dict[str, float]:
+    if temperature <= 0:
+        raise ValueError("temperature must be > 0")
+    scaled = {k: v / temperature for k, v in scores.items()}
+    m = max(scaled.values()) if scaled else 0.0
+    exps = {k: math.exp(v - m) for k, v in scaled.items()}
     total = sum(exps.values()) or 1.0
     return {k: v / total for k, v in exps.items()}
 
@@ -59,6 +70,18 @@ class MechanismCompetition:
     hypothesis_weights: Mapping[str, float]
     top_mechanism: str
     concentration: float
+    # `concentration` is the max softmax weight. The audit showed it is NOT
+    # monotone in evidence strength: a dead-flat market scored 0.4341 while a
+    # maximally directional one scored 0.4169, because BALANCED_NOISE carries
+    # the largest constant coefficients and therefore wins on ABSENCE of
+    # evidence. Using it as information_asymmetry inverted the meaning.
+    #
+    # `directional_identification` is the repaired quantity: how much the best
+    # informative mechanism beats the null mechanism. It is 0.0 whenever the
+    # null wins, so absence of evidence can no longer manufacture certainty.
+    directional_identification: float = 0.0
+    identified: bool = False
+    temperature: float = MECHANISM_SOFTMAX_TEMPERATURE
     calibrated: bool = False
     predictive: bool = False
 
@@ -83,4 +106,14 @@ def compete_mechanisms(e: MechanismEvidence) -> MechanismCompetition:
     weights = _softmax(scores)
     top = max(weights, key=weights.get)
     concentration = max(weights.values()) if weights else 0.0
-    return MechanismCompetition(weights, top, concentration, calibrated=False, predictive=False)
+    noise_weight = weights.get(Mechanism.BALANCED_NOISE.value, 0.0)
+    informative = {k: v for k, v in weights.items()
+                   if k != Mechanism.BALANCED_NOISE.value}
+    best_informative = max(informative.values()) if informative else 0.0
+    directional = max(0.0, min(1.0, best_informative - noise_weight))
+    return MechanismCompetition(
+        weights, top, concentration,
+        directional_identification=directional,
+        identified=(top != Mechanism.BALANCED_NOISE.value),
+        temperature=MECHANISM_SOFTMAX_TEMPERATURE,
+        calibrated=False, predictive=False)

@@ -14,7 +14,7 @@ from umse_master.criticality import compute_criticality
 from umse_master.cross_scale import Scale, ScaleEvidence, assess_cross_scale
 from umse_master.hypotheses import MASTER_HYPOTHESES, HypothesisTier
 from umse_master.mechanisms import MechanismEvidence, compete_mechanisms
-from umse_master.mst import MSTComponents, compute_mst
+from umse_master.mst import MSTComponents, MSTStatus, compute_mst
 from umse_master.state import StateEvidence, infer_state
 
 UTC = timezone.utc
@@ -36,7 +36,13 @@ class StateCrossScaleTests(unittest.TestCase):
             ScaleEvidence(Scale.MESO, T, .7, .9, 600),
             ScaleEvidence(Scale.SESSION, T, .6, .9, 600),
         ]
-        r = assess_cross_scale(rows)
+        # REPAIRED SEMANTICS: persistence_minutes is a duration hint, not a
+        # half-life, and no longer opens the gate. A MEASURED half-life is
+        # required; without one the gate is closed.
+        closed = assess_cross_scale(rows)
+        self.assertFalse(closed.allow_4h_influence)
+        self.assertFalse(closed.allow_8h_influence)
+        r = assess_cross_scale(rows, measured_half_life_minutes=600.0)
         self.assertTrue(r.allow_4h_influence)
         self.assertTrue(r.allow_8h_influence)
         self.assertGreater(r.survival_to_4h, r.survival_to_8h)
@@ -47,15 +53,23 @@ class StateCrossScaleTests(unittest.TestCase):
             hawkes_spectral_radius=.7,
             state_series=[0.1, .2, .3, .35, .4],
             recovery_responses=[1, .8, .6, .4, .2],
-            price_change=2,
-            liquidity_change=10,
+            relative_price_change=0.02,
+            relative_liquidity_change=0.10,
         )
         self.assertGreaterEqual(c.candidate_index, 0)
         self.assertLessEqual(c.candidate_index, 1)
-        m = compute_mst(MSTComponents(.7, c.candidate_index, .6, .5, .7, .3, .2, .4, .1))
+        # REPAIRED SEMANTICS: MST components must name distinct sources.
+        m = compute_mst(MSTComponents(
+            .7, c.candidate_index, .6, .5, .7, .3, .2, .4, .1,
+            sources={k: k for k in (
+                "pressure", "criticality", "flow_urgency", "information_asymmetry",
+                "structural_stress", "entropy", "redundancy", "uncertainty",
+                "data_degradation")}))
+        self.assertEqual(m.status, MSTStatus.AVAILABLE)
         self.assertGreaterEqual(m.original_concept_value, 0)
         self.assertLessEqual(m.original_concept_value, 1)
         self.assertFalse(m.predictive)
+        self.assertFalse(m.promotion_eligible)
 
     def test_complexity_and_hypothesis_registry(self):
         a = assess_complexity(5, 100)

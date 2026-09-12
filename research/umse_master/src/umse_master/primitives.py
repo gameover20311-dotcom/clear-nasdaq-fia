@@ -65,7 +65,24 @@ def compute_primitives(
     liquidity_turnover = replenishment + cancels
     replenishment_ratio = replenishment / liquidity_turnover if liquidity_turnover > 0 else 0.0
 
-    priced = [e for e in rows if e.price is not None]
+    # CAUSALITY vs CHRONOLOGY.
+    # `rows` is already causally filtered: every event here was AVAILABLE at
+    # the decision time. Eligibility is and remains an availability question.
+    #
+    # A price PATH, however, is an economic quantity and must be read in event
+    # order. EventWindow stores events sorted by available_time_utc, so taking
+    # rows[0] and rows[-1] read the path in feed-arrival order. With two feeds
+    # of unequal latency -- the normal case -- a slow feed carrying an older
+    # trade lands last and inverts the sign of the move. The audit demonstrated
+    # a reported -10.0 where the true change was +10.0.
+    #
+    # Sorting by event_time_utc here fixes the chronology without touching the
+    # causal filter. Ties break on availability then provenance_id so the
+    # result is deterministic for simultaneous events.
+    priced = sorted(
+        (e for e in rows if e.price is not None),
+        key=lambda e: (e.event_time_utc, e.available_time_utc, e.provenance_id),
+    )
     first_price = float(priced[0].price) if priced else None
     last_price = float(priced[-1].price) if priced else None
     observed_change = (

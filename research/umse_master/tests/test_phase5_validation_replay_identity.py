@@ -13,7 +13,7 @@ from umse_master.contracts import DataClass, QualityState
 from umse_master.events import EventType, MarketEvent
 from umse_master.replay import CausalReplay, ReplayClass
 from umse_master.research_identity import fingerprints, unclassified_files
-from umse_master.validation import evaluate_paired_candidate
+from umse_master.validation import ConfirmatoryPlan, evaluate_paired_candidate
 
 UTC = timezone.utc
 T = datetime(2026, 9, 12, 15, 0, tzinfo=UTC)
@@ -27,21 +27,33 @@ class ValidationReplayIdentityTests(unittest.TestCase):
             QualityState.FRESH, f"e{idx}", 20000, 1
         )
 
-    def test_candidate_beats_uniform_at_fixed_n(self):
+    def test_ten_identical_rows_can_no_longer_pass_the_gate(self):
+        """This test previously ASSERTED the defect.
+
+        It built ten identical rows -- a zero-variance sample carrying the
+        information of a single observation -- and asserted that the promotion
+        gate passed. The bootstrap interval was a point, so `ci[0] > 0` was
+        trivially true. The repaired gate refuses it.
+        """
         outcomes = ["bullish"] * 10
         base = [{"bullish": 1/3, "bearish": 1/3, "neutral": 1/3}] * 10
         cand = [{"bullish": .9, "bearish": .05, "neutral": .05}] * 10
-        r = evaluate_paired_candidate(base, cand, outcomes, expected_n=10)
-        self.assertTrue(r.confirmatory_eligible)
-        self.assertGreater(r.mean_delta, .01)
-        self.assertTrue(r.promotion_gate_pass)
+        plan = ConfirmatoryPlan("legacy-case", 10, 0.010,
+                                T - timedelta(days=30), ReplayClass.FORWARD_OOS)
+        r = evaluate_paired_candidate(base, cand, outcomes, plan=plan)
+        self.assertGreater(r.mean_delta, .01)      # the effect is still large
+        self.assertTrue(r.degenerate_bootstrap)    # but it carries no variance
+        self.assertFalse(r.confirmatory_eligible)
+        self.assertFalse(r.promotion_gate_pass)
+        self.assertIn("DEGENERATE_BOOTSTRAP", r.blocking_reasons)
 
-    def test_diagnostic_without_fixed_n_cannot_promote(self):
+    def test_diagnostic_without_a_preregistered_plan_cannot_promote(self):
         outcomes = ["bullish"] * 3
         p = [{"bullish": .8, "bearish": .1, "neutral": .1}] * 3
         r = evaluate_paired_candidate(p, p, outcomes)
         self.assertFalse(r.confirmatory_eligible)
         self.assertFalse(r.promotion_gate_pass)
+        self.assertIn("NO_PREREGISTERED_PLAN", r.blocking_reasons)
 
     def test_historical_replay_is_not_prospective(self):
         replay = CausalReplay([self.event(1, -1), self.event(2, 1)])
