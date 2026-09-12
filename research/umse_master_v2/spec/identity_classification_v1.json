@@ -1,0 +1,21 @@
+{
+  "schema": "UMSE_V2_IDENTITY_CLASSIFICATION_V1",
+  "files": {
+    "__init__.py": "INFRASTRUCTURE",
+    "contracts.py": "PROTOCOL",
+    "cross_scale_transport.py": "PROTOCOL",
+    "information_velocity.py": "MODEL",
+    "leadlag_null.py": "PROTOCOL",
+    "model_competition.py": "PROTOCOL",
+    "orderbook_memory.py": "MODEL",
+    "queue_hazard.py": "MODEL",
+    "queue_survival.py": "MODEL",
+    "resistance_field.py": "MODEL",
+    "research_identity.py": "INFRASTRUCTURE"
+  },
+  "notes": {
+    "MODEL": "Derived market-state measurements and descriptive mechanism features.",
+    "PROTOCOL": "Causal/data contracts, statistical screens, horizon transport gates and model-selection rules.",
+    "INFRASTRUCTURE": "Package wiring and identity machinery. Unlike V1, research_identity.py is inside its own fingerprint scope."
+  }
+}
