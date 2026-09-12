@@ -19,6 +19,7 @@ from .counterfactual import (
     estimate_stratified_counterfactual,
 )
 from .cross_scale_transport import CrossScaleTransport, TransportConfig, assess_transport
+from .incremental_value import V2IncrementalInformation, evaluate_incremental_information
 from .information_velocity import InformationVelocityReport, TimedShock, estimate_information_velocity
 from .leadlag_null import LeadLagEvidence, circular_shift_leadlag_evidence
 from .mechanism_competition import (
@@ -71,6 +72,8 @@ __all__ = [
     "assess_transport",
     "ComplexityCompetition",
     "compare_predictive_complexity",
+    "V2IncrementalInformation",
+    "evaluate_incremental_information",
     "Mechanism",
     "MechanismEvidence",
     "MechanismCompetition",
