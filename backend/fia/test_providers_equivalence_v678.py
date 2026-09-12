@@ -51,9 +51,31 @@ except ModuleNotFoundError as _exc:        # pragma: no cover - environment gate
     print("ModuleNotFoundError — run this in CI where requirements.txt installs.")
     raise SystemExit(1)
 
-# Recorded from unsplit providers.py IN CI, before the split. Never regenerated
-# to match a new result: a changed digest means changed behaviour.
-BASELINE_DIGEST = "__RECORD_IN_CI_ON_UNSPLIT_CODE__"
+# PINNED UNSPLIT BASELINE — owner-approved 2026-09-12.
+#
+# PROVENANCE
+#   value        e2191da05e1a737c71ff88b3f5737b836d03974b6f784e9682a1595bd368e506
+#   observations 131
+#   recorded on  UNSPLIT providers.py at commit 087c889
+#   reproduced   five consecutive local runs; PYTHONHASHSEED 1 / 999 / 12345;
+#                and GitHub CI run 34661082160 on an independent runner.
+#
+# The first attempt to pin this failed honestly and is recorded so the value is
+# not mistaken for something that always worked. Before commit 087c889 the digest
+# was NOT reproducible: _news_normalized_words returns a set, json.dumps fell
+# through to default=str, and str() on a set emits hash order, which Python
+# randomises per process. Four runs produced four digests. Pinning any of them
+# would have made the FIRST post-split comparison report a false HARD STOP.
+# canonical() now sorts sets before serialising, which is lossless because set
+# equality is order-independent.
+#
+# THIS VALUE IS NOT RECALCULATED AFTER THE SPLIT. A mismatch means the split
+# changed behaviour, and the first differing observation must be identified and
+# explained. It is never "fixed" by re-recording.
+#
+# Coverage added AFTER this pin lives in its own harness with its own pre-split
+# baseline, so this observation set stays exactly 131 and stays comparable.
+BASELINE_DIGEST = "e2191da05e1a737c71ff88b3f5737b836d03974b6f784e9682a1595bd368e506"
 
 FIXED_NOW = datetime(2026, 6, 1, 17, 0, 0, tzinfo=timezone.utc)
 

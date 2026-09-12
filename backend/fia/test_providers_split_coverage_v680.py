@@ -36,6 +36,8 @@ from pathlib import Path
 BACKEND = Path(__file__).resolve().parents[1]
 PROVIDERS = BACKEND / "fia" / "providers.py"
 HARNESS = BACKEND / "fia" / "test_providers_equivalence_v678.py"
+SNAPSHOT_HARNESS = BACKEND / "fia" / "test_providers_snapshot_equivalence_v681.py"
+HARNESSES = (HARNESS, SNAPSHOT_HARNESS)
 SPLIT_MAP = BACKEND / "fia" / "providers_split_map.json"
 
 # Resolved statically from fia_backtest_phase20/full_backtest.py. phase20 is
@@ -85,20 +87,30 @@ def called_in_harness():
     and a call passed by reference into the harness's safe() wrapper, which is
     how most of the harness invokes the surface.
     """
-    tree = ast.parse(HARNESS.read_text(encoding="utf-8", errors="replace"))
     called = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
+    for path in HARNESSES:
+        if not path.is_file():
             continue
-        # hub.method(...) or ProviderHub.method(...)
-        if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name) \
-                and node.func.value.id in ("hub", "ProviderHub"):
-            called.add(node.func.attr)
-        # safe("label", hub.method, args...) — the callable is an argument
-        for arg in node.args:
-            if isinstance(arg, ast.Attribute) and isinstance(arg.value, ast.Name) \
-                    and arg.value.id in ("hub", "ProviderHub"):
-                called.add(arg.attr)
+        tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            # hub.method(...) or ProviderHub.method(...)
+            if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name) \
+                    and node.func.value.id in ("hub", "ProviderHub"):
+                called.add(node.func.attr)
+            # safe("label", hub.method, args...) — the callable is an argument
+            for arg in node.args:
+                if isinstance(arg, ast.Attribute) and isinstance(arg.value, ast.Name) \
+                        and arg.value.id in ("hub", "ProviderHub"):
+                    called.add(arg.attr)
+            # direct("label", "method_name", ...) — v681 dispatches by name,
+            # so the method is a string literal, not an attribute reference.
+            if isinstance(node.func, ast.Name) and node.func.id == "direct" \
+                    and len(node.args) >= 2 and isinstance(node.args[1], ast.Constant) \
+                    and isinstance(node.args[1].value, str):
+                called.add(node.args[1].value)
+            # hub.method = stub  is NOT coverage; only calls count.
     return called
 
 
@@ -146,9 +158,12 @@ check("the scan found the ProviderHub class and its methods", len(methods) > 0)
 check("the harness actually calls something (scan is not vacuous)", len(covered) > 0)
 check("every phase20 provider-path method has equivalence coverage",
       not missing_phase20, str(missing_phase20))
-check("snapshot() is reported honestly as uncovered",
-      "snapshot" in uncovered,
-      "a name-substring scan wrongly reported this as covered")
+# snapshot() was the highest-risk uncovered method. v681 now drives it through
+# 15 deterministic no-network scenarios, so it must appear as covered — and a
+# regression that drops that coverage fails here.
+check("snapshot() has real equivalence coverage",
+      "snapshot" in covered,
+      "snapshot() lost its coverage")
 
 # A call whose signature does not match records __RAISED__ and leaves the method
 # unexercised while still looking called. Assert the harness runs clean.
@@ -183,6 +198,15 @@ def harness_digest(seed):
     found = re.search(r"^digest\s*:\s*([0-9a-f]{64})$",
                       (done.stdout or "") + (done.stderr or ""), re.M)
     return found.group(1) if found else None
+
+
+def _digest_of(path, seed):
+    global HARNESS
+    _saved, HARNESS = HARNESS, path
+    try:
+        return harness_digest(seed)
+    finally:
+        HARNESS = _saved
 
 
 _d1 = harness_digest(1)
