@@ -1,21 +1,61 @@
 {
-  "schema": "UMSE_V2_FINAL_BUILD_MANIFEST_V1",
+  "schema": "UMSE_V2_FINAL_BUILD_MANIFEST_V2_POST_HOSTILE_REPAIR",
   "repository": "gameover20311-dotcom/clear-nasdaq-fia",
   "branch": "research/umse-master-v2-full",
   "production_base": "1ab93b09d22b77e2bdce99fcfc1418395cbdf78d",
-  "source_identity_checkpoint": "5a8104c314d52c45fed46a8aa647549b0e5403d9",
-  "dedicated_ci_run_id": 34696256826,
+  "pre_audit_source_identity_checkpoint": "5a8104c314d52c45fed46a8aa647549b0e5403d9",
+  "source_identity_checkpoint": "fa748fd557abade69445f691e69ac00e1e6d9dba",
+  "dedicated_ci_run_id": 34698054213,
   "ci": {
     "compile": "PASS",
-    "tests": "38/38 PASS",
+    "tests": "51/51 PASS",
     "identity_completeness": "PASS",
-    "production_isolation": "PASS"
+    "production_isolation": "PASS",
+    "scientific_status_preservation": "PASS"
   },
   "research_identities": {
+    "model": "3c77dabaf853d33e04f567ad1fc835b328254141218a72918457157884a24229",
+    "protocol": "e62ae32400b3f2d3e2f6d3fb726a11674ca1a985fb44b0a361ff5ba1bfb9bc81",
+    "infrastructure": "70a93eecf7f36c227f6715e3059a0f12e944fcfba77b7f6236f5cd29e88a3b75",
+    "classification_manifest": "7de6809074cf39441e7c8cd606e2e6864c0bd0ecb1daf29f5f9852f2190999e4"
+  },
+  "pre_audit_identities_superseded": {
     "model": "0594b5ca955176e52ea6173072dab5d9234c5db0ed3ca7ca5773c8328e784afc",
     "protocol": "9949ee06182ef679261c73aac3cd7d8e35774fbaf3b3f6affb878ff632add58c",
     "infrastructure": "2f4d8ebff162cf719b23a137620ff5440b77154a1ed54b65179112a6c751b8cb",
-    "classification_manifest": "6209ec304e8f2789ba36434c2182d33cb247213153bf19958deacf055144f1d2"
+    "classification_manifest": "6209ec304e8f2789ba36434c2182d33cb247213153bf19958deacf055144f1d2",
+    "status": "SUPERSEDED_BY_GENUINE_AUDIT_REPAIRS"
+  },
+  "hostile_audit_repair_summary": {
+    "queue_chronology_fail_closed": true,
+    "left_truncated_lineage_filter_repaired": true,
+    "mechanism_domination_repaired": true,
+    "leadlag_common_driver_directional_screen_added": true,
+    "workflow_isolation_path_trigger_gap_closed": true,
+    "preregistered_alpha_wired_to_bootstrap_confidence": true,
+    "incremental_information_screen_against_fia_added": true,
+    "mutation_sensitive_regressions_added": true,
+    "exact_full_cloud_mutation_battery_reproduced": false
+  },
+  "module_role_boundary": {
+    "live_shadow_core": [
+      "queue_survival",
+      "queue_hazard",
+      "orderbook_memory",
+      "resistance_field",
+      "information_velocity",
+      "leadlag_null",
+      "cross_scale_transport"
+    ],
+    "separate_research_or_validation_surfaces": [
+      "mechanism_competition",
+      "counterfactual",
+      "topology_regime",
+      "model_competition",
+      "incremental_value",
+      "paired_validation"
+    ],
+    "note": "Separate surfaces are not silently claimed as live-pipeline integrated; outcome-dependent validation belongs outside the pre-outcome shadow path."
   },
   "scientific_status": {
     "engineering_research_build_complete": true,
@@ -30,5 +70,5 @@
   "primary_confirmatory_horizon": "8H",
   "secondary_horizon": "4H",
   "audit_ready": true,
-  "next_step": "HOSTILE_EXTERNAL_CLOUD_AI_AUDIT_READ_ONLY_FIRST_PASS"
+  "next_step": "CLOUD_AI_POST_REPAIR_READ_ONLY_REAUDIT_THEN_FINAL_ASTRA_AFTER_ACCEPTED_CLOSURE"
 }
