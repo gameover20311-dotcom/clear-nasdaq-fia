@@ -17,6 +17,7 @@ from .information_velocity import InformationVelocityReport, TimedShock, estimat
 from .leadlag_null import LeadLagEvidence, circular_shift_leadlag_evidence
 from .model_competition import ComplexityCompetition, compare_predictive_complexity
 from .orderbook_memory import OrderBookMemory, estimate_orderbook_memory
+from .pipeline import V2PipelineConfig, V2ShadowDiagnostics, run_v2_shadow
 from .queue_hazard import QueueLifetimeDiagnostics, SurvivalPoint, kaplan_meier_queue_lifetime
 from .queue_survival import reconstruct_queue_survival
 from .resistance_field import ResistanceConfig, ResistanceField, estimate_resistance_field
@@ -47,4 +48,7 @@ __all__ = [
     "assess_transport",
     "ComplexityCompetition",
     "compare_predictive_complexity",
+    "V2PipelineConfig",
+    "V2ShadowDiagnostics",
+    "run_v2_shadow",
 ]
