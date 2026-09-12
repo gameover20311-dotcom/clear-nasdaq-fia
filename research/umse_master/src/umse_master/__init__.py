@@ -1,45 +1,16 @@
 """UMSE Master shadow research package.
 
-This package is intentionally isolated from production FIA code. It contains
-scientific contracts, causal market-state primitives, validation utilities and
-shadow-only research orchestration. Nothing here is allowed to affect BASE_FIA
-without a separately frozen and validated promotion path.
+Research-only causal market-state engine. Nothing in this package is allowed to
+affect BASE_FIA without a separately frozen, audited and unseen-data promotion path.
 """
 
-from .contracts import (
-    CausalObservation,
-    DataClass,
-    HorizonEstimate,
-    LatentStateVector,
-    MarketState,
-    Mechanism,
-    QualityState,
-    ShadowSnapshot,
-    ShadowStatus,
-)
+from .contracts import CausalObservation, DataClass, HorizonEstimate, LatentStateVector, MarketState, Mechanism, QualityState, ShadowSnapshot, ShadowStatus
 from .events import EventType, EventWindow, MarketEvent
 from .primitives import PrimitiveFeatures, compute_primitives
 from .liquidity import BookLevel, LiquidityField, OrderBookSnapshot, estimate_liquidity_field
-from .impact import (
-    ImpactContext,
-    ImpactDecay,
-    ImpactModelConfig,
-    ResponseSurprise,
-    compute_response_surprise,
-    estimate_impact_decay,
-    expected_price_impact,
-)
+from .impact import ImpactContext, ImpactDecay, ImpactModelConfig, ResponseSurprise, compute_response_surprise, estimate_impact_decay, expected_price_impact
 from .hawkes import HawkesDiagnostics, HawkesNetworkConfig, hawkes_diagnostics
-from .information import (
-    InformationEdge,
-    PIDApproximation,
-    build_information_edge,
-    conditional_mutual_information,
-    entropy,
-    mutual_information,
-    pid_i_min_approximation,
-    transfer_entropy,
-)
+from .information import InformationEdge, PIDApproximation, build_information_edge, conditional_mutual_information, entropy, mutual_information, pid_i_min_approximation, transfer_entropy
 from .geometry import GeometryShift, distribution_shift
 from .mechanisms import MechanismCompetition, MechanismEvidence, compete_mechanisms
 from .state import StateEvidence, StateInference, infer_state
@@ -52,21 +23,12 @@ from .replay import CausalReplay, ReplayClass, ReplayDecision
 from .adapters import AdapterDeclaration, Capability, InMemoryAdapter, MarketDataAdapter
 from .pipeline import UMSEResearchDiagnostics, UMSEShadowRun, run_umse_shadow
 from .shadow_engine import InputQualityReport, assess_input_quality, build_fail_closed_snapshot
+from .agents import AgentPressureInference, infer_agent_pressure
+from .survival import StateSurvivalDiagnostics, SurvivalPoint, analyze_state_survival, kaplan_meier
+from .state_space import FilterStep, HMMFilterResult, forward_filter
+from .irreversibility import IrreversibilityDiagnostics, path_irreversibility
+from .marginal_info import MarginalInformationResult, incremental_information, shapley_information
+from .complexity import ComplexityAssessment, assess_complexity
+from .hypotheses import HypothesisTier, ResearchHypothesis, MASTER_HYPOTHESES
 
-__all__ = [
-    "AdapterDeclaration", "BookLevel", "Capability", "CausalObservation", "CausalReplay",
-    "CriticalityDiagnostics", "CrossScaleReport", "DataClass", "EventType", "EventWindow",
-    "ExpertOpinion", "FusionResult", "GeometryShift", "HawkesDiagnostics", "HawkesNetworkConfig",
-    "HorizonEstimate", "ImpactContext", "ImpactDecay", "ImpactModelConfig", "InMemoryAdapter",
-    "InformationEdge", "InputQualityReport", "LatentStateVector", "LiquidityField", "MarketDataAdapter",
-    "MarketEvent", "MarketState", "Mechanism", "MechanismCompetition", "MechanismEvidence", "MSTComponents",
-    "MSTResult", "OrderBookSnapshot", "PIDApproximation", "PairedValidationResult", "PrimitiveFeatures",
-    "QualityState", "ReplayClass", "ReplayDecision", "ResponseSurprise", "Scale", "ScaleEvidence",
-    "ShadowSnapshot", "ShadowStatus", "StateEvidence", "StateInference", "UMSEResearchDiagnostics",
-    "UMSEShadowRun", "assess_cross_scale", "assess_input_quality", "build_fail_closed_snapshot",
-    "build_information_edge", "compete_mechanisms", "compute_criticality", "compute_mst", "compute_primitives",
-    "compute_response_surprise", "conditional_mutual_information", "distribution_shift", "entropy",
-    "estimate_half_life", "estimate_impact_decay", "estimate_liquidity_field", "evaluate_paired_candidate",
-    "expected_price_impact", "hawkes_diagnostics", "infer_state", "multiclass_brier", "mutual_information",
-    "pid_i_min_approximation", "reliability_weighted_fusion", "run_umse_shadow", "transfer_entropy",
-]
+__all__ = [name for name in globals() if not name.startswith("_")]
