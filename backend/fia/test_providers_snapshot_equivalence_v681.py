@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import httpx
 import json
 import sys
 from pathlib import Path
@@ -46,6 +47,19 @@ sys.path.insert(0, str(BACKEND))
 try:
     from fia import providers as P
     from fia.providers import ProviderHub
+    # The three-way split moved the method bodies out of fia.providers into
+    # three mixin modules, each with its own module-level time/datetime/yf/httpx
+    # bindings. Freezing only fia.providers would therefore silently stop
+    # reaching the code under test and the digest would move for a reason that
+    # has nothing to do with behaviour. Patch every module that holds provider
+    # code, and keep fia.providers in the list so this harness still works if
+    # the split is ever reverted.
+    _PROVIDER_MODULES = [P]
+    for _name in ("providers_model", "providers_protocol", "providers_infrastructure"):
+        try:
+            _PROVIDER_MODULES.append(__import__(f"fia.{_name}", fromlist=[_name]))
+        except ModuleNotFoundError:
+            pass
 except ModuleNotFoundError as _exc:        # pragma: no cover - environment gate
     print(f"NOT_TESTED_ENV: providers.py is not importable here ({_exc})")
     raise SystemExit(1)
@@ -402,13 +416,39 @@ def _install_enricher_stubs(raise_it):
     provider_reliability.enrich_provider_reliability = rel
 
 
+def _freeze_all():
+    """Freeze clock, yfinance and httpx in every module holding provider code."""
+    saved = []
+    for mod in _PROVIDER_MODULES:
+        saved.append((mod, getattr(mod, "time", None), getattr(mod, "datetime", None),
+                      getattr(mod, "yf", None)))
+        if hasattr(mod, "time"):
+            mod.time = _FrozenTime(mod.time)
+        if hasattr(mod, "datetime"):
+            mod.datetime = _FrozenDatetime
+        if hasattr(mod, "yf"):
+            mod.yf = _StubYF
+    real_client = httpx.AsyncClient
+    httpx.AsyncClient = _StubAsyncClient
+    sys.modules["yfinance"] = _StubYF
+    return saved, real_client
+
+
+def _restore_all(state):
+    saved, real_client = state
+    for mod, t_, d_, y_ in saved:
+        if t_ is not None:
+            mod.time = t_
+        if d_ is not None:
+            mod.datetime = d_
+        if y_ is not None:
+            mod.yf = y_
+    httpx.AsyncClient = real_client
+    sys.modules.pop("yfinance", None)
+
+
 def run(label, scenario, raise_enrichers=False):
-    real_time, real_dt, real_yf = P.time, P.datetime, P.yf
-    P.time = _FrozenTime(real_time)
-    P.datetime = _FrozenDatetime
-    P.yf = _StubYF
-    real_client = P.httpx.AsyncClient
-    P.httpx.AsyncClient = _StubAsyncClient
+    _saved = _freeze_all()
     _install_enricher_stubs(raise_enrichers)
     try:
         hub = scenario.build()
@@ -417,8 +457,7 @@ def run(label, scenario, raise_enrichers=False):
         rec(f"snapshot[{label}]", f"__RAISED__:{type(exc).__name__}:{exc}")
         return None
     finally:
-        P.time, P.datetime, P.yf = real_time, real_dt, real_yf
-        P.httpx.AsyncClient = real_client
+        _restore_all(_saved)
     rec(f"snapshot[{label}]", result)
     rec(f"snapshot[{label}].calls", scenario.calls)
     return result
@@ -446,9 +485,7 @@ run("enrichment_fails", Scenario(), raise_enrichers=True)
 # return the identical object without re-fetching.
 _cache_scn = Scenario()
 _first = run("cache_first", _cache_scn)
-_real, _real_dt = P.time, P.datetime
-P.time = _FrozenTime(_real)
-P.datetime = _FrozenDatetime
+_saved_cache = _freeze_all()
 _install_enricher_stubs(False)
 try:
     _hub = _cache_scn.build()
@@ -459,7 +496,7 @@ try:
     rec("snapshot[cache].no_extra_fetches",
         len(_cache_scn.calls) == _calls_after_first)
 finally:
-    P.time, P.datetime = _real, _real_dt
+    _restore_all(_saved_cache)
 
 
 # ---- network-bound METHOD BODIES (TEST-FIXTURE-ONLY) --------------------
@@ -485,11 +522,7 @@ def direct_hub():
 
 def direct(label, fn_name, *args, **kwargs):
     """Call a real method body with transport stubbed, and record the result."""
-    real_time, real_dt, real_yf = P.time, P.datetime, P.yf
-    P.time, P.datetime, P.yf = _FrozenTime(real_time), _FrozenDatetime, _StubYF
-    _real_httpx_client = P.httpx.AsyncClient
-    P.httpx.AsyncClient = _StubAsyncClient
-    sys.modules['yfinance'] = _StubYF   # for the local re-import at :5612
+    _saved = _freeze_all()
     hub = direct_hub()
     try:
         fn = getattr(hub, fn_name)
@@ -500,9 +533,7 @@ def direct(label, fn_name, *args, **kwargs):
     except Exception as exc:
         rec(f"direct[{label}]", f"__RAISED__:{type(exc).__name__}:{exc}")
     finally:
-        P.time, P.datetime, P.yf = real_time, real_dt, real_yf
-        P.httpx.AsyncClient = _real_httpx_client
-        sys.modules.pop('yfinance', None)
+        _restore_all(_saved)
 
 
 direct("finnhub_quote", "finnhub_quote", "QQQ")

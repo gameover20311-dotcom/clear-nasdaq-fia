@@ -110,6 +110,15 @@ def called_in_harness():
                     and len(node.args) >= 2 and isinstance(node.args[1], ast.Constant) \
                     and isinstance(node.args[1].value, str):
                 called.add(node.args[1].value)
+            # rec("direct[NAME]", ...) records an observation for a method
+            # that cannot be re-invoked by name, such as __init__, whose
+            # observable outcome is captured instead.
+            if isinstance(node.func, ast.Name) and node.func.id == "rec" \
+                    and node.args and isinstance(node.args[0], ast.Constant) \
+                    and isinstance(node.args[0].value, str):
+                label = node.args[0].value
+                if label.startswith("direct[") and label.endswith("]"):
+                    called.add(label[len("direct["):-1])
             # hub.method = stub  is NOT coverage; only calls count.
     return called
 
