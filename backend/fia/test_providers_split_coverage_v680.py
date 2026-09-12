@@ -158,6 +158,42 @@ check("harness still records signature drift rather than hiding it",
       any("__RAISED__" in line for line in raised),
       "the drift marker was removed")
 
+# ---------------------------------------------------------- determinism ----
+# The digest is only a split gate if it is reproducible. It was not: one
+# observation returned a set, json.dumps fell through to default=str, and str()
+# on a set emits hash order, which Python randomises per process. Four runs gave
+# four digests, so BASELINE_DIGEST could never have matched and every
+# post-split comparison would have reported a false HARD STOP.
+#
+# Run the harness twice under deliberately different hash seeds. Identical
+# digests or the gate is not trustworthy.
+print("\n--- HARNESS DETERMINISM ---")
+import os                                                          # noqa: E402
+import re                                                          # noqa: E402
+import subprocess                                                  # noqa: E402
+
+
+def harness_digest(seed):
+    env = dict(os.environ)
+    env["PYTHONHASHSEED"] = str(seed)
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(BACKEND)] + ([env["PYTHONPATH"]] if env.get("PYTHONPATH") else []))
+    done = subprocess.run([sys.executable, str(HARNESS)], capture_output=True,
+                          text=True, cwd=str(BACKEND), env=env, timeout=600)
+    found = re.search(r"^digest\s*:\s*([0-9a-f]{64})$",
+                      (done.stdout or "") + (done.stderr or ""), re.M)
+    return found.group(1) if found else None
+
+
+_d1 = harness_digest(1)
+_d2 = harness_digest(999)
+print(f"  seed 1   : {_d1}")
+print(f"  seed 999 : {_d2}")
+check("the equivalence harness produced a digest at all", _d1 is not None)
+check("the equivalence digest is reproducible across hash seeds",
+      _d1 is not None and _d1 == _d2,
+      "a set or other unordered value is leaking hash order into the digest")
+
 print("\n" + "=" * 78)
 if failures:
     print(f"SPLIT COVERAGE: {len(failures)} check(s) FAILED")

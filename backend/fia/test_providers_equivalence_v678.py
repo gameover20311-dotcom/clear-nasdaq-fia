@@ -275,8 +275,34 @@ for _i, _a in enumerate(ARTICLES):
     safe(f"phase20_pipeline[relevance:{_i}]", hub.analyze_nasdaq_relevance_v3, _a)
 
 
+def _stable(value):
+    """Make a value order-stable before it is serialised.
+
+    Some provider methods return a set. json.dumps cannot encode a set, so it
+    fell through to default=str, and str() on a set emits its elements in hash
+    order — which Python randomises per process via PYTHONHASHSEED. One
+    observation, _news_normalized_words, was therefore different on every run
+    and randomised the whole digest: four runs of this harness produced four
+    different digests, so BASELINE_DIGEST could never have matched anything and
+    every post-split comparison would have reported a false HARD STOP.
+
+    Sorting a set loses nothing. Set equality is order-independent by
+    definition, so comparing sorted elements is exactly equivalent to comparing
+    the sets. Tuples are normalised to lists for the same reason: so an
+    equivalent value cannot differ only by container type.
+    """
+    if isinstance(value, (set, frozenset)):
+        return sorted(_stable(v) for v in value)
+    if isinstance(value, (list, tuple)):
+        return [_stable(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _stable(v) for k, v in value.items()}
+    return value
+
+
 def canonical(value):
-    return json.dumps(value, sort_keys=True, default=str, separators=(",", ":"))
+    return json.dumps(_stable(value), sort_keys=True, default=str,
+                      separators=(",", ":"))
 
 
 payload = {k: canonical(v) for k, v in sorted(obs.items())}
