@@ -98,6 +98,30 @@ jobs:
         if: always()
         run: python .github/scripts/fia_providers.py --out /tmp/providers.json
 
+      # The suite runner keeps output only for entries that FAIL, so a passing
+      # equivalence harness never shows its digest. That digest is the value
+      # BASELINE_DIGEST must be pinned to, recorded in CI on UNSPLIT code, so it
+      # has to be visible here rather than inferred from a local run.
+      - name: Record providers equivalence digest (unsplit baseline)
+        if: always()
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import json, subprocess, sys, re
+          p = subprocess.run([sys.executable, "fia/test_providers_equivalence_v678.py"],
+                             capture_output=True, text=True)
+          out = (p.stdout or "") + (p.stderr or "")
+          print(out)
+          m = re.search(r"^digest\s*:\s*([0-9a-f]{64})$", out, re.M)
+          n = re.search(r"^observations\s*:\s*(\d+)$", out, re.M)
+          rec = {"returncode": p.returncode,
+                 "digest": m.group(1) if m else None,
+                 "observations": int(n.group(1)) if n else None,
+                 "pinned": "__RECORD_IN_CI_ON_UNSPLIT_CODE__" not in out}
+          print("EQUIVALENCE_DIGEST_UNSPLIT:", rec["digest"])
+          json.dump(rec, open("/tmp/equivalence.json", "w"), indent=1)
+          PY
+
       - name: Full active regression suite
         if: always()
         run: python .github/scripts/fia_suite.py --out /tmp/suite.json
@@ -163,6 +187,7 @@ jobs:
             /tmp/artifacts.json
             /tmp/worktree.json
             /tmp/identities.json
+            /tmp/equivalence.json
             /tmp/pre_verify.json
 
       # Single adjudication point. Runs last, sees everything, decides once.
