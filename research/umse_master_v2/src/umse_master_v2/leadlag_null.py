@@ -26,6 +26,10 @@ class LeadLagEvidence:
     calibrated: bool = False
     promotion_eligible: bool = False
     reasons: tuple[str, ...] = ()
+    reverse_observed_score: float | None = None
+    reverse_p_value: float | None = None
+    reverse_significant_screen: bool = False
+    directional_asymmetry_pass: bool = False
 
 
 def _utc(value: datetime) -> datetime:
@@ -68,6 +72,33 @@ def _match_score(source_times: list[datetime], target_times: list[datetime], max
     return total / len(source_times)
 
 
+def _shift_null_test(
+    source: list[datetime],
+    target: list[datetime],
+    *,
+    start: datetime,
+    span: float,
+    max_lag_seconds: float,
+    permutations: int,
+    alpha: float,
+    seed: int,
+) -> tuple[float, float, float, bool]:
+    observed = _match_score(source, target, max_lag_seconds)
+    target_offsets = [(t - start).total_seconds() for t in target]
+    rng = random.Random(seed)
+    nulls: list[float] = []
+    for _ in range(permutations):
+        # Avoid a near-zero shift, which would copy the observed alignment into
+        # the null. The offset is otherwise uniform over the observation circle.
+        shift = rng.uniform(max_lag_seconds, span - max_lag_seconds)
+        shifted = [start + timedelta(seconds=((x + shift) % span)) for x in target_offsets]
+        nulls.append(_match_score(source, shifted, max_lag_seconds))
+    at_least = sum(1 for value in nulls if value >= observed - 1e-15)
+    p_value = (1.0 + at_least) / (permutations + 1.0)
+    null_mean = sum(nulls) / len(nulls)
+    return observed, null_mean, p_value, p_value <= alpha
+
+
 def circular_shift_leadlag_evidence(
     shocks: Iterable[TimedShock],
     decision_time_utc: datetime,
@@ -80,12 +111,17 @@ def circular_shift_leadlag_evidence(
     seed: int = 20260912,
     minimum_events_per_node: int = 20,
 ) -> LeadLagEvidence:
-    """Screen apparent lead-lag against a circular-shift timing null.
+    """Screen apparent lead-lag against timing nulls in both directions.
 
-    The null preserves the target event count and cyclic inter-arrival structure
-    while destroying alignment to source events. It is a screening null, not a
-    proof of economic causality; exchange/feed latency still requires explicit
-    measurement before any directional causal claim.
+    A one-direction circular-shift test is vulnerable to a shared burst clock:
+    two nodes can both respond to the same common driver and each appear to lead
+    the other at short lags. V2 therefore requires directional asymmetry: the
+    requested source->target screen may pass only when the reverse
+    target->source screen does *not* also pass.
+
+    This remains a descriptive screen, not proof of economic causality. Measured
+    feed/exchange latency and explicit confound control are still required before
+    any causal interpretation.
     """
 
     if source_node == target_node:
@@ -141,21 +177,38 @@ def circular_shift_leadlag_evidence(
             reasons=("OBSERVATION_SPAN_TOO_SHORT_FOR_SHIFT_NULL",),
         )
 
-    observed = _match_score(source, target, max_lag_seconds)
-    target_offsets = [(t - start).total_seconds() for t in target]
-    rng = random.Random(seed)
-    nulls: list[float] = []
-    for _ in range(permutations):
-        # Avoid a near-zero shift, which would copy the observed alignment into
-        # the null. The offset is otherwise uniform over the observation circle.
-        shift = rng.uniform(max_lag_seconds, span - max_lag_seconds)
-        shifted = [start + timedelta(seconds=((x + shift) % span)) for x in target_offsets]
-        nulls.append(_match_score(source, shifted, max_lag_seconds))
+    observed, null_mean, p_value, forward_sig = _shift_null_test(
+        source,
+        target,
+        start=start,
+        span=span,
+        max_lag_seconds=max_lag_seconds,
+        permutations=permutations,
+        alpha=alpha,
+        seed=seed,
+    )
+    reverse_observed, _, reverse_p, reverse_sig = _shift_null_test(
+        target,
+        source,
+        start=start,
+        span=span,
+        max_lag_seconds=max_lag_seconds,
+        permutations=permutations,
+        alpha=alpha,
+        seed=seed + 1,
+    )
 
-    at_least = sum(1 for value in nulls if value >= observed - 1e-15)
-    p_value = (1.0 + at_least) / (permutations + 1.0)
-    null_mean = sum(nulls) / len(nulls)
-    significant = p_value <= alpha
+    directional_asymmetry = bool(forward_sig and not reverse_sig)
+    reasons = [
+        "SIGNIFICANCE_IS_SCREEN_ONLY",
+        "DIRECTIONAL_CAUSALITY_REQUIRES_MEASURED_LATENCY_AND_CONFOUND_CONTROL",
+        "REVERSE_DIRECTION_NULL_REQUIRED_TO_REJECT_COMMON_DRIVER_SYMMETRY",
+    ]
+    if forward_sig and reverse_sig:
+        reasons.append("BIDIRECTIONAL_OR_COMMON_DRIVER_PATTERN")
+    elif not forward_sig:
+        reasons.append("FORWARD_DIRECTION_NOT_SIGNIFICANT")
+
     return LeadLagEvidence(
         status=EvidenceStatus.UNCALIBRATED,
         source_node=source_node,
@@ -167,11 +220,12 @@ def circular_shift_leadlag_evidence(
         source_events=len(source),
         target_events=len(target),
         alpha=alpha,
-        significant_screen=significant,
+        significant_screen=directional_asymmetry,
         calibrated=False,
         promotion_eligible=False,
-        reasons=(
-            "SIGNIFICANCE_IS_SCREEN_ONLY",
-            "DIRECTIONAL_CAUSALITY_REQUIRES_MEASURED_LATENCY_AND_CONFOUND_CONTROL",
-        ),
+        reasons=tuple(reasons),
+        reverse_observed_score=reverse_observed,
+        reverse_p_value=reverse_p,
+        reverse_significant_screen=reverse_sig,
+        directional_asymmetry_pass=directional_asymmetry,
     )
