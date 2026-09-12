@@ -77,13 +77,15 @@ class MBOTruthContractTests(unittest.TestCase):
         row = mbo(1, MBOAction.ADD, available_offset=10.0)
         self.assertFalse(row.eligible_at(T0 + timedelta(seconds=5)))
 
-    def test_exact_queue_survival_requires_complete_lineage(self):
+    def test_exact_queue_survival_requires_complete_lineage_and_sequence_domain(self):
         rows = [
             mbo(10, MBOAction.ADD, size=5, seconds=0),
             mbo(11, MBOAction.TRADE, size=2, seconds=1),
             mbo(12, MBOAction.CANCEL, size=3, seconds=2),
         ]
-        result = reconstruct_queue_survival(rows, T0 + timedelta(seconds=3))
+        result = reconstruct_queue_survival(
+            rows, T0 + timedelta(seconds=3), sequence_domain_complete=True
+        )
         self.assertEqual(result.status, EvidenceStatus.OBSERVED)
         self.assertTrue(result.sequence_complete)
         self.assertTrue(result.lineage_complete)
@@ -92,15 +94,31 @@ class MBOTruthContractTests(unittest.TestCase):
         self.assertAlmostEqual(result.observations[0].lifetime_seconds, 2.0)
         self.assertFalse(result.observations[0].censored)
 
+    def test_unknown_sequence_domain_never_claims_exact_survival(self):
+        rows = [
+            mbo(100, MBOAction.ADD, size=5, seconds=0),
+            mbo(101, MBOAction.CANCEL, size=5, seconds=1),
+        ]
+        result = reconstruct_queue_survival(rows, T0 + timedelta(seconds=2))
+        self.assertEqual(result.status, EvidenceStatus.DEGRADED)
+        self.assertFalse(result.sequence_complete)
+        self.assertIn("SEQUENCE_DOMAIN_COMPLETENESS_NOT_PROVEN", result.reasons)
+
     def test_sequence_gap_degrades_exact_claim(self):
         rows = [mbo(10, MBOAction.ADD, seconds=0), mbo(12, MBOAction.CANCEL, seconds=1)]
-        result = reconstruct_queue_survival(rows, T0 + timedelta(seconds=2))
+        result = reconstruct_queue_survival(
+            rows, T0 + timedelta(seconds=2), sequence_domain_complete=True
+        )
         self.assertEqual(result.status, EvidenceStatus.DEGRADED)
         self.assertFalse(result.sequence_complete)
         self.assertIn("SEQUENCE_GAP", result.reasons)
 
     def test_missing_add_lineage_degrades(self):
-        result = reconstruct_queue_survival([mbo(5, MBOAction.TRADE, size=1)], T0 + timedelta(seconds=10))
+        result = reconstruct_queue_survival(
+            [mbo(5, MBOAction.TRADE, size=1)],
+            T0 + timedelta(seconds=10),
+            sequence_domain_complete=True,
+        )
         self.assertEqual(result.status, EvidenceStatus.DEGRADED)
         self.assertFalse(result.lineage_complete)
         self.assertTrue(any(x.startswith("MISSING_ADD_LINEAGE") for x in result.reasons))
