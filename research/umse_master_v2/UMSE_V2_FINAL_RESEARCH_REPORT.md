@@ -1,3 +1,12 @@
+> **SUPERSEDED BY THE FINAL CLOUD CLOSEOUT.**
+> The authoritative state of V2 is `UMSE_V2_FINAL_CLOUD_CLOSEOUT.md` at source
+> checkpoint `c10c6cb0f54af21395702608e0b1e82bce2b19a8`. Two claims below were
+> found wrong by the closeout re-audit and are corrected there: the reported
+> 18/18 mutation score at checkpoint `fa748fd` was an artefact of a test that
+> failed in every run (the true score was 11/18), and seven scientifically
+> material mutations were still surviving at that point. Tests are now 79 and
+> the battery is genuinely 18/18 from a verified baseline.
+
 # UMSE MASTER V2 FULL — POST-HOSTILE-AUDIT RESEARCH BUILD REPORT
 
 ## Status

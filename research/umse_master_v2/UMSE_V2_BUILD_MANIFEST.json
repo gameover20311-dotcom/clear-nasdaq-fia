@@ -1,61 +1,60 @@
 {
-  "schema": "UMSE_V2_FINAL_BUILD_MANIFEST_V2_POST_HOSTILE_REPAIR",
+  "schema": "UMSE_V2_FINAL_BUILD_MANIFEST_V3",
+  "revision": 3,
+  "revision_reason": "FINAL_CLOUD_CLOSEOUT_RE_AUDIT_AND_REPAIR",
   "repository": "gameover20311-dotcom/clear-nasdaq-fia",
   "branch": "research/umse-master-v2-full",
   "production_base": "1ab93b09d22b77e2bdce99fcfc1418395cbdf78d",
-  "pre_audit_source_identity_checkpoint": "5a8104c314d52c45fed46a8aa647549b0e5403d9",
-  "source_identity_checkpoint": "fa748fd557abade69445f691e69ac00e1e6d9dba",
-  "dedicated_ci_run_id": 34698054213,
-  "ci": {
-    "compile": "PASS",
-    "tests": "51/51 PASS",
-    "identity_completeness": "PASS",
-    "production_isolation": "PASS",
-    "scientific_status_preservation": "PASS"
-  },
+  "source_identity_checkpoint": "c10c6cb0f54af21395702608e0b1e82bce2b19a8",
+  "predecessors": [
+    {
+      "checkpoint": "5a8104c314d52c45fed46a8aa647549b0e5403d9",
+      "status": "SUPERSEDED_DEFECTIVE",
+      "note": "Pre-audit build. Hostile audit found 5 HIGH defects; 13 of 18 mutations survived.",
+      "identities": {
+        "MODEL": "0594b5ca955176e52ea6173072dab5d9234c5db0ed3ca7ca5773c8328e784afc",
+        "PROTOCOL": "9949ee06182ef679261c73aac3cd7d8e35774fbaf3b3f6affb878ff632add58c",
+        "INFRASTRUCTURE": "2f4d8ebff162cf719b23a137620ff5440b77154a1ed54b65179112a6c751b8cb",
+        "classification_manifest": "6209ec304e8f2789ba36434c2182d33cb247213153bf19958deacf055144f1d2"
+      }
+    },
+    {
+      "checkpoint": "fa748fd557abade69445f691e69ac00e1e6d9dba",
+      "status": "SUPERSEDED_INCOMPLETE",
+      "note": "First repair pass. Closed V2-01..V2-05 and alpha, added the incremental-information screen. Its reported 18/18 mutation result was invalid: a CWD-relative workflow test failed in every run, so the baseline was already red and every mutation counted as detected. The true result at this checkpoint was 11/18.",
+      "identities": {
+        "MODEL": "3c77dabaf853d33e04f567ad1fc835b328254141218a72918457157884a24229",
+        "PROTOCOL": "e62ae32400b3f2d3e2f6d3fb726a11674ca1a985fb44b0a361ff5ba1bfb9bc81",
+        "INFRASTRUCTURE": "70a93eecf7f36c227f6715e3059a0f12e944fcfba77b7f6236f5cd29e88a3b75",
+        "classification_manifest": "7de6809074cf39441e7c8cd606e2e6864c0bd0ecb1daf29f5f9852f2190999e4"
+      }
+    }
+  ],
   "research_identities": {
-    "model": "3c77dabaf853d33e04f567ad1fc835b328254141218a72918457157884a24229",
-    "protocol": "e62ae32400b3f2d3e2f6d3fb726a11674ca1a985fb44b0a361ff5ba1bfb9bc81",
-    "infrastructure": "70a93eecf7f36c227f6715e3059a0f12e944fcfba77b7f6236f5cd29e88a3b75",
+    "MODEL": "75d214345e52a6a255d55a1edecadd0338376295b63fbb2bc29c54ed5a98a61d",
+    "PROTOCOL": "8d4c55f746bffd0929937903fcb57da0e2541199e2b3efc9b8248bd7fe88c8ff",
+    "INFRASTRUCTURE": "70a93eecf7f36c227f6715e3059a0f12e944fcfba77b7f6236f5cd29e88a3b75",
     "classification_manifest": "7de6809074cf39441e7c8cd606e2e6864c0bd0ecb1daf29f5f9852f2190999e4"
   },
-  "pre_audit_identities_superseded": {
-    "model": "0594b5ca955176e52ea6173072dab5d9234c5db0ed3ca7ca5773c8328e784afc",
-    "protocol": "9949ee06182ef679261c73aac3cd7d8e35774fbaf3b3f6affb878ff632add58c",
-    "infrastructure": "2f4d8ebff162cf719b23a137620ff5440b77154a1ed54b65179112a6c751b8cb",
-    "classification_manifest": "6209ec304e8f2789ba36434c2182d33cb247213153bf19958deacf055144f1d2",
-    "status": "SUPERSEDED_BY_GENUINE_AUDIT_REPAIRS"
+  "research_identity_file_counts": {
+    "MODEL": 7,
+    "PROTOCOL": 8,
+    "INFRASTRUCTURE": 2,
+    "TOTAL": 17
   },
-  "hostile_audit_repair_summary": {
-    "queue_chronology_fail_closed": true,
-    "left_truncated_lineage_filter_repaired": true,
-    "mechanism_domination_repaired": true,
-    "leadlag_common_driver_directional_screen_added": true,
-    "workflow_isolation_path_trigger_gap_closed": true,
-    "preregistered_alpha_wired_to_bootstrap_confidence": true,
-    "incremental_information_screen_against_fia_added": true,
-    "mutation_sensitive_regressions_added": true,
-    "exact_full_cloud_mutation_battery_reproduced": false
+  "identity_change_summary": {
+    "MODEL": "CHANGED - queue_hazard, queue_survival, orderbook_memory, resistance_field, topology_regime repaired",
+    "PROTOCOL": "CHANGED - paired_validation repaired",
+    "INFRASTRUCTURE": "UNCHANGED - byte-identical across all three checkpoints",
+    "classification_manifest": "UNCHANGED - no file added, removed or reclassified"
   },
-  "module_role_boundary": {
-    "live_shadow_core": [
-      "queue_survival",
-      "queue_hazard",
-      "orderbook_memory",
-      "resistance_field",
-      "information_velocity",
-      "leadlag_null",
-      "cross_scale_transport"
-    ],
-    "separate_research_or_validation_surfaces": [
-      "mechanism_competition",
-      "counterfactual",
-      "topology_regime",
-      "model_competition",
-      "incremental_value",
-      "paired_validation"
-    ],
-    "note": "Separate surfaces are not silently claimed as live-pipeline integrated; outcome-dependent validation belongs outside the pre-outcome shadow path."
+  "ci": {
+    "tests_total": 79,
+    "tests_failed": 0,
+    "original_mutation_battery": "18/18 DETECTED",
+    "mutation_baseline_verified": true,
+    "identity_completeness": "PASS",
+    "production_isolation": "PASS"
   },
   "scientific_status": {
     "engineering_research_build_complete": true,
@@ -69,6 +68,14 @@
   },
   "primary_confirmatory_horizon": "8H",
   "secondary_horizon": "4H",
+  "unresolved_empirical_prerequisites": [
+    "No real CME MBO/depth/trade data exists in this branch; every MBO semantic is asserted, never validated against a live feed.",
+    "No market-data adapter exists; only in-memory fixtures.",
+    "Mechanism competition is reachable but weakly identifiable: 94.9% of random evidence yields no identification, and the passive/absorption and liquidation/vacuum score pairs remain correlated above 0.74.",
+    "No family-wise correction exists for repeated incremental-information testing or lead-lag window search.",
+    "Topological and counterfactual layers still have no demonstrated incremental information over FIA.",
+    "Confirmatory N must come from a preregistered power design that does not yet exist."
+  ],
   "audit_ready": true,
-  "next_step": "CLOUD_AI_POST_REPAIR_READ_ONLY_REAUDIT_THEN_FINAL_ASTRA_AFTER_ACCEPTED_CLOSURE"
+  "next_step": "ASTRA_MAX_INDEPENDENT_FORENSIC_READ_ONLY_AUDIT"
 }

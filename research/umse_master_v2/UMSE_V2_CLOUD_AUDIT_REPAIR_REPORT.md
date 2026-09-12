@@ -171,3 +171,36 @@ These are not converted into synthetic PASS states.
 ## Required next step
 
 Cloud AI must perform a new **read-only hostile re-audit** of the repaired checkpoint and independently re-run all original findings and the full mutation battery. Only accepted closure after that re-audit should proceed to the final independent Astra Max audit.
+
+
+---
+
+## Correction issued by the final Cloud closeout
+
+This report's mutation claim was wrong and is corrected here rather than edited
+away.
+
+`test_isolation_workflow_is_not_path_gated` read the workflow through a
+working-directory-relative path. Whenever the suite ran from anywhere but the
+repository root it raised `FileNotFoundError`, so the baseline was already red,
+every mutated run was also red, and every mutation counted as "detected". The
+18/18 reported at checkpoint `fa748fd` was therefore an artefact.
+
+Re-measured from a verified-green baseline, the true score at `fa748fd` was
+**11/18**, with these seven scientifically material survivors:
+
+| # | Destroyed behaviour | Class |
+|---|---|---|
+| 4 | Kaplan-Meier restricted mean survival time forced to zero | MODEL |
+| 5 | Order-book half-life forced to a constant | MODEL |
+| 6 | Resistance depth term removed | MODEL |
+| 9 | Topological persistence entropy replaced | MODEL |
+| 10 | Topological fragmentation index forced constant | MODEL |
+| 12 | Information-velocity propagation rate forced constant | MODEL |
+| 14 | Complexity BIC penalty removed | PROTOCOL |
+
+All seven are killed at the final checkpoint
+`c10c6cb0f54af21395702608e0b1e82bce2b19a8`, and the result is reproducible from
+three different working directories. The repairs that closed them, plus the six
+further defects the closeout found still open, are recorded in
+`UMSE_V2_FINAL_CLOUD_CLOSEOUT.md`.
