@@ -5,6 +5,7 @@
     "contracts.py": "PROTOCOL",
     "counterfactual.py": "PROTOCOL",
     "cross_scale_transport.py": "PROTOCOL",
+    "incremental_value.py": "PROTOCOL",
     "information_velocity.py": "MODEL",
     "leadlag_null.py": "PROTOCOL",
     "mechanism_competition.py": "MODEL",
@@ -20,7 +21,7 @@
   },
   "notes": {
     "MODEL": "Derived market-state measurements and descriptive mechanism/topological features. Model files remain uncalibrated research unless separately frozen and validated.",
-    "PROTOCOL": "Causal/data contracts, statistical screens, counterfactual falsification boundaries, horizon transport, paired Forward-OOS validation, model-selection rules and scientific pipeline wiring.",
+    "PROTOCOL": "Causal/data contracts, statistical and incremental-information screens, counterfactual falsification boundaries, horizon transport, paired Forward-OOS validation, model-selection rules and scientific pipeline wiring.",
     "INFRASTRUCTURE": "Package exports and identity machinery. Unlike V1, research_identity.py is inside its own fingerprint scope."
   }
 }
