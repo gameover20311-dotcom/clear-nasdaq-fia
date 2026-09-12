@@ -1,0 +1,43 @@
+name: UMSE Research Verify
+
+on:
+  push:
+    branches:
+      - research/umse-master-v1
+  pull_request:
+    paths:
+      - 'research/umse_master/**'
+      - '.github/workflows/umse-research.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile UMSE source
+        run: python -m compileall -q research/umse_master/src
+      - name: Run complete UMSE test suite
+        run: PYTHONPATH=research/umse_master/src python -m unittest discover -s research/umse_master/tests -p 'test_*.py' -v
+      - name: Verify research identities fail closed
+        run: |
+          PYTHONPATH=research/umse_master/src python - <<'PY'
+          import json
+          from umse_master.research_identity import fingerprints, unclassified_files
+          assert unclassified_files() == (), unclassified_files()
+          print(json.dumps(fingerprints(), indent=2, sort_keys=True))
+          PY
+      - name: Prove production code untouched by UMSE branch
+        run: |
+          git fetch origin main --depth=1
+          bad=$(git diff --name-only origin/main...HEAD | grep -Ev '^(research/umse_master/|\.github/workflows/umse-research\.yml$)' || true)
+          if [ -n "$bad" ]; then
+            echo "Unexpected non-UMSE files changed:"
+            echo "$bad"
+            exit 1
+          fi
+          echo "Production isolation: PASS"

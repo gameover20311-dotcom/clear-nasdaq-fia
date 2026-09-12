@@ -1,0 +1,28 @@
+{
+  "schema": "UMSE_RESEARCH_IDENTITY_V1",
+  "classification": {
+    "__init__.py": "INFRASTRUCTURE",
+    "adapters.py": "INFRASTRUCTURE",
+    "complexity.py": "PROTOCOL",
+    "contracts.py": "PROTOCOL",
+    "criticality.py": "MODEL",
+    "cross_scale.py": "MODEL",
+    "events.py": "PROTOCOL",
+    "fusion.py": "MODEL",
+    "geometry.py": "MODEL",
+    "hawkes.py": "MODEL",
+    "hypotheses.py": "PROTOCOL",
+    "impact.py": "MODEL",
+    "information.py": "MODEL",
+    "liquidity.py": "MODEL",
+    "mechanisms.py": "MODEL",
+    "mst.py": "MODEL",
+    "pipeline.py": "MODEL",
+    "primitives.py": "MODEL",
+    "replay.py": "PROTOCOL",
+    "shadow_engine.py": "PROTOCOL",
+    "state.py": "MODEL",
+    "validation.py": "PROTOCOL"
+  },
+  "note": "Research-only identity split. Does not modify or replace CLEAR NASDAQ production identities. research_identity.py is the fingerprint implementation and is excluded from its own source scope."
+}
