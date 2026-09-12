@@ -1,0 +1,36 @@
+"""UMSE MASTER V2 FULL research package.
+
+This package is isolated from production CLEAR NASDAQ. It may reuse repaired
+UMSE V1 research contracts but must not mutate production behavior.
+"""
+
+from .contracts import (
+    EvidenceStatus,
+    MBOAction,
+    MBORecord,
+    QueueSurvivalObservation,
+    QueueSurvivalReport,
+    Side,
+)
+from .information_velocity import InformationVelocityReport, TimedShock, estimate_information_velocity
+from .orderbook_memory import OrderBookMemory, estimate_orderbook_memory
+from .queue_survival import reconstruct_queue_survival
+from .resistance_field import ResistanceConfig, ResistanceField, estimate_resistance_field
+
+__all__ = [
+    "EvidenceStatus",
+    "MBOAction",
+    "MBORecord",
+    "QueueSurvivalObservation",
+    "QueueSurvivalReport",
+    "Side",
+    "TimedShock",
+    "InformationVelocityReport",
+    "estimate_information_velocity",
+    "OrderBookMemory",
+    "estimate_orderbook_memory",
+    "reconstruct_queue_survival",
+    "ResistanceConfig",
+    "ResistanceField",
+    "estimate_resistance_field",
+]
