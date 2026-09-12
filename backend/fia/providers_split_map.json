@@ -1,6 +1,6 @@
 {
  "schema": "FIA_PROVIDERS_SPLIT_MAP_V1",
- "status": "DESIGN_ONLY_NOT_APPLIED",
+ "status": "APPLIED_THREE_WAY_SPLIT_WITH_PROVEN_EQUIVALENCE",
  "finding": "providers.py is THREE-way mixed, not two-way. It contains ~2,000 lines of NEWS SENTIMENT SCORING that produces the engine's News signal, which is MODEL code, not transport or policy.",
  "proof_chain": [
   "providers.py:3522 analyze_news_context_v3_calibrated(article)  [news scoring]",
@@ -318,9 +318,46 @@
  },
  "equivalence_harness": {
   "file": "fia/test_providers_equivalence_v678.py",
-  "status": "WRITTEN_BASELINE_NOT_YET_RECORDED",
+  "status": "BASELINES_PINNED_AND_MATCHED_POST_SPLIT",
   "records": "deterministic ProviderHub surface: news scoring, trust/recency/dedup/confirmation policy, value transforms, article normalisation, staleness, session windows, instrument symbol",
   "sufficiency": "NECESSARY NOT SUFFICIENT. Live transport, real fallback chains under provider failure and snapshot() assembly are proven only by the 8 CI-only provider tests.",
   "baseline_recorded_where": "CI, on UNSPLIT code, per the owner's step 2."
+ },
+ "applied": {
+  "split_commit": "b5fbffe9016b59d1608bcd13ba56c8b2e47002fc",
+  "modules": {
+   "MODEL": "fia/providers_model.py (ModelMixin)",
+   "PROTOCOL": "fia/providers_protocol.py (ProtocolMixin)",
+   "INFRASTRUCTURE": "fia/providers_infrastructure.py (InfrastructureMixin)",
+   "facade": "fia/providers.py \u2014 ProviderHub composes all three; all 47 methods preserved"
+  },
+  "snapshot_decomposition": {
+   "note": "snapshot() was NOT moved as one block. Its 797 lines were decomposed into named phases by responsibility; it is now 532 lines of orchestration.",
+   "MODEL": [
+    "_snapshot_mega_cap",
+    "_snapshot_semiconductors",
+    "_snapshot_participation",
+    "_snapshot_macro_rates",
+    "_snapshot_news_intelligence"
+   ],
+   "PROTOCOL": [
+    "_snapshot_earnings_calendar",
+    "_snapshot_quote_freshness"
+   ],
+   "INFRASTRUCTURE": [
+    "_snapshot_fetch_quotes"
+   ]
+  },
+  "nq_liquidity_truth": {
+   "split": true,
+   "evidence": "_period_level decides a published level (MODEL); _quarter_contracts decides which instrument it came from (PROTOCOL); _raw_yahoo fetches it (INFRASTRUCTURE).",
+   "layering": "INFRASTRUCTURE <- MODEL <- PROTOCOL (strict DAG)",
+   "mathematical_behaviour_changed": false
+  },
+  "equivalence_digests_immutable": {
+   "v678": "e2191da05e1a737c71ff88b3f5737b836d03974b6f784e9682a1595bd368e506",
+   "v681": "45cdee64ce472a2abed1a48e1d5e2c11847907e51a3b3fdfb574eaaeff92ab57",
+   "v682": "cfbc40bfeb3e00a25f68110caec0aeef3cf965978d7e057e33849f2e0fca3f24"
+  }
  }
 }

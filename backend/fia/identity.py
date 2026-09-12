@@ -62,7 +62,7 @@ IDENTITIES = ("MODEL", "PROTOCOL", "INFRASTRUCTURE")
 # re-partitioned later and the digests silently mean something different.
 # Pinned in code and stored in the JSON; both change together, deliberately.
 EXPECTED_CLASSIFICATION_MANIFEST_ID = (
-    "0d9164edf52031460d24e875612204ac9e0f984073f6d39b586769cd22823e0e"
+    "1e847b0588b21dc2d361e68f33d8009df4e7647efb340af36885da47ffcabca5"
 )
 
 
