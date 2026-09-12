@@ -1,3 +1,9 @@
+> **SUPERSEDED IN PART BY THE REPAIR PASS.** This document describes the build
+> at source freeze `06b7ada`, which an independent hostile audit found to
+> contain 9 genuine bugs and a test suite in which 6 of 7 destructive science
+> mutations survived. Corrections are marked inline. See `REPAIR_REPORT.md` and
+> the V2 build manifest for the current state.
+
 # UMSE MASTER — Final Research-Build Report
 
 ## Verdict scope
@@ -10,7 +16,18 @@ This report closes the **A-to-Z theory / architecture / executable research-scaf
 
 ## What is complete
 
-The UMSE MASTER research package now includes causal contracts, event kernel, data-class truth boundaries, liquidity field, aggression/flow primitives, nonlinear impact and response surprise, impact decay, Hawkes network and spectral-radius diagnostics, criticality diagnostics, information graph primitives, transfer entropy, conditional information, PID heuristic, Shapley marginal-information diagnostics, information geometry, path irreversibility, latent agent-pressure hypotheses, mechanism competition, market-state inference, HMM forward filtering, survival/hazard/metastability, cross-scale survival gates, reliability-weighted fusion, MST research formulations, complexity penalties, a self-falsifying hypothesis registry, causal replay, market-data adapter contracts, paired BASE-vs-candidate validation, separate 4H/8H fail-closed outputs, research identities and a full shadow orchestration pipeline.
+The UMSE MASTER research package now includes causal contracts, event kernel, data-class truth boundaries, liquidity field, aggression/flow primitives, nonlinear impact and response surprise, impact decay, Hawkes network and spectral-radius diagnostics, criticality diagnostics, information graph primitives, transfer entropy, conditional information, PID heuristic, Shapley marginal-information diagnostics, information geometry, path irreversibility, latent agent-pressure hypotheses, mechanism competition, market-state inference, HMM forward filtering, survival/hazard/metastability, cross-scale survival gates, reliability-weighted fusion, MST research formulations, complexity penalties, a self-falsifying hypothesis registry, causal replay, market-data adapter contracts, paired BASE-vs-candidate validation, separate 4H/8H fail-closed outputs, research identities and a shadow orchestration pipeline.
+
+> **CORRECTION (audit finding F-20).** "Full" overstated the integration. The
+> pipeline transitively reaches 13 of 26 modules. Transfer entropy, conditional
+> information, the PID heuristic, Shapley marginal information, information
+> geometry, path irreversibility, HMM filtering, survival analysis, fusion,
+> replay, complexity and the adapters are standalone and are NOT called by
+> `run_umse_shadow`. The package is an integrated descriptive chain plus a set
+> of standalone research instruments that are not yet composed. Separately,
+> `build_fail_closed_snapshot` ignores the diagnostics entirely and returns a
+> `LatentStateVector` hardcoded to 0.5 on every field: the shadow snapshot is a
+> fixed fail-closed placeholder, not a projection of the latent state.
 
 Speculative extensions discussed earlier—IRL/inverse game, free-energy/predictive-coding and topology—are deliberately registered as hypotheses rather than dressed up as validated modules. Each has a falsification/kill rule.
 
@@ -20,6 +37,12 @@ Dedicated UMSE GitHub Actions run `34668195280` executed the source freeze.
 
 - Python compilation: PASS
 - Complete UMSE tests: **38 / 38 PASS**
+  > **CORRECTION (audit finding F-19).** A green suite was not evidence of
+  > working science. Mutation testing showed the criticality index could be
+  > replaced by a constant, the Hawkes excitation zeroed, the weighted book
+  > depth zeroed and the state inference flattened to uniform with all 38 tests
+  > still passing. The repaired suite is 136 tests and detects 16 of 16
+  > destructive mutations.
 - UMSE research identity completeness: PASS
 - Production-isolation check: PASS
 - Unexpected non-UMSE production files changed: **0**
@@ -109,3 +132,10 @@ The build is now ready for the owner’s requested independent review order:
 `UMSE_MASTER_A_TO_Z_RESEARCH_BUILD = COMPLETE`
 
 This verdict means the discussed theory has been converted into an auditable, executable, fail-closed research architecture. It does **not** mean the market has validated it.
+
+> **CORRECTION (audit finding F-21).** "Fail-closed" held at the contract and
+> snapshot boundary but not through the measurement layer. Missing criticality
+> inputs returned 0.0 (a confident "calm"), all-censored survival data returned
+> maximum metastability, and staleness was never derived from timestamps — a
+> 30-day-old book was accepted in full if labelled FRESH. All three are
+> repaired; see `REPAIR_REPORT.md`.

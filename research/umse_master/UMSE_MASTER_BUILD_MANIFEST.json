@@ -1,25 +1,167 @@
 {
-  "schema": "UMSE_MASTER_BUILD_MANIFEST_V1",
+  "schema": "UMSE_MASTER_BUILD_MANIFEST_V2",
+  "revision": 2,
+  "revision_reason": "POST_HOSTILE_AUDIT_REPAIR_PASS",
   "branch": "research/umse-master-v1",
   "production_base_commit": "1ab93b09d22b77e2bdce99fcfc1418395cbdf78d",
-  "research_source_freeze_commit": "06b7ada5472a030378144fca55f5aa41482ae7bb",
-  "ci": {
-    "workflow": "UMSE Research Verify",
-    "run_id": 34668195280,
-    "compile": "PASS",
-    "tests_passed": 38,
-    "tests_failed": 0,
-    "production_isolation": "PASS"
+  "research_source_freeze_commit": "c58adb7a4aad23c22bd745ab1494a8d87692aeeb",
+  "predecessor": {
+    "schema": "UMSE_MASTER_BUILD_MANIFEST_V1",
+    "research_source_freeze_commit": "06b7ada5472a030378144fca55f5aa41482ae7bb",
+    "status": "SUPERSEDED_DEFECTIVE",
+    "superseded_because": "Independent hostile audit proved 9 genuine bugs and a test suite in which 6 of 7 destructive science mutations survived. These identities are preserved for provenance and are NOT claimed to be continuous with the repaired identities below.",
+    "research_identities": {
+      "MODEL": "926f912347456dc37fab006c70800cc446179d82659dc99b2b8fe469db9398d6",
+      "PROTOCOL": "8ea5b7bbb5524a11bd28849000f1c69e40e6aabec27cb146f68e2a0312e00afc",
+      "INFRASTRUCTURE": "4ebe4a2b49e82355c9e3de29ed3043224b1acc1e2252769e62473dbfe484e0a3",
+      "classification_manifest": "27a9c015f103912ed20f35d4ebc78b5e6b29af73f4805a935da3998ab3a34811"
+    }
   },
   "research_identities": {
-    "MODEL": "926f912347456dc37fab006c70800cc446179d82659dc99b2b8fe469db9398d6",
-    "PROTOCOL": "8ea5b7bbb5524a11bd28849000f1c69e40e6aabec27cb146f68e2a0312e00afc",
+    "MODEL": "39548b3ea7dd47cbd0ada3720551dd9f1c4949b95b9ede9653c8dccd447af305",
+    "PROTOCOL": "53232a753b021217aa1e426cb6b6724904febf2166028eb43f85914f30de2aa4",
     "INFRASTRUCTURE": "4ebe4a2b49e82355c9e3de29ed3043224b1acc1e2252769e62473dbfe484e0a3",
-    "classification_manifest": "27a9c015f103912ed20f35d4ebc78b5e6b29af73f4805a935da3998ab3a34811"
+    "classification_manifest": "bf2a07b87f39fdb11e46fc665f8a617ec9766a5559e2a88691737ad8dcb37fa5"
+  },
+  "research_identity_file_counts": {
+    "MODEL": 18,
+    "PROTOCOL": 8,
+    "INFRASTRUCTURE": 2
+  },
+  "identity_change_summary": {
+    "MODEL": "CHANGED - 16 of 18 files repaired",
+    "PROTOCOL": "CHANGED - 4 files repaired, 1 added (significance.py)",
+    "INFRASTRUCTURE": "UNCHANGED - byte-identical to the predecessor",
+    "source_files_changed": 20,
+    "source_files_added": 1,
+    "source_files_unchanged": 7,
+    "per_file": {
+      "__init__.py": {
+        "identity": "INFRASTRUCTURE",
+        "state": "UNCHANGED"
+      },
+      "adapters.py": {
+        "identity": "INFRASTRUCTURE",
+        "state": "UNCHANGED"
+      },
+      "agents.py": {
+        "identity": "MODEL",
+        "state": "CHANGED"
+      },
+      "complexity.py": {
+        "identity": "PROTOCOL",
+        "state": "UNCHANGED"
+      },
+      "contracts.py": {
+        "identity": "PROTOCOL",
+        "state": "CHANGED"
+      },
+      "criticality.py": {
+        "identity": "MODEL",
+        "state": "CHANGED"
+      },
+      "cross_scale.py": {
+        "identity": "MODEL",
+        "state": "CHANGED"
+      },
+      "events.py": {
+        "identity": "PROTOCOL",
+        "state": "CHANGED"
+      },
+      "fusion.py": {
+        "identity": "MODEL",
+        "state": "CHANGED"
+      },
+      "geometry.py": {
+        "identity": "MODEL",
+        "state": "CHANGED"
+      },
+      "hawkes.py": {
+        "identity": "MODEL",
+        "state": "CHANGED"
+      },
+      "hypotheses.py": {
+        "identity": "PROTOCOL",
+        "state": "UNCHANGED"
+      },
+      "impact.py": {
+        "identity": "MODEL",
+        "state": "CHANGED"
+      },
+      "information.py": {
+        "identity": "MODEL",
+        "state": "CHANGED"
+      },
+      "irreversibility.py": {
+        "identity": "MODEL",
+        "state": "CHANGED"
+      },
+      "liquidity.py": {
+        "identity": "MODEL",
+        "state": "CHANGED"
+      },
+      "marginal_info.py": {
+        "identity": "MODEL",
+        "state": "CHANGED"
+      },
+      "mechanisms.py": {
+        "identity": "MODEL",
+        "state": "CHANGED"
+      },
+      "mst.py": {
+        "identity": "MODEL",
+        "state": "CHANGED"
+      },
+      "pipeline.py": {
+        "identity": "MODEL",
+        "state": "CHANGED"
+      },
+      "primitives.py": {
+        "identity": "MODEL",
+        "state": "CHANGED"
+      },
+      "replay.py": {
+        "identity": "PROTOCOL",
+        "state": "UNCHANGED"
+      },
+      "shadow_engine.py": {
+        "identity": "PROTOCOL",
+        "state": "CHANGED"
+      },
+      "significance.py": {
+        "identity": "PROTOCOL",
+        "state": "ADDED"
+      },
+      "state.py": {
+        "identity": "MODEL",
+        "state": "UNCHANGED"
+      },
+      "state_space.py": {
+        "identity": "MODEL",
+        "state": "UNCHANGED"
+      },
+      "survival.py": {
+        "identity": "MODEL",
+        "state": "CHANGED"
+      },
+      "validation.py": {
+        "identity": "PROTOCOL",
+        "state": "CHANGED"
+      }
+    }
+  },
+  "ci": {
+    "workflow": "UMSE Research Verify",
+    "compile": "PASS",
+    "tests_total": 136,
+    "tests_failed": 0,
+    "mutation_battery_detected": 16,
+    "mutation_battery_total": 16,
+    "production_isolation": "PASS"
   },
   "status": {
-    "engineering_research_build": "COMPLETE",
-    "theory_coverage": "COMPLETE_AS_RESEARCH_ARCHITECTURE",
+    "engineering_research_build": "REPAIRED",
+    "theory_coverage": "PARTIAL_INTEGRATION_13_OF_26_MODULES_IN_PIPELINE",
     "production_integration": false,
     "predictive_mapping_frozen": false,
     "real_mbo_calibration": "NOT_DONE",
@@ -27,8 +169,33 @@
     "forward_oos_edge": "NOT_PROVEN",
     "successor_campaign_started": false,
     "alpha_spent": 0,
-    "predictive_edge": "NOT_PROVEN"
+    "predictive_edge": "NOT_PROVEN",
+    "production_promotion_eligibility": "NO"
   },
-  "ultimate_test": "I(UMSE_t;Y_future|FIA_t)>0",
-  "audit_order": ["CLOUD_AI", "ASTRA_MAX"]
+  "ultimate_test": {
+    "statement": "I(UMSE_t;Y_future|FIA_t) > 0",
+    "status": "SUPERSEDED_AS_STATED",
+    "reason": "A raw plug-in estimate > 0 is satisfied by pure independent noise in 100% of trials. The criterion is now a conditional permutation test with a minimum-sample floor; see umse_master.significance.",
+    "replacement": "umse_master.significance.incremental_information_evidence",
+    "note": "A SIGNIFICANT_UNCALIBRATED screen is not edge and is not promotion eligible."
+  },
+  "deferred_not_repaired": [
+    {
+      "id": "F-18",
+      "finding": "cross_scale.py is MODEL-classified but contains the 4H/8H PROTOCOL gate",
+      "reason": "Identity layout revision, deliberately out of scope for a repair pass",
+      "status": "OPEN"
+    },
+    {
+      "id": "F-18b",
+      "finding": "research_identity.py is excluded from its own fingerprint scope",
+      "reason": "Disclosed limitation, unchanged by this pass",
+      "status": "OPEN"
+    }
+  ],
+  "audit_order": [
+    "CLOUD_AI_AUDIT_COMPLETE",
+    "CLOUD_AI_REPAIR_COMPLETE",
+    "ASTRA_MAX_PENDING"
+  ]
 }
