@@ -46,12 +46,19 @@ def reconstruct_queue_survival(
     decision_time_utc: datetime,
     *,
     max_age_seconds: float | None = None,
+    sequence_domain_complete: bool = False,
 ) -> QueueSurvivalReport:
     """Reconstruct order lifetimes from exact MBO identity only.
 
-    This function deliberately does *not* estimate queue position or trader identity.
-    Sequence gaps and missing order lineage degrade the result rather than being
-    silently imputed.
+    `sequence_domain_complete` is an explicit protocol assertion that the caller
+    supplied the complete exchange/channel sequence domain needed to interpret
+    numeric gaps. This matters because many feeds use a channel/global sequence:
+    filtering to one instrument can create innocent gaps that are not packet loss.
+
+    The function never estimates queue position or trader identity. Unknown
+    sequence-domain completeness degrades exact queue-survival claims rather than
+    silently assuming that consecutive numbers should exist in an instrument-only
+    subset.
     """
 
     decision = _utc(decision_time_utc)
@@ -82,16 +89,19 @@ def reconstruct_queue_survival(
     ordered = tuple(sorted(rows, key=lambda r: (r.sequence, r.event_time_utc, r.provenance_id)))
     sequences = [r.sequence for r in ordered]
     sequence_unique = len(sequences) == len(set(sequences))
-    sequence_complete = sequence_unique and all(b == a + 1 for a, b in zip(sequences, sequences[1:]))
+    numerically_contiguous = sequence_unique and all(b == a + 1 for a, b in zip(sequences, sequences[1:]))
+    sequence_complete = bool(sequence_domain_complete and numerically_contiguous)
 
     active: dict[str, _ActiveOrder] = {}
     observations: list[QueueSurvivalObservation] = []
     lineage_complete = True
     reasons: list[str] = []
 
+    if not sequence_domain_complete:
+        reasons.append("SEQUENCE_DOMAIN_COMPLETENESS_NOT_PROVEN")
     if not sequence_unique:
         reasons.append("DUPLICATE_SEQUENCE")
-    elif not sequence_complete and len(sequences) > 1:
+    elif sequence_domain_complete and not numerically_contiguous and len(sequences) > 1:
         reasons.append("SEQUENCE_GAP")
 
     for row in ordered:
