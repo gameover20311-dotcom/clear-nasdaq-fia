@@ -72,7 +72,13 @@ health3 = build_provider_health(stale)
 check("critical stale => DEGRADED", health3["overall"] == "DEGRADED")
 
 # Static wiring checks
-providers_text = (BACKEND / "fia/providers.py").read_text(encoding="utf-8")
+# providers.py was split three ways by responsibility, so the provider layer is
+# now a facade plus three mixin modules. Reading providers.py alone would look
+# at 58 lines of imports and silently stop finding wiring that is still there.
+# Read the whole layer instead; the assertion below is unchanged.
+providers_text = "".join((BACKEND / "fia" / _m).read_text(encoding="utf-8")
+                         for _m in ("providers.py", "providers_model.py", "providers_protocol.py",
+              "providers_infrastructure.py"))
 engine_text = (BACKEND / "fia/engine.py").read_text(encoding="utf-8")
 main_text = (BACKEND / "main.py").read_text(encoding="utf-8")
 proxy_text = (ROOT / "frontend/app/api/fia/provider-health/route.ts").read_text(encoding="utf-8")

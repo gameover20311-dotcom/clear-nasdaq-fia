@@ -14,7 +14,13 @@ BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
 from fia.provider_reliability import _source_item
 
-SRC = (BACKEND / "fia/providers.py").read_text(encoding="utf-8")
+# providers.py was split three ways by responsibility, so the provider layer is
+# now a facade plus three mixin modules. Reading providers.py alone would look
+# at 58 lines of imports and silently stop finding wiring that is still there.
+# Read the whole layer instead; the assertion below is unchanged.
+SRC = "".join((BACKEND / "fia" / _m).read_text(encoding="utf-8")
+              for _m in ("providers.py", "providers_model.py", "providers_protocol.py",
+              "providers_infrastructure.py"))
 
 # the success path must set the flag
 assert 'data["liquidity_evidence_available"] = _available' in SRC, \

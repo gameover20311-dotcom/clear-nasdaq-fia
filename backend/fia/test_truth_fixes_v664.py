@@ -98,7 +98,13 @@ src = Path(_eng.__file__).read_text(encoding="utf-8")
 check("engine no longer emits a 'Breadth' adapter label", '("Breadth", raw.get("breadth")' not in src)
 check("engine emits the honest label", '"Equal-weight participation"' in src)
 import fia.providers as _prov  # noqa: E402
-psrc = Path(_prov.__file__).read_text(encoding="utf-8")
+# providers.py was split three ways by responsibility, so the provider layer is
+# now a facade plus three mixin modules. Reading providers.py alone would look
+# at 58 lines of imports and silently stop finding wiring that is still there.
+# Read the whole layer instead; the assertion below is unchanged.
+psrc = "".join((Path(_prov.__file__).parent / _m).read_text(encoding="utf-8")
+               for _m in ("providers.py", "providers_model.py", "providers_protocol.py",
+              "providers_infrastructure.py"))
 check("provider documents it is NOT market breadth", "THIS IS NOT MARKET BREADTH" in psrc)
 check("provider exposes the definition block", "equal_weight_participation_definition" in psrc)
 

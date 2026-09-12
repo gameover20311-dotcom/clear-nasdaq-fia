@@ -60,7 +60,13 @@ def main():
     check("QQQ remains separate reference", g["qqq"]["levels"]["monthly_high"].price == 610.0)
     flat=build_liquidity_map(data)
     check("flat monthly resolves to NQ", flat["monthly_high"].instrument == "NQ" and flat["monthly_high"].price == 29050.0)
-    providers=(_BACKEND/"fia"/"providers.py").read_text(encoding="utf-8")
+    # providers.py was split three ways by responsibility, so the provider layer is
+    # now a facade plus three mixin modules. Reading providers.py alone would look
+    # at 58 lines of imports and silently stop finding wiring that is still there.
+    # Read the whole layer instead; the assertion below is unchanged.
+    providers="".join((_BACKEND/"fia"/_m).read_text(encoding="utf-8")
+                      for _m in ("providers.py", "providers_model.py", "providers_protocol.py",
+              "providers_infrastructure.py"))
     check("snapshot truth fix wired", "LIQUIDITY_TRUTH_FIX_V1" in providers and "apply_nq_chart_liquidity" in providers)
     print("LIQUIDITY TRUTH FIX TEST PASS")
 

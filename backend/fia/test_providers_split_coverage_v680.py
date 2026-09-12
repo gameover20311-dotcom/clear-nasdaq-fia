@@ -35,6 +35,9 @@ from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[1]
 PROVIDERS = BACKEND / "fia" / "providers.py"
+MODEL_MOD = BACKEND / "fia" / "providers_model.py"
+PROTOCOL_MOD = BACKEND / "fia" / "providers_protocol.py"
+INFRA_MOD = BACKEND / "fia" / "providers_infrastructure.py"
 HARNESS = BACKEND / "fia" / "test_providers_equivalence_v678.py"
 SNAPSHOT_HARNESS = BACKEND / "fia" / "test_providers_snapshot_equivalence_v681.py"
 HARNESSES = (HARNESS, SNAPSHOT_HARNESS)
@@ -66,17 +69,33 @@ def check(label, condition, detail=""):
 
 
 def provider_methods():
-    tree = ast.parse(PROVIDERS.read_text(encoding="utf-8", errors="replace"))
-    cls = next(n for n in tree.body
-               if isinstance(n, ast.ClassDef) and n.name == "ProviderHub")
+    """Every ProviderHub method, wherever the split put it.
+
+    After the three-way split, providers.py is a facade and the methods live in
+    ModelMixin, ProtocolMixin and InfrastructureMixin. Parsing providers.py
+    alone would find a class with no methods and report the coverage map as
+    vacuous, which is exactly the kind of silent miscount this file exists to
+    prevent.
+    """
     out = {}
-    for m in cls.body:
-        if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            out[m.name] = {
-                "lines": m.end_lineno - m.lineno + 1,
-                "async": isinstance(m, ast.AsyncFunctionDef),
-                "start": m.lineno,
-            }
+    for path in (PROVIDERS, MODEL_MOD, PROTOCOL_MOD, INFRA_MOD):
+        if not path.is_file():
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+        for cls in tree.body:
+            if not isinstance(cls, ast.ClassDef):
+                continue
+            if cls.name not in ("ProviderHub", "ModelMixin", "ProtocolMixin",
+                                "InfrastructureMixin"):
+                continue
+            for m in cls.body:
+                if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    out[m.name] = {
+                        "lines": m.end_lineno - m.lineno + 1,
+                        "async": isinstance(m, ast.AsyncFunctionDef),
+                        "start": m.lineno,
+                        "module": path.name,
+                    }
     return out
 
 
