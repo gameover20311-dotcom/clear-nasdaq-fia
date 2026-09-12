@@ -1,12 +1,13 @@
 """Latent mechanism competition for UMSE V2.
 
 This module ranks *hypotheses* about the mechanism that could explain an
-observed market state.  It deliberately does not identify traders, infer a
+observed market state. It deliberately does not identify traders, infer a
 strategic equilibrium, or turn the ranking into a forecast probability.
 
-The scores are transparent research heuristics.  They can be useful for
-falsification and for deciding which mechanisms deserve later calibration, but
-`calibrated` and `predictive` remain False by construction.
+The scores are transparent research heuristics. They are intentionally
+uncalibrated and predictive=False. A leading hypothesis is emitted only when
+there is enough separation to avoid converting a nearly-tied heuristic simplex
+into a storytelling claim.
 """
 from __future__ import annotations
 
@@ -51,7 +52,7 @@ class MechanismEvidence:
     """Normalized descriptive evidence available at one decision time.
 
     Positive signed values mean upward/buy-side pressure, negative values mean
-    downward/sell-side pressure.  `information_lead` is a descriptive lead/lag
+    downward/sell-side pressure. ``information_lead`` is a descriptive lead/lag
     screen, not a causal or predictive claim.
     """
 
@@ -117,10 +118,14 @@ def _softmax(scores: Mapping[Mechanism, float]) -> dict[Mechanism, float]:
 
 
 def compete_mechanisms(e: MechanismEvidence) -> MechanismCompetition:
-    """Rank mutually competing market-mechanism hypotheses.
+    """Rank competing market-mechanism hypotheses without claiming identity.
 
-    The result is intentionally *not* a posterior probability.  Softmax is used
-    only to make heterogeneous scores comparable on a common simplex.
+    Passive accumulation/distribution and absorption intentionally use different
+    contexts. Passive accumulation/distribution favours persistent replenishment
+    with comparatively *low* stress/thinness, whereas absorption requires a
+    failed response under aggressive opposing flow and tolerates *higher* stress.
+    This removes the previous term-by-term domination that made two hypotheses
+    mathematically unreachable.
     """
 
     if e.source_status in {
@@ -162,29 +167,41 @@ def compete_mechanisms(e: MechanismEvidence) -> MechanismCompetition:
         Mechanism.INFORMED_SELLING: 1.25 * sell + 1.00 * down + 0.65 * lead_down + 0.35 * (1.0 - f),
         Mechanism.SHORT_COVERING: 0.90 * up + 0.75 * ask_exit + 0.70 * stress + 0.45 * thin - 0.35 * buy,
         Mechanism.LONG_LIQUIDATION: 0.90 * down + 0.75 * bid_exit + 0.70 * stress + 0.45 * thin - 0.35 * sell,
-        Mechanism.PASSIVE_ACCUMULATION: 1.05 * f + 0.95 * br + 0.45 * sell + 0.30 * max(0.0, r),
-        Mechanism.PASSIVE_DISTRIBUTION: 1.05 * f + 0.95 * ar + 0.45 * buy + 0.30 * max(0.0, -r),
+        # Passive accumulation/distribution: resilient replenishment in a less
+        # stressed, less-thin book while opposing aggression is absorbed over time.
+        Mechanism.PASSIVE_ACCUMULATION: 0.70 * f + 1.10 * br + 0.65 * sell + 0.30 * (1.0 - stress) + 0.20 * (1.0 - thin),
+        Mechanism.PASSIVE_DISTRIBUTION: 0.70 * f + 1.10 * ar + 0.65 * buy + 0.30 * (1.0 - stress) + 0.20 * (1.0 - thin),
         Mechanism.LIQUIDITY_VACUUM_UP: 1.15 * thin + 0.85 * up + 0.55 * ask_exit + 0.30 * stress,
         Mechanism.LIQUIDITY_VACUUM_DOWN: 1.15 * thin + 0.85 * down + 0.55 * bid_exit + 0.30 * stress,
-        Mechanism.BID_ABSORPTION: 1.10 * f + 1.00 * br + 0.60 * sell + 0.35 * max(0.0, r),
-        Mechanism.ASK_ABSORPTION: 1.10 * f + 1.00 * ar + 0.60 * buy + 0.35 * max(0.0, -r),
+        # Absorption: strong failed response while aggressive opposing flow meets
+        # replenishment; stress/thinness distinguish it from the passive regime.
+        Mechanism.BID_ABSORPTION: 1.20 * f + 0.95 * br + 0.80 * sell + 0.35 * stress + 0.20 * thin,
+        Mechanism.ASK_ABSORPTION: 1.20 * f + 0.95 * ar + 0.80 * buy + 0.35 * stress + 0.20 * thin,
         Mechanism.BALANCED_NOISE: 1.20 * (1.0 - abs(a)) + 0.80 * (1.0 - abs(r)) + 0.55 * (1.0 - stress),
     }
 
     weights = _softmax(scores)
     ranked = sorted(weights.items(), key=lambda kv: kv[1], reverse=True)
-    lead_mech, lead_weight = ranked[0]
-    separation = lead_weight - ranked[1][1]
+    candidate_lead, candidate_weight = ranked[0]
+    separation = candidate_weight - ranked[1][1]
     entropy = -sum(p * math.log(p) for p in weights.values() if p > 0.0) / math.log(len(weights))
 
     reasons: list[str] = [
         "WEIGHTS_ARE_HYPOTHESIS_COMPETITION_NOT_POSTERIOR_PROBABILITIES",
         "NO_TRADER_IDENTITY_OR_GAME_EQUILIBRIUM_CLAIM",
+        "HEURISTIC_MECHANISMS_REQUIRE_REAL_DATA_IDENTIFIABILITY_TESTING",
     ]
+    ambiguous = separation < 0.05 or entropy > 0.90
     if separation < 0.05:
         reasons.append("NO_CLEAR_MECHANISM_SEPARATION")
     if entropy > 0.90:
         reasons.append("HIGH_MECHANISM_AMBIGUITY")
+
+    # Do not emit a named mechanism when the heuristic surface itself says the
+    # hypotheses are nearly tied/high-entropy. The full weights remain available
+    # for diagnostic inspection.
+    lead_mech = None if ambiguous else candidate_lead
+    lead_weight = None if ambiguous else candidate_weight
 
     return MechanismCompetition(
         status=EvidenceStatus.UNCALIBRATED,
