@@ -1,0 +1,34 @@
+{
+  "schema": "UMSE_MASTER_BUILD_MANIFEST_V1",
+  "branch": "research/umse-master-v1",
+  "production_base_commit": "1ab93b09d22b77e2bdce99fcfc1418395cbdf78d",
+  "research_source_freeze_commit": "06b7ada5472a030378144fca55f5aa41482ae7bb",
+  "ci": {
+    "workflow": "UMSE Research Verify",
+    "run_id": 34668195280,
+    "compile": "PASS",
+    "tests_passed": 38,
+    "tests_failed": 0,
+    "production_isolation": "PASS"
+  },
+  "research_identities": {
+    "MODEL": "926f912347456dc37fab006c70800cc446179d82659dc99b2b8fe469db9398d6",
+    "PROTOCOL": "8ea5b7bbb5524a11bd28849000f1c69e40e6aabec27cb146f68e2a0312e00afc",
+    "INFRASTRUCTURE": "4ebe4a2b49e82355c9e3de29ed3043224b1acc1e2252769e62473dbfe484e0a3",
+    "classification_manifest": "27a9c015f103912ed20f35d4ebc78b5e6b29af73f4805a935da3998ab3a34811"
+  },
+  "status": {
+    "engineering_research_build": "COMPLETE",
+    "theory_coverage": "COMPLETE_AS_RESEARCH_ARCHITECTURE",
+    "production_integration": false,
+    "predictive_mapping_frozen": false,
+    "real_mbo_calibration": "NOT_DONE",
+    "historical_edge_evidence": "NOT_ESTABLISHED",
+    "forward_oos_edge": "NOT_PROVEN",
+    "successor_campaign_started": false,
+    "alpha_spent": 0,
+    "predictive_edge": "NOT_PROVEN"
+  },
+  "ultimate_test": "I(UMSE_t;Y_future|FIA_t)>0",
+  "audit_order": ["CLOUD_AI", "ASTRA_MAX"]
+}
