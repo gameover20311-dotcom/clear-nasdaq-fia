@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - research/umse-master-v2-full
-    paths:
-      - 'research/umse_master_v2/**'
-      - '.github/workflows/umse-v2-research.yml'
   workflow_dispatch:
 
 permissions:
