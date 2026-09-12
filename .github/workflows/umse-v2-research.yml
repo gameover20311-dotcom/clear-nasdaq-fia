@@ -29,10 +29,24 @@ jobs:
           python -m compileall -q research/umse_master/src
           python -m compileall -q research/umse_master_v2/src
 
-      - name: Run V2 microstructure truth tests
+      - name: Run complete V2 research test suite
         run: |
           PYTHONPATH=research/umse_master/src:research/umse_master_v2/src \
             python -m unittest discover -s research/umse_master_v2/tests -p 'test_*.py' -v
+
+      - name: Verify V2 research identities fail closed
+        run: |
+          PYTHONPATH=research/umse_master/src:research/umse_master_v2/src python - <<'PY'
+          import json
+          from umse_master_v2.research_identity import (
+              fingerprints,
+              missing_classified_files,
+              unclassified_files,
+          )
+          assert unclassified_files() == (), unclassified_files()
+          assert missing_classified_files() == (), missing_classified_files()
+          print(json.dumps(fingerprints(), indent=2, sort_keys=True))
+          PY
 
       - name: Prove production isolation
         run: |
