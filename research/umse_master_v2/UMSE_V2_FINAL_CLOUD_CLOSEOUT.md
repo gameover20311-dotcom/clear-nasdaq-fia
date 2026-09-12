@@ -10,6 +10,7 @@ Nothing in this document is evidence of market skill.
 | Branch | `research/umse-master-v2-full` |
 | Final source checkpoint | `c10c6cb0f54af21395702608e0b1e82bce2b19a8` |
 | Production base (untouched) | `1ab93b09d22b77e2bdce99fcfc1418395cbdf78d` |
+| Final CI run | `34699494294` (all 8 steps success) |
 | Tests | 79 pass, 0 fail |
 | Original 18-mutation battery | **18 / 18 DETECTED** (verified baseline) |
 | MODEL | `75d214345e52a6a255d55a1edecadd0338376295b63fbb2bc29c54ed5a98a61d` (7 files) |

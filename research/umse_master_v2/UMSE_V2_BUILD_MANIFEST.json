@@ -54,7 +54,10 @@
     "original_mutation_battery": "18/18 DETECTED",
     "mutation_baseline_verified": true,
     "identity_completeness": "PASS",
-    "production_isolation": "PASS"
+    "production_isolation": "PASS",
+    "dedicated_ci_run_id": 34699494294,
+    "verified_head": "d406dc55567ed4f5de5305b211c985ea6a15e5fd",
+    "note": "This run verified branch head d406dc5, whose src/ and tests/ trees are byte-identical to source checkpoint c10c6cb. Commits after the source checkpoint are documentation only and do not change any identity."
   },
   "scientific_status": {
     "engineering_research_build_complete": true,
