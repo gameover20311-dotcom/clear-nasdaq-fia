@@ -8,6 +8,7 @@
     "leadlag_null.py": "PROTOCOL",
     "model_competition.py": "PROTOCOL",
     "orderbook_memory.py": "MODEL",
+    "pipeline.py": "PROTOCOL",
     "queue_hazard.py": "MODEL",
     "queue_survival.py": "MODEL",
     "resistance_field.py": "MODEL",
@@ -15,7 +16,7 @@
   },
   "notes": {
     "MODEL": "Derived market-state measurements and descriptive mechanism features.",
-    "PROTOCOL": "Causal/data contracts, statistical screens, horizon transport gates and model-selection rules.",
-    "INFRASTRUCTURE": "Package wiring and identity machinery. Unlike V1, research_identity.py is inside its own fingerprint scope."
+    "PROTOCOL": "Causal/data contracts, statistical screens, horizon transport gates, model-selection rules and scientific pipeline wiring.",
+    "INFRASTRUCTURE": "Package exports and identity machinery. Unlike V1, research_identity.py is inside its own fingerprint scope."
   }
 }
