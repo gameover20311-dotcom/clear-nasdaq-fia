@@ -1,0 +1,85 @@
+name: CLEAR NASDAQ full backup export
+
+on:
+  push:
+    branches:
+      - backup/full-export-20260913
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout backup branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          lfs: true
+
+      - name: Fetch all branches and tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' --tags --force --prune
+
+      - name: Build restorable source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p export
+
+          HEAD_SHA="$(git rev-parse HEAD)"
+          HEAD_BRANCH="$(git branch --show-current)"
+
+          git bundle create export/clear-nasdaq-fia-all-refs.bundle --all
+          git archive --format=zip --output="export/CLEAR_NASDAQ_FIA_WORKTREE_${HEAD_SHA}.zip" HEAD
+          git for-each-ref --format='%(refname) %(objectname)' | sort > export/ALL_REFS.txt
+          git log --all --date=iso-strict --pretty=format:'%H%x09%ad%x09%D%x09%s' > export/ALL_HISTORY.tsv
+          git submodule status --recursive > export/SUBMODULES.txt || true
+          git lfs ls-files > export/GIT_LFS_FILES.txt || true
+
+          if command -v git-lfs >/dev/null 2>&1; then
+            git lfs fetch --all || true
+            if [ -d .git/lfs/objects ] && find .git/lfs/objects -type f | grep -q .; then
+              tar -czf export/GIT_LFS_OBJECTS.tar.gz -C .git/lfs objects
+            fi
+          fi
+
+          cat > export/RESTORE_README.txt <<EOF
+          CLEAR NASDAQ FIA FULL GIT BACKUP
+          Generated from branch: ${HEAD_BRANCH}
+          Generated at commit: ${HEAD_SHA}
+
+          INCLUDED
+          - Current working-tree ZIP at the exact backup commit.
+          - Git bundle containing all fetched Git branches/tags/history.
+          - All refs and full commit-history manifests.
+          - Git LFS pointer list and LFS objects when present/retrievable.
+          - Submodule status.
+
+          RESTORE FULL GIT HISTORY
+          1. mkdir clear-nasdaq-fia-restored && cd clear-nasdaq-fia-restored
+          2. git clone ../clear-nasdaq-fia-all-refs.bundle .
+          3. git branch -a
+
+          IMPORTANT EXTERNAL STATE NOT STORED IN GIT
+          This archive cannot contain secrets, provider credentials, Render/Vercel environment variables,
+          external databases, provider-side entitlements, local Ollama model binaries, or local files that
+          were never committed to Git. Those require separate exports/backups from their owning systems.
+          EOF
+
+          (
+            cd export
+            find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          )
+
+      - name: Upload complete backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CLEAR_NASDAQ_FIA_FULL_GIT_BACKUP_2026-09-13
+          path: export/
+          if-no-files-found: error
+          retention-days: 90
