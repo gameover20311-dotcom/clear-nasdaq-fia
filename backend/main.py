@@ -362,6 +362,7 @@ async def accuracy():
     return build_accuracy_assessment(fia_forecast, snapshot_data)
 
 
+# PHASE26_LEARNING_VALIDATION_V1
 @app.get("/api/forecast")
 async def forecast(request: Request):
     snapshot_data = await hub.snapshot()
