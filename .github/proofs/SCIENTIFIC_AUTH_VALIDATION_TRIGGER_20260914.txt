@@ -1,0 +1,4 @@
+Validation trigger only.
+Scientific source repair under test: e1814479595bba4dcc270410075ff0da868391e5
+No production, predictive, protocol, campaign, Forward-OOS evidence, or historical data content is changed by this file.
+Purpose: trigger branch CI on the repaired source state after the prior GitHub Actions bot push did not recursively trigger workflows.
