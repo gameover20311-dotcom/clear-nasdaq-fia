@@ -27,7 +27,7 @@
 # and the exception type, message, final frame and output tail are recorded so
 # the classification can be audited rather than trusted:
 #
-#   PASS                    return code 0.
+#   PASS                    return code 0 AND evidence the entry actually ran.
 #   TRUE_EXTERNAL_ENV_BLOCK a module that is neither project-local nor importable
 #                           by this interpreter. In CI this must never occur:
 #                           the dependency step installs and verifies the
@@ -37,7 +37,8 @@
 #   MISSING_FIXTURE_OR_DATA imports resolved, then the entry could not find a
 #                           data file it requires. Counts as a failure.
 #   TIMEOUT                 exceeded the per-entry wall clock.
-#   FAIL                    any other non-zero exit.
+#   FAIL                    any other non-zero exit, an empty successful process,
+#                           or an explicit zero-test result.
 #
 # There is no category that silently excuses a check. Only
 # TRUE_EXTERNAL_ENV_BLOCK is environmental, and CI treats even that as fatal.
@@ -54,8 +55,6 @@ from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[2] / "backend"
 
-# Identical to the globs the workflow used before, so the entry set is unchanged
-# and this run remains comparable with the previous baseline.
 ENTRY_GLOBS = (
     "fia/test_*.py",
     "fia_backtest_*/*test*.py",
@@ -81,15 +80,15 @@ _EXC_LINE = re.compile(r"^(?P<type>[A-Za-z_][A-Za-z0-9_.]*Error|SystemExit|Keybo
 _NO_MODULE = re.compile(r"No module named ['\"]([^'\"]+)['\"]")
 _CANNOT_IMPORT = re.compile(r"cannot import name ['\"][^'\"]+['\"] from ['\"]([^'\"]+)['\"]")
 _FRAME = re.compile(r'^\s*File "(?P<file>[^"]+)", line (?P<line>\d+), in (?P<fn>.*)$')
+_ZERO_TEST_PATTERNS = (
+    re.compile(r"\bRan\s+0\s+tests?\b", re.IGNORECASE),
+    re.compile(r"\bcollected\s+0\s+items?\b", re.IGNORECASE),
+    re.compile(r"\b0\s+tests?\s+(?:run|executed|passed)\b", re.IGNORECASE),
+)
 
 
 def discover():
-    """Entry paths relative to the backend root.
-
-    The globs are written relative to backend/, which is also the cwd every
-    entry is executed from, so they are resolved against that root explicitly
-    rather than against whatever directory this script was invoked from.
-    """
+    """Entry paths relative to the backend root."""
     seen = set()
     for pattern in ENTRY_GLOBS:
         seen.update(glob.glob(pattern, root_dir=str(BACKEND)))
@@ -97,12 +96,7 @@ def discover():
 
 
 def last_exception(text):
-    """Return (type, message, final frame) for the LAST traceback in text.
-
-    Chained tracebacks matter here: an entry may try a relative import, fail,
-    and fall back to an absolute one. Only the final exception explains why the
-    process actually died, so classifying on the first one would be wrong.
-    """
+    """Return (type, message, final frame) for the LAST traceback in text."""
     exc_type = exc_msg = frame = None
     for raw in text.splitlines():
         line = raw.rstrip()
@@ -118,11 +112,7 @@ def last_exception(text):
 
 
 def is_project_local(module):
-    """True when the named module actually exists in this repository.
-
-    An import that names something the repo ships is the repo's problem. It is
-    never an environment exemption, however the failure happens to be spelled.
-    """
+    """True when the named module actually exists in this repository."""
     top = module.split(".")[0]
     if not top:
         return False
@@ -130,11 +120,7 @@ def is_project_local(module):
 
 
 def is_importable(module):
-    """True when this interpreter can resolve the module at all.
-
-    Checked in a subprocess: find_spec on a package with a failing __init__ can
-    raise, and the probe must not be able to disturb this process.
-    """
+    """True when this interpreter can resolve the module at all."""
     top = module.split(".")[0]
     probe = (
         "import importlib.util, sys\n"
@@ -151,11 +137,28 @@ def is_importable(module):
 
 
 def classify(returncode, output, timed_out):
-    """Map one entry's result to a status plus the evidence behind it."""
+    """Map one entry's result to a status plus the evidence behind it.
+
+    Exit code 0 is necessary but not sufficient.  A process that exits cleanly
+    after running zero tests (or produces no evidence at all) is not allowed to
+    manufacture a PASS.
+    """
     if timed_out:
         return "TIMEOUT", {"reason": f"exceeded {PER_ENTRY_TIMEOUT}s"}
     if returncode == 0:
-        return "PASS", {}
+        text = str(output or "")
+        if not text.strip():
+            return "FAIL", {
+                "reason": "zero exit with empty output; execution evidence is absent",
+                "zero_test_guard": True,
+            }
+        for pattern in _ZERO_TEST_PATTERNS:
+            if pattern.search(text):
+                return "FAIL", {
+                    "reason": "entry explicitly reported zero tests/items",
+                    "zero_test_guard": True,
+                }
+        return "PASS", {"executed": True}
 
     exc_type, exc_msg, frame = last_exception(output)
     evidence = {
@@ -192,8 +195,6 @@ def classify(returncode, output, timed_out):
                 f"in how the entry imports it"
             )
             return "PROJECT_IMPORT_DEFECT", evidence
-        # A relative import with no parent package names no module at all. It is
-        # a packaging mistake in the repository, never a missing dependency.
         evidence["reason"] = "import error naming no external module"
         return "PROJECT_IMPORT_DEFECT", evidence
 
@@ -202,10 +203,6 @@ def classify(returncode, output, timed_out):
         return "MISSING_FIXTURE_OR_DATA", evidence
 
     if exc_type is None:
-        # Several checks report their own failures and exit non-zero without
-        # raising, so there is no traceback to read. Reporting "None: None" for
-        # those would hide evidence the check already printed, so the last
-        # non-empty output lines are kept instead.
         printed = [line.strip() for line in output.strip().splitlines() if line.strip()]
         evidence["printed_failure"] = printed[-5:]
         evidence["reason"] = (
@@ -218,12 +215,7 @@ def classify(returncode, output, timed_out):
 
 
 def git_dirty(repo_root):
-    """Porcelain entries, status code kept.
-
-    The code is kept so a modified tracked file (" M path") stays
-    distinguishable from a new untracked one ("?? path"). Ignored paths never
-    appear, so __pycache__ and .artifact_runs/ cannot masquerade as mutations.
-    """
+    """Porcelain entries, status code kept."""
     done = subprocess.run(
         ["git", "status", "--porcelain"],
         capture_output=True, text=True, cwd=str(repo_root),
@@ -238,10 +230,6 @@ def main():
     args = parser.parse_args()
 
     repo_root = Path(args.repo_root).resolve()
-
-    # The backend root on PYTHONPATH is how this project is meant to be
-    # imported. Without it, `python fia_backtest_phase19/full_backtest.py` puts
-    # fia_backtest_phase19/ on sys.path and `fia` is simply not there.
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(
         [str(BACKEND)] + ([env["PYTHONPATH"]] if env.get("PYTHONPATH") else [])
@@ -269,9 +257,6 @@ def main():
                 if isinstance(expired.stdout, str) else ""
 
         status, evidence = classify(returncode, output, timed_out)
-
-        # Attribute working-tree mutations to the entry that caused them. The
-        # whole-suite check cannot say WHICH entry wrote; this can.
         now_dirty = set(git_dirty(repo_root))
         introduced = sorted(now_dirty - seen_dirty)
         seen_dirty |= now_dirty
@@ -290,7 +275,7 @@ def main():
         counts[record["status"]] = counts.get(record["status"], 0) + 1
 
     payload = {
-        "schema": "FIA_SUITE_RESULT_V2",
+        "schema": "FIA_SUITE_RESULT_V3",
         "entry_count": len(entries),
         "counts": counts,
         "baseline_dirty": baseline_dirty,
@@ -313,7 +298,6 @@ def main():
             print(f"    reported  : {line}")
         print(f"    reason    : {evidence.get('reason')}")
 
-    # Always succeed. This step reports; the final gate decides the build.
     return 0
 
 
