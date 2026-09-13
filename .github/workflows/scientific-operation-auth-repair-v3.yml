@@ -1,0 +1,147 @@
+name: Scientific operation auth repair v3
+
+on:
+  push:
+    branches:
+      - fix/scientific-operation-auth-20260914
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Capture identities before patch
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import json
+          from fia.identity import all_fingerprints
+          d=all_fingerprints()
+          out={k:d[k]['digest'] for k in ('model','protocol','infrastructure')}
+          print('PRE_IDENTITIES',json.dumps(out,sort_keys=True))
+          json.dump(out,open('/tmp/pre_identities.json','w'))
+          PY
+
+      - name: Apply deterministic scientific auth patch
+        run: python .github/scripts/scientific_auth_patch.py
+
+      - name: Compile touched modules
+        run: |
+          python -m py_compile \
+            backend/main.py \
+            backend/fia/auth_api.py \
+            backend/fia/forward_oos_api.py \
+            backend/fia/premove_api.py \
+            backend/fia/premove_max_api.py \
+            backend/fia/phase33_api.py \
+            backend/fia/phase34_api.py \
+            backend/fia_final_cockpit/api.py \
+            backend/tests/test_scientific_operation_auth.py
+
+      - name: Focused scientific-operation auth regression
+        working-directory: backend
+        run: python tests/test_scientific_operation_auth.py -v
+
+      - name: Mutation inventory and browser-secret check
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          inventory={
+            'STRICT_SCIENTIFIC_MUTATORS':[
+              'POST /api/learning/resolve',
+              'POST /api/forward-oos/run-once',
+              'POST /api/forward-oos/durability/test-fixture [TEST only, membership + science auth]',
+              'DELETE /api/forward-oos/durability/test-fixture/{marker} [TEST only, membership + science auth]',
+            ],
+            'READ_BY_DEFAULT_WITH_PRIVILEGED_PERSISTENCE':[
+              'GET /api/forecast','POST /api/confluence','GET /api/cognitive/forecast',
+              'GET /api/premove','GET /api/premove/max','GET /api/phase33','GET /api/phase34',
+              'POST /api/final/confluence/three-way',
+            ],
+            'INTERNAL_SERVER_MUTATOR':[
+              'Forward-OOS background worker -> run_once() (direct server call, not browser authority)'
+            ],
+          }
+          print('SCIENTIFIC_MUTATION_INVENTORY')
+          for k,v in inventory.items():
+              print(k)
+              for x in v: print('  -',x)
+          hits=[]
+          for p in Path('frontend').rglob('*'):
+              if not p.is_file() or p.suffix.lower() not in {'.ts','.tsx','.js','.jsx','.json','.html','.css'}:
+                  continue
+              try: text=p.read_text(errors='ignore')
+              except Exception: continue
+              if 'FIA_SCIENTIFIC_OPERATION_SECRET' in text or 'x-fia-scientific-operation' in text:
+                  hits.append(str(p))
+          print('FRONTEND_SCIENTIFIC_SECRET_REFERENCES',hits)
+          if hits: raise SystemExit(1)
+          PY
+
+      - name: Prove old V6/protected scientific meaning untouched
+        run: |
+          set -euo pipefail
+          BASE=975be163e9116dc54888af427f3889663f4f0a7a
+          test -z "$(git diff --name-only "$BASE" -- backend/fia_forward_oos backend/fia_backtest_phase20/data 2>/dev/null || true)"
+          python - <<'PY'
+          import json,subprocess
+          base='975be163e9116dc54888af427f3889663f4f0a7a'
+          changed=subprocess.check_output(['git','diff','--name-only',base]).decode().splitlines()
+          cls=json.load(open('backend/fia/identity_classification.json'))['classification']
+          bad=[]
+          for p in changed:
+              rel=p[len('backend/'):] if p.startswith('backend/') else None
+              if rel in cls and cls[rel] in {'MODEL','PROTOCOL'}:
+                  bad.append((p,cls[rel]))
+          print('CHANGED_FILES',changed)
+          print('MODEL_OR_PROTOCOL_CHANGED',bad)
+          if bad: raise SystemExit(1)
+          PY
+
+      - name: Prove scientific identities
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import json
+          from fia.identity import all_fingerprints
+          pre=json.load(open('/tmp/pre_identities.json'))
+          d=all_fingerprints()
+          post={k:d[k]['digest'] for k in ('model','protocol','infrastructure')}
+          print('POST_IDENTITIES',json.dumps(post,sort_keys=True))
+          print('MODEL_UNCHANGED_THIS_PATCH',pre['model']==post['model'])
+          print('PROTOCOL_UNCHANGED_THIS_PATCH',pre['protocol']==post['protocol'])
+          print('INFRA_CHANGED_THIS_PATCH',pre['infrastructure']!=post['infrastructure'])
+          if pre['model']!=post['model'] or pre['protocol']!=post['protocol']:
+              raise SystemExit(1)
+          PY
+
+      - name: Commit repaired foundation if patch changed source
+        run: |
+          if [ -n "$(git status --porcelain backend/main.py backend/fia/auth_api.py backend/fia/forward_oos_api.py backend/fia/premove_api.py backend/fia/premove_max_api.py backend/fia/phase33_api.py backend/fia/phase34_api.py backend/fia_final_cockpit/api.py)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add backend/main.py backend/fia/auth_api.py backend/fia/forward_oos_api.py \
+              backend/fia/premove_api.py backend/fia/premove_max_api.py backend/fia/phase33_api.py \
+              backend/fia/phase34_api.py backend/fia_final_cockpit/api.py
+            git commit -m "Enforce scientific-operation mutation boundary"
+            git push origin HEAD:fix/scientific-operation-auth-20260914
+          else
+            echo 'Final repaired head already present; no source commit needed.'
+          fi
