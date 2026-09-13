@@ -1,0 +1,53 @@
+name: Controlled Stage 1 UMSE
+on:
+  push:
+    branches: [feat/final-controlled-integration-20260914]
+permissions:
+  contents: write
+jobs:
+  umse:
+    if: github.event.head_commit.message == 'Run controlled Stage 1 UMSE'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Fetch exact repaired UMSE source
+        run: |
+          git fetch origin fix/umse-v2-a2z-20260913
+          git cat-file -e 29ef2b56f4a761db2e30c1ac2c104e64884bc497^{commit}
+          git checkout 29ef2b56f4a761db2e30c1ac2c104e64884bc497 -- research/umse_master research/umse_master_v2 .github/workflows/umse-research.yml .github/workflows/umse-v2-research.yml
+      - name: Verify UMSE V1 and repaired V2
+        run: |
+          python -m compileall -q research/umse_master/src research/umse_master_v2/src
+          PYTHONPATH=research/umse_master/src python -m unittest discover -s research/umse_master/tests -p 'test_*.py' -v
+          PYTHONPATH=research/umse_master/src:research/umse_master_v2/src python -m unittest discover -s research/umse_master_v2/tests -p 'test_*.py' -v
+          PYTHONPATH=research/umse_master/src:research/umse_master_v2/src python - <<'PY'
+          from umse_master.research_identity import unclassified_files
+          from umse_master_v2.research_identity import unclassified_files as u2, missing_classified_files
+          assert unclassified_files()==()
+          assert u2()==()
+          assert missing_classified_files()==()
+          print('UMSE_V2_REPAIRED_REGRESSION=PASS')
+          PY
+      - name: Prove foundation identities and protected history unchanged
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          from fia.identity import all_fingerprints
+          expected={'model':'91e5d9a67625171c384dfcd6edb9bc36586a687dddb7ae7c5c54d194ce3da863','protocol':'f28842b437ffcd76c9702c15ef2bc072a0ead1e08ff3c5590cef2f61278245cc','infrastructure':'1b01dbf4c3458d7cbcc96cb30d7a854ecc95a8b4fe16d54bacb9382ed4a41054'}
+          d=all_fingerprints(); got={k:d[k]['digest'] for k in expected}; assert got==expected,(got,expected)
+          print('BASE_FIA_UNCHANGED=PASS')
+          PY
+          cd ..
+          test -z "$(git diff --name-only 982930c2f87ec70d46b4bac813068f77868df804 -- backend/fia_forward_oos backend/fia_backtest_phase14/data backend/fia_backtest_phase20/data)"
+          echo OLD_FORWARD_OOS_UNCHANGED=PASS
+      - name: Commit Stage 1
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add research/umse_master research/umse_master_v2 .github/workflows/umse-research.yml .github/workflows/umse-v2-research.yml
+          git commit -m 'Integrate repaired UMSE V2 as research shadow only'
+          git push origin HEAD:feat/final-controlled-integration-20260914
