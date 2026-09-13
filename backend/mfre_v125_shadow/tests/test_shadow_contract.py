@@ -39,21 +39,39 @@ def frame(*, shadow=True, umse=True, integrity=True, dpcse_frozen=False, dpcse_s
     )
 
 
-def declarations():
+def draft_declarations():
     return DeclarationBundle(
         primitives=(
             PrimitiveSpec("stop", ActionKind.STOP, 0.0, "selection", RandomnessOwnership.NONE_DETERMINISTIC),
             PrimitiveSpec("read_external", ActionKind.ACQUIRE, 1.0, "acquisition", RandomnessOwnership.EXTERNAL_PROVIDER),
             PrimitiveSpec("compute_countermodel", ActionKind.COMPUTE, 1.0, "compute", RandomnessOwnership.ENGINE_OWNED),
         ),
-        compute_budget=4,
-        acquisition_budget=3,
-        selection_budget=2,
+        compute_budget=4, acquisition_budget=3, selection_budget=2,
         gamma_theta_id="UNSET_DOMAIN_GAMMA_PLACEHOLDER_REQUIRES_FREEZE",
         phi_id="MFRE_CONTROL_REPRESENTATION_V1",
         delta_stop_id="MFRE_NO_EDGE_TERMINAL_RULE_V1",
         bellman_policy_id="UNSET_BELLMAN_POLICY_PLACEHOLDER_REQUIRES_FREEZE",
     )
+
+
+def frozen_fixture_declarations():
+    # Synthetic unit-test fixture only. These fingerprints do not authorize a real run.
+    return DeclarationBundle(
+        primitives=(
+            PrimitiveSpec("stop", ActionKind.STOP, 0.0, "selection", RandomnessOwnership.NONE_DETERMINISTIC, "1"*64),
+            PrimitiveSpec("read_external", ActionKind.ACQUIRE, 1.0, "acquisition", RandomnessOwnership.EXTERNAL_PROVIDER, "2"*64),
+            PrimitiveSpec("compute_countermodel", ActionKind.COMPUTE, 1.0, "compute", RandomnessOwnership.ENGINE_OWNED, "3"*64),
+        ),
+        compute_budget=4, acquisition_budget=3, selection_budget=2,
+        gamma_theta_id="TEST_ONLY_GAMMA", phi_id="TEST_ONLY_PHI",
+        delta_stop_id="TEST_ONLY_STOP", bellman_policy_id="TEST_ONLY_BELLMAN",
+        gamma_theta_fingerprint="4"*64, phi_fingerprint="5"*64,
+        delta_stop_fingerprint="6"*64, bellman_policy_fingerprint="7"*64,
+        working_measure_id="TEST_ONLY_P", working_measure_fingerprint="8"*64,
+        k_max=2, c_a=0.3, tie_break=("Bull","Bear","NO_EDGE"),
+        l10_parameters=(("kappa","5"),("ell","4"),("B","999"),("seed","20260913"),("autocorrelation_band","0.10"),("evaluation_window","50")),
+    )
+
 
 
 class MFREShadowContractTests(unittest.TestCase):
@@ -72,17 +90,25 @@ class MFREShadowContractTests(unittest.TestCase):
         self.assertIsNone(r.directional_override)
         self.assertFalse(r.production_authorized)
 
+    def test_placeholder_declarations_remain_inert(self):
+        r = MFREShadowController(draft_declarations()).assess(frame(shadow=True, umse=True, dpcse_frozen=True, dpcse_status="ARMED_N0"))
+        self.assertEqual(r.status, ShadowRunStatus.INERT_DECLARATIONS_UNFROZEN)
+        self.assertIsNone(r.protocol_identity)
+        self.assertTrue(any("gamma_theta" in x for x in r.reasons))
+        with self.assertRaisesRegex(RuntimeError, "DECLARATION_BUNDLE_NOT_FROZEN"):
+            _ = draft_declarations().protocol_identity
+
     def test_inert_while_dpcse_candidate_not_frozen(self):
-        r = MFREShadowController(declarations()).assess(frame(shadow=True, umse=True, dpcse_frozen=False))
+        r = MFREShadowController(frozen_fixture_declarations()).assess(frame(shadow=True, umse=True, dpcse_frozen=False))
         self.assertEqual(r.status, ShadowRunStatus.INERT_UPSTREAM_NOT_READY)
         self.assertIn("DPCSE_CANDIDATE_NOT_FROZEN", r.reasons)
         self.assertIn("DPCSE_NOT_ARMED", r.reasons)
 
     def test_ready_means_shadow_only_not_direction_override(self):
-        r = MFREShadowController(declarations()).assess(
+        r = MFREShadowController(frozen_fixture_declarations()).assess(
             frame(shadow=True, umse=True, integrity=True, dpcse_frozen=True, dpcse_status="ARMED_N0")
         )
-        self.assertEqual(r.status, ShadowRunStatus.READY_SHADOW)
+        self.assertEqual(r.status, ShadowRunStatus.READY_SHADOW_CONTRACT_ONLY)
         self.assertIsNotNone(r.control_state)
         self.assertIsNone(r.directional_override)
         self.assertFalse(r.production_authorized)
@@ -124,8 +150,9 @@ class MFREShadowContractTests(unittest.TestCase):
                 fresh_xi=0.2,
             )
 
+
     def test_empty_shadow_hypotheses_fail_closed(self):
-        r = MFREShadowController(declarations()).assess(
+        r = MFREShadowController(frozen_fixture_declarations()).assess(
             MFREInputFrame(
                 shadow=ShadowHypothesisView(True, (), "shadow-digest"),
                 umse=UMSEView(True, True, "STATE", ("M1",), "umse-digest"),
