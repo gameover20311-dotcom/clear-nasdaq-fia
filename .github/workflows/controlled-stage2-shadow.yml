@@ -1,0 +1,52 @@
+name: Controlled Stage 2 Shadow
+on:
+  push:
+    branches: [feat/final-controlled-integration-20260914]
+permissions:
+  contents: write
+jobs:
+  shadow:
+    if: github.event.head_commit.message == 'Run controlled Stage 2 Shadow'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Fetch exact Shadow Lab V2 Hybrid source
+        run: |
+          git fetch origin research/simons-shadow-lab-v2-hybrid
+          git cat-file -e 6c52e44b516ec9d707e3acbc3b958fe4dd9d6fe7^{commit}
+          git checkout 6c52e44b516ec9d707e3acbc3b958fe4dd9d6fe7 -- backend/run_simons_shadow_lab_v1.py backend/simons_shadow_lab_v1 backend/tests/test_simons_shadow_lab_v1.py backend/tests/test_simons_shadow_lab_v1_causal.py backend/tests/test_simons_shadow_lab_v1_metrics.py backend/tests/test_simons_shadow_lab_v1_readiness.py backend/tests/test_simons_shadow_lab_v2_controls.py backend/tests/test_simons_shadow_lab_v2_durable.py backend/tests/test_simons_shadow_lab_v2_hybrid.py
+      - name: Verify Shadow Lab regression and discovery
+        working-directory: backend
+        run: |
+          python -m compileall -q simons_shadow_lab_v1
+          python - <<'PY'
+          import unittest
+          names=['tests.test_simons_shadow_lab_v1','tests.test_simons_shadow_lab_v1_metrics','tests.test_simons_shadow_lab_v1_causal','tests.test_simons_shadow_lab_v1_readiness','tests.test_simons_shadow_lab_v2_hybrid','tests.test_simons_shadow_lab_v2_durable','tests.test_simons_shadow_lab_v2_controls']
+          suite=unittest.TestSuite(unittest.TestLoader().loadTestsFromName(n) for n in names)
+          n=suite.countTestCases(); print('SHADOW_DISCOVERED_TESTS=',n); assert n>=50,n
+          PY
+          python -m unittest tests.test_simons_shadow_lab_v1 tests.test_simons_shadow_lab_v1_metrics tests.test_simons_shadow_lab_v1_causal tests.test_simons_shadow_lab_v1_readiness tests.test_simons_shadow_lab_v2_hybrid tests.test_simons_shadow_lab_v2_durable tests.test_simons_shadow_lab_v2_controls -v
+      - name: Prove BASE and old Forward-OOS unchanged
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          from fia.identity import all_fingerprints
+          expected={'model':'91e5d9a67625171c384dfcd6edb9bc36586a687dddb7ae7c5c54d194ce3da863','protocol':'f28842b437ffcd76c9702c15ef2bc072a0ead1e08ff3c5590cef2f61278245cc','infrastructure':'1b01dbf4c3458d7cbcc96cb30d7a854ecc95a8b4fe16d54bacb9382ed4a41054'}
+          d=all_fingerprints(); got={k:d[k]['digest'] for k in expected}; assert got==expected,(got,expected)
+          print('BASE_FIA_UNCHANGED=PASS')
+          PY
+          cd ..
+          test -z "$(git diff --name-only 982930c2f87ec70d46b4bac813068f77868df804 -- backend/fia_forward_oos backend/fia_backtest_phase14/data backend/fia_backtest_phase20/data)"
+          echo SHADOW_PRODUCTION_AUTHORITY=false
+          echo OLD_FORWARD_OOS_UNCHANGED=PASS
+      - name: Commit Stage 2
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/run_simons_shadow_lab_v1.py backend/simons_shadow_lab_v1 backend/tests/test_simons_shadow_lab_v1.py backend/tests/test_simons_shadow_lab_v1_causal.py backend/tests/test_simons_shadow_lab_v1_metrics.py backend/tests/test_simons_shadow_lab_v1_readiness.py backend/tests/test_simons_shadow_lab_v2_controls.py backend/tests/test_simons_shadow_lab_v2_durable.py backend/tests/test_simons_shadow_lab_v2_hybrid.py
+          git commit -m 'Integrate Shadow Lab V2 Hybrid as parallel research only'
+          git push origin HEAD:feat/final-controlled-integration-20260914
