@@ -44,14 +44,11 @@ def kaplan_meier_queue_lifetime(
     explicitly NOT_IDENTIFIABLE rather than being interpreted as infinite or
     maximum persistence.
 
-    RESTRICTED MEAN SURVIVAL TIME REQUIRES AN EXPLICIT TAU.
-    RMST is only defined relative to a stated restriction horizon. Integrating
-    to "whatever the data happened to reach" makes the statistic a function of
-    follow-up rather than of survival: identical exit times with follow-up
-    truncated at 5s versus 500s previously produced 4.1 and 350.6. `tau_seconds`
-    must therefore be supplied for an RMST to be returned, it is echoed on the
-    result, and `follow_up_reaches_tau` records whether the observation window
-    actually extends that far.
+    RESTRICTED MEAN SURVIVAL TIME REQUIRES AN EXPLICIT, OBSERVED TAU.
+    RMST is only returned when `tau_seconds` is supplied and the observation
+    window actually reaches that horizon.  We do not extrapolate a constant
+    survival tail beyond the last observed follow-up and we do not publish the
+    data-dependent integral to "whatever the sample happened to reach" as RMST.
     """
     if tau_seconds is not None and (not math.isfinite(float(tau_seconds)) or tau_seconds <= 0):
         raise ValueError("tau_seconds must be finite and > 0")
@@ -105,9 +102,9 @@ def kaplan_meier_queue_lifetime(
 
     horizon = float(tau_seconds) if tau_seconds is not None else None
     for time in sorted(by_time):
-        # Survival between event times is constant, so integrate the previous
-        # survival level over the interval. When a tau is supplied the integral
-        # stops there, which is what makes the value comparable across samples.
+        # Survival between event times is constant. When tau is supplied, the
+        # integral stops at tau.  We still build the descriptive KM curve over
+        # the full observed sample, but no unsupported tail is added later.
         upper = time if horizon is None else min(time, horizon)
         restricted_mean += survival * max(0.0, upper - previous_time)
         bucket = by_time[time]
@@ -135,9 +132,6 @@ def kaplan_meier_queue_lifetime(
 
     max_observed = max(by_time) if by_time else 0.0
     reaches_tau = horizon is not None and max_observed >= horizon
-    if horizon is not None:
-        # Carry the flat tail from the last event time out to tau.
-        restricted_mean += survival * max(0.0, horizon - previous_time)
 
     reasons: list[str] = ["DESCRIPTIVE_SURVIVAL_NOT_PREDICTIVE_CALIBRATION"]
     if median_survival is None:
@@ -146,6 +140,12 @@ def kaplan_meier_queue_lifetime(
         reasons.append("RMST_TAU_NOT_SUPPLIED_VALUE_IS_FOLLOW_UP_DEPENDENT")
     elif not reaches_tau:
         reasons.append("FOLLOW_UP_DOES_NOT_REACH_TAU")
+        reasons.append("RMST_UNAVAILABLE_WITHOUT_OBSERVED_FOLLOW_UP_TO_TAU")
+
+    # The computed accumulator is only an RMST when tau is explicit and the
+    # sample reaches tau.  Otherwise publishing it under the RMST field would
+    # disguise a data-dependent truncation or unsupported extrapolation.
+    published_rmst = restricted_mean if horizon is not None and reaches_tau else None
 
     return QueueLifetimeDiagnostics(
         status=EvidenceStatus.UNCALIBRATED,
@@ -153,7 +153,7 @@ def kaplan_meier_queue_lifetime(
         observed_exits=exits_total,
         censored_count=censored_total,
         median_survival_seconds=median_survival,
-        restricted_mean_survival_seconds=restricted_mean,
+        restricted_mean_survival_seconds=published_rmst,
         restricted_mean_tau_seconds=horizon,
         follow_up_reaches_tau=reaches_tau,
         curve=tuple(curve),
