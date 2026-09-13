@@ -23,9 +23,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: MFRE V1.2.5 shadow contract tests
+      - name: MFRE V1.2.5 shadow contract and truth-status tests
         working-directory: backend
-        run: python -m unittest -v mfre_v125_shadow.tests.test_shadow_contract
+        run: python -m unittest discover -v -s mfre_v125_shadow/tests -p 'test_*.py'
       - name: Prove BASE scientific identities are unchanged
         working-directory: backend
         run: |

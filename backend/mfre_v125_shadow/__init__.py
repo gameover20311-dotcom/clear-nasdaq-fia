@@ -15,6 +15,7 @@ from .upstream import (
     UPSTREAM_PROVENANCE, shadow_view_from_report,
     umse_view_from_v2_diagnostics, dpcse_view_from_bootstrap,
 )
+from .status import build_truth_status
 
 __all__ = [
     "MFRE_VERSION","IMPLEMENTATION_SCOPE","REAL_MARKET_EDGE",
@@ -24,5 +25,5 @@ __all__ = [
     "DeclarationBundle","ControlState","ShadowHypothesisView","UMSEView",
     "DPCSEView","MFREInputFrame","UPSTREAM_PROVENANCE",
     "shadow_view_from_report","umse_view_from_v2_diagnostics",
-    "dpcse_view_from_bootstrap",
+    "dpcse_view_from_bootstrap","build_truth_status",
 ]
