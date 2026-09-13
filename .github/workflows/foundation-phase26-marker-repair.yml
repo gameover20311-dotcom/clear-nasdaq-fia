@@ -1,0 +1,47 @@
+name: Foundation Phase26 marker repair
+
+on:
+  push:
+    branches:
+      - fix/scientific-operation-auth-20260914
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore historical Phase26 provenance marker only
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('backend/main.py')
+          s=p.read_text()
+          marker='# PHASE26_LEARNING_VALIDATION_V1\n'
+          if marker not in s:
+              needle='@app.get("/api/forecast")\n'
+              if needle not in s:
+                  raise SystemExit('forecast route anchor missing')
+              s=s.replace(needle, marker+needle, 1)
+              p.write_text(s)
+          PY
+      - name: Prove no predictive/protocol source changed
+        run: |
+          git diff -- backend/main.py
+          python -m py_compile backend/main.py
+          cd backend && python fia_backtest_phase26/phase26_learning_validation_test.py
+      - name: Commit marker repair if needed
+        run: |
+          if [ -n "$(git status --porcelain backend/main.py)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add backend/main.py
+            git commit -m "Restore Phase26 provenance marker after auth repair"
+            git push origin HEAD:fix/scientific-operation-auth-20260914
+          else
+            echo 'Marker already present; no commit required.'
+          fi
