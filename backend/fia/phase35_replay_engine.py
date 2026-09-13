@@ -4,6 +4,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any,Dict,List,Tuple
 from .phase35_data_foundation import ROOT,DATA_DIR,_num
+from .artifact_guard import guarded_output_path  # A6 sealed-artifact guard
 
 ENR=DATA_DIR/'enriched_pti.jsonl'
 OUTDIR=ROOT/'fia_backtest_phase35/results'; OUTDIR.mkdir(parents=True,exist_ok=True)
@@ -111,9 +112,9 @@ def replay()->Dict[str,Any]:
     cov=sum(r['phase35_feature_coverage'] for r in rows)/len(rows) if rows else 0
     licensed={k:any((r.get('licensed') or {}).get(k) for r in rows) for k in ['l2_l3.csv','options_gamma.csv','etf_flow.csv','volume_delta.csv']}
     result={'ok':True,'phase':'PHASE 35 ONE-SHOT INSTITUTIONAL DATA + FULL REPLAY','frozen_policy':True,'rows':len(rows),'development_rows':len(dev),'untouched_holdout_rows':len(hold),'mean_predictive_feature_coverage':round(cov,3),'dev':devm,'holdout':holdm,'base_holdout':base,'live_probability_approval':approved,'approval_rule':'Both 4H and 8H must improve untouched holdout by >=1pp accuracy OR >=0.005 Brier, with n>=40 each.','licensed_feed_presence':licensed,'rl_live_weight':0.0,'broker_execution':False,'fake_90_95_claim':False,'no_holdout_threshold_tuning':True,'missing_data_policy':'EXCLUDE_AND_SHRINK_STRENGTH_NOT_ZERO_IMPUTATION'}
-    OUTDIR.mkdir(parents=True,exist_ok=True);(OUTDIR/'phase35_full_replay_summary.json').write_text(json.dumps(result,indent=2));
+    OUTDIR.mkdir(parents=True,exist_ok=True);guarded_output_path(OUTDIR/'phase35_full_replay_summary.json').write_text(json.dumps(result,indent=2));
     # Compact trace CSV for audit.
-    with (OUTDIR/'phase35_full_replay_trace.csv').open('w',newline='',encoding='utf-8') as f:
+    with guarded_output_path(OUTDIR/'phase35_full_replay_trace.csv').open('w',newline='',encoding='utf-8') as f:
         w=csv.writer(f);w.writerow(['timestamp','raw_score','coverage','p4h','p8h','actual4h','actual8h'])
         for r in rows:w.writerow([r['timestamp'],round(r['phase35_raw_score'],6),round(r['phase35_feature_coverage'],4),round(r['phase35_p_4h'],6),round(r['phase35_p_8h'],6),r['base'].get('actual_4h'),r['base'].get('actual_8h')])
     return result

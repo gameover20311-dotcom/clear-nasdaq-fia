@@ -1,0 +1,201 @@
+# CLEAR NASDAQ — full verification in an environment that can install deps.
+#
+# WHY THIS EXISTS
+# The sandbox used for the Step A / A6 / A7 work cannot reach PyPI, so 16 of
+# 55 active checks were reported honestly as NOT TESTED (ENV) and never as
+# PASS. Eight of those cover providers.py fallback and end-to-end numeric
+# behaviour, which is exactly what a providers.py split must be proven not to
+# change. This workflow exists so that proof can actually be produced.
+#
+# CONTROL FLOW
+# Reporting and adjudication are separate. Every observing step records what it
+# saw and exits 0, so none of them can suppress a later one; the final gate
+# reads all the records and decides the build once. Previously the suite step
+# raised SystemExit the moment it disliked the counts, which skipped both the
+# post-suite artifact comparison and the working-tree check — the two checks
+# that actually protect the evidence base. A red suite must never again hide an
+# artifact mutation behind it. The gate only ever adds failures; it downgrades
+# nothing.
+#
+# The suite runner and the gate live in .github/scripts/ rather than backend/.
+# fia/identity.py fingerprints files under the backend root against an explicit
+# per-file registry and treats an unclassified file in scope as a hard error, so
+# a harness script placed in backend/ would both break the run and move the
+# MODEL/PROTOCOL/INFRASTRUCTURE digests. A CI harness must never be able to
+# change a scientific identity.
+name: FIA verify
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # importlib does not import its own util submodule, so a bare
+          # "import importlib" leaves importlib.util unbound unless something
+          # else in the process already imported it.
+          python - <<'PY'
+          import importlib.util
+          missing = [m for m in ("fastapi","yfinance","httpx","pydantic","uvicorn","starlette")
+                     if not importlib.util.find_spec(m)]
+          print("MISSING:", missing or "none")
+          raise SystemExit(1 if missing else 0)
+          PY
+
+      # Artifact integrity is asserted around the whole suite, not just inside it.
+      - name: Snapshot protected artifacts (pre)
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import sys, json; sys.path.insert(0, ".")
+          from fia.artifact_guard import snapshot_protected, verify_protected, registry_manifest_id
+          json.dump(snapshot_protected(), open("/tmp/pre.json", "w"))
+          v = verify_protected()
+          print("registry manifest:", registry_manifest_id())
+          print("verify ok:", v["ok"], "count:", v["count"], "mismatched:", v["mismatched"])
+          json.dump({"verify_ok": v["ok"], "count": v["count"],
+                     "mismatched": v["mismatched"]}, open("/tmp/pre_verify.json", "w"))
+          raise SystemExit(0 if v["ok"] else 1)
+          PY
+
+      - name: Report three scientific identities
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import sys, json; sys.path.insert(0, ".")
+          from fia.identity import all_fingerprints
+          d = all_fingerprints()
+          for k in ("model", "protocol", "infrastructure"):
+              f = d[k]; print(f"{f['identity']:<15} {f['digest']}  files={f['file_count']}")
+          print("CLASSIFICATION_MANIFEST", d["classification_manifest_id"])
+          print("LEGACY_DEPLOYMENT      ", d["legacy_deployment_fingerprint"]["digest"])
+          json.dump({k: d[k] for k in ("model", "protocol", "infrastructure")}
+                    | {"classification_manifest_id": d["classification_manifest_id"],
+                       "legacy_deployment": d["legacy_deployment_fingerprint"]["digest"]},
+                    open("/tmp/identities.json", "w"), indent=1)
+          PY
+
+      # Named from the import graph before the suite runs, so provider coverage
+      # is a derived fact rather than a remembered count.
+      - name: Identify provider-dependent checks
+        if: always()
+        run: python .github/scripts/fia_providers.py --out /tmp/providers.json
+
+      # The suite runner keeps output only for entries that FAIL, so a passing
+      # equivalence harness never shows its digest. That digest is the value
+      # BASELINE_DIGEST must be pinned to, recorded in CI on UNSPLIT code, so it
+      # has to be visible here rather than inferred from a local run.
+      - name: Record providers equivalence digest (unsplit baseline)
+        if: always()
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import json, subprocess, sys, re
+          p = subprocess.run([sys.executable, "fia/test_providers_equivalence_v678.py"],
+                             capture_output=True, text=True)
+          out = (p.stdout or "") + (p.stderr or "")
+          print(out)
+          m = re.search(r"^digest\s*:\s*([0-9a-f]{64})$", out, re.M)
+          n = re.search(r"^observations\s*:\s*(\d+)$", out, re.M)
+          rec = {"returncode": p.returncode,
+                 "digest": m.group(1) if m else None,
+                 "observations": int(n.group(1)) if n else None,
+                 "pinned": "__RECORD_IN_CI_ON_UNSPLIT_CODE__" not in out}
+          print("EQUIVALENCE_DIGEST_UNSPLIT:", rec["digest"])
+          json.dump(rec, open("/tmp/equivalence.json", "w"), indent=1)
+          PY
+
+      - name: Full active regression suite
+        if: always()
+        run: python .github/scripts/fia_suite.py --out /tmp/suite.json
+
+      - name: Prove protected artifacts byte-identical (post)
+        if: always()
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import sys, json; sys.path.insert(0, ".")
+          from fia.artifact_guard import snapshot_protected, verify_protected
+          record = {"verify_ok": False, "count": None, "changed": [], "mismatched": []}
+          try:
+              before = json.load(open("/tmp/pre.json")); after = snapshot_protected()
+              record["changed"] = sorted(k for k in before if before[k] != after[k])
+              v = verify_protected()
+              record.update(verify_ok=v["ok"], count=v["count"], mismatched=v["mismatched"])
+              print("protected changed by full suite:", len(record["changed"]),
+                    record["changed"][:10] or "-> NONE")
+              print("verify ok:", v["ok"], "mismatched:", v["mismatched"])
+          except Exception as e:
+              record["error"] = f"{type(e).__name__}: {e}"
+              print("artifact comparison failed:", record["error"])
+          json.dump(record, open("/tmp/artifacts.json", "w"), indent=1)
+          PY
+
+      - name: Record working-tree mutations
+        if: always()
+        run: |
+          git status --porcelain
+          python - <<'PY'
+          import subprocess, json
+          out = subprocess.run(["git", "status", "--porcelain"],
+                               capture_output=True, text=True).stdout
+          # Ignored paths never appear here, so __pycache__ and .artifact_runs/
+          # cannot be mistaken for mutations. Tracked edits and new untracked
+          # files are counted separately: both are unwanted, but they mean
+          # different things and must not be reported as one number.
+          rows = [l.rstrip() for l in out.splitlines() if l.strip()]
+          modified = sorted(r[3:] for r in rows if not r.startswith("??"))
+          untracked = sorted(r[3:] for r in rows if r.startswith("??"))
+          print("tracked files modified by the suite:", len(modified))
+          for p in modified:
+              print("    M ", p)
+          print("new untracked files left by the suite:", len(untracked))
+          for p in untracked:
+              print("    ? ", p)
+          json.dump({"dirty": modified, "modified": modified,
+                     "untracked": untracked}, open("/tmp/worktree.json", "w"), indent=1)
+          PY
+
+      - name: Show what the suite changed
+        if: always()
+        run: git --no-pager diff --stat || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fia-verify-results
+          path: |
+            /tmp/suite.json
+            /tmp/providers.json
+            /tmp/artifacts.json
+            /tmp/worktree.json
+            /tmp/identities.json
+            /tmp/equivalence.json
+            /tmp/pre_verify.json
+
+      # Single adjudication point. Runs last, sees everything, decides once.
+      - name: Final gate
+        if: always()
+        run: |
+          python .github/scripts/fia_gate.py \
+            --suite /tmp/suite.json \
+            --artifacts /tmp/artifacts.json \
+            --worktree /tmp/worktree.json \
+            --providers /tmp/providers.json

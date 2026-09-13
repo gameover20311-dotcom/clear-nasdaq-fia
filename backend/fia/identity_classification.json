@@ -1,0 +1,236 @@
+{
+ "blocked_pending_split": {
+  "coverage": {
+   "env_blocked": 8,
+   "env_blocked_tests": [
+    "fia/test_candle_fallback_cloud.py",
+    "fia/test_live_candle_fallback_security_v671.py",
+    "fia/test_live_news_fallback_v672.py",
+    "fia/test_truth_fixes_v664.py",
+    "fia_backtest_phase19/full_backtest.py",
+    "fia_backtest_phase19/full_backtest.before_earnings_pti.py",
+    "fia_backtest_phase20/full_backtest.py",
+    "fia_backtest_phase21/full_backtest.py"
+   ],
+   "runnable_pass": 5
+  },
+  "note": "No physical split attempted. Declaring a 47-method decomposition behaviour-preserving on 5/13 coverage would be an unverified claim of exactly the kind this project exists to prevent.",
+  "reason": "The owner requires a behaviour-preserving split proven on identical source selection, identical stale/fallback decisions, identical engine outputs, identical probabilities and identical abstention. 8 of the 13 active tests covering providers.py cannot run in this container (fastapi/yfinance uninstallable; PyPI unreachable), and the blocked 8 are exactly the fallback/end-to-end ones.",
+  "status": "BLOCKED_INSUFFICIENT_VERIFICATION_COVERAGE",
+  "structure": "providers.py is a single class ProviderHub: 6427 lines, 47 methods, 0 top-level functions and 0 module-level policy constants. The split is a class decomposition touching every method and call site, not a file-boundary move."
+ },
+ "classification": {
+  "fia/__init__.py": "INFRASTRUCTURE",
+  "fia/accuracy_engine.py": "MODEL",
+  "fia/advanced_chart_intelligence.py": "MODEL",
+  "fia/artifact_guard.py": "INFRASTRUCTURE",
+  "fia/auth_api.py": "INFRASTRUCTURE",
+  "fia/chart_analysis.py": "MODEL",
+  "fia/chart_analyst_report.py": "MODEL",
+  "fia/cognitive/__init__.py": "INFRASTRUCTURE",
+  "fia/cognitive/acceptance.py": "PROTOCOL",
+  "fia/cognitive/analogy.py": "MODEL",
+  "fia/cognitive/calibration.py": "MODEL",
+  "fia/cognitive/critic.py": "MODEL",
+  "fia/cognitive/drift.py": "MODEL",
+  "fia/cognitive/fusion.py": "MODEL",
+  "fia/cognitive/hypotheses.py": "MODEL",
+  "fia/cognitive/investigation.py": "MODEL",
+  "fia/cognitive/learning.py": "MODEL",
+  "fia/cognitive/macro_vintage.py": "PROTOCOL",
+  "fia/cognitive/models.py": "MODEL",
+  "fia/cognitive/news_brain.py": "MODEL",
+  "fia/cognitive/official_sources.py": "PROTOCOL",
+  "fia/cognitive/orchestrator.py": "MODEL",
+  "fia/cognitive/provenance.py": "PROTOCOL",
+  "fia/cognitive/reaction.py": "MODEL",
+  "fia/cognitive/regime.py": "MODEL",
+  "fia/cognitive/specialists.py": "MODEL",
+  "fia/cognitive/utils.py": "MODEL",
+  "fia/config.py": "MODEL",
+  "fia/confluence_engine.py": "MODEL",
+  "fia/dashboard_api.py": "INFRASTRUCTURE",
+  "fia/engine.py": "MODEL",
+  "fia/fed_evidence.py": "MODEL",
+  "fia/final_integration.py": "MODEL",
+  "fia/forexcom_chart_liquidity.py": "MODEL",
+  "fia/forexcom_chart_liquidity_api.py": "INFRASTRUCTURE",
+  "fia/forward_oos.py": "PROTOCOL",
+  "fia/forward_oos_api.py": "INFRASTRUCTURE",
+  "fia/forward_oos_durable.py": "INFRASTRUCTURE",
+  "fia/identity.py": "PROTOCOL",
+  "fia/intelligence.py": "MODEL",
+  "fia/learning_engine.py": "MODEL",
+  "fia/liquidity.py": "MODEL",
+  "fia/market_sessions.py": "PROTOCOL",
+  "fia/models.py": "MODEL",
+  "fia/nq_liquidity_truth.py": "PROTOCOL",
+  "fia/phase22_truth.py": "PROTOCOL",
+  "fia/phase33_analogs.py": "MODEL",
+  "fia/phase33_api.py": "INFRASTRUCTURE",
+  "fia/phase33_common.py": "MODEL",
+  "fia/phase33_crossasset.py": "MODEL",
+  "fia/phase33_engine.py": "MODEL",
+  "fia/phase33_event.py": "MODEL",
+  "fia/phase33_execution_sim.py": "PROTOCOL",
+  "fia/phase33_institutional.py": "MODEL",
+  "fia/phase33_llm.py": "INFRASTRUCTURE",
+  "fia/phase33_news.py": "MODEL",
+  "fia/phase33_orderflow.py": "MODEL",
+  "fia/phase33_regime.py": "MODEL",
+  "fia/phase33_risk.py": "MODEL",
+  "fia/phase33_rl.py": "MODEL",
+  "fia/phase33_rust.py": "INFRASTRUCTURE",
+  "fia/phase34_analogs.py": "MODEL",
+  "fia/phase34_api.py": "INFRASTRUCTURE",
+  "fia/phase34_calibration.py": "MODEL",
+  "fia/phase34_causal.py": "MODEL",
+  "fia/phase34_common.py": "MODEL",
+  "fia/phase34_engine.py": "MODEL",
+  "fia/phase34_event_surprise.py": "MODEL",
+  "fia/phase34_leadership.py": "MODEL",
+  "fia/phase34_news_primary.py": "MODEL",
+  "fia/phase34_options.py": "MODEL",
+  "fia/phase34_orderflow.py": "MODEL",
+  "fia/phase34_public_data.py": "PROTOCOL",
+  "fia/phase34_rates_vol.py": "MODEL",
+  "fia/phase34_regime.py": "MODEL",
+  "fia/phase34_risk_execution.py": "MODEL",
+  "fia/phase34_rl_lab.py": "MODEL",
+  "fia/phase34_shields.py": "MODEL",
+  "fia/phase34_source_registry.py": "PROTOCOL",
+  "fia/phase35_api.py": "INFRASTRUCTURE",
+  "fia/phase35_data_foundation.py": "PROTOCOL",
+  "fia/phase35_enrichment.py": "PROTOCOL",
+  "fia/phase35_replay_engine.py": "PROTOCOL",
+  "fia/phase36_ablation.py": "PROTOCOL",
+  "fia/phase37_api.py": "INFRASTRUCTURE",
+  "fia/phase37_final.py": "MODEL",
+  "fia/premove_api.py": "INFRASTRUCTURE",
+  "fia/premove_calibration.py": "MODEL",
+  "fia/premove_engine.py": "MODEL",
+  "fia/premove_max_api.py": "INFRASTRUCTURE",
+  "fia/premove_max_engine.py": "MODEL",
+  "fia/premove_max_validation.py": "PROTOCOL",
+  "fia/premove_watch.py": "MODEL",
+  "fia/provider_reliability.py": "PROTOCOL",
+  "fia/providers.py": "PROTOCOL",
+  "fia/shadow_candidate.py": "PROTOCOL",
+  "fia/signal_identity.py": "MODEL",
+  "fia/three_way_confluence.py": "MODEL",
+  "main.py": "INFRASTRUCTURE",
+  "run_forward_oos_daemon.py": "INFRASTRUCTURE",
+  "fia/providers_model.py": "MODEL",
+  "fia/providers_protocol.py": "PROTOCOL",
+  "fia/providers_infrastructure.py": "INFRASTRUCTURE",
+  "fia/nq_liquidity_model.py": "MODEL",
+  "fia/nq_liquidity_protocol.py": "PROTOCOL",
+  "fia/nq_liquidity_infrastructure.py": "INFRASTRUCTURE"
+ },
+ "counts": {
+  "INFRASTRUCTURE": 18,
+  "MODEL": 62,
+  "PROTOCOL": 20
+ },
+ "manifest_id": "1e847b0588b21dc2d361e68f33d8009df4e7647efb340af36885da47ffcabca5",
+ "manifest_id_note": "SHA-256 over {schema, classification}. Pinned in fia/identity.py as EXPECTED_CLASSIFICATION_MANIFEST_ID. Both change together in one reviewable diff.",
+ "note": "Every file in the fingerprint scope is assigned to exactly one identity. Assignments are explicit, not heuristic, so they can be audited. Entries under review_required are proposals and MUST be signed off before any successor campaign seal.",
+ "resolved": {
+  "fia/accuracy_engine.py": {
+   "call_path": [
+    "accuracy_engine.build_accuracy_assessment",
+    "main.py:361/390/517/621/650 and final_integration.py:122",
+    "three_way_confluence.py:130 consumes setup_grade in confluence aggregation [MODEL]",
+    "learning_engine.record_forward_forecast:200-205 writes acc evidence into learning row"
+   ],
+   "identity": "MODEL",
+   "method": "import graph + consumer trace",
+   "reaches_learning_state": true,
+   "reaches_live_probability": false,
+   "verdict": "MODEL under the stated rule: feeds learning state and is consumed by a MODEL-classified aggregator, even though it never reaches bullish_probability."
+  },
+  "fia/identity.py": {
+   "identity": "PROTOCOL",
+   "method": "user-approved",
+   "verdict": "Defines scientific identity semantics; changes affect how experiments are identified and compared."
+  },
+  "fia/phase33_llm.py": {
+   "call_path": [
+    "imported ONLY by phase33_api.py:6",
+    "phase33_api.py:30 attaches llm_evidence_review(r, prompt) to the RESPONSE after r is computed",
+    "phase33_engine.py contains zero 'llm' references"
+   ],
+   "disabled_by_default": true,
+   "identity": "INFRASTRUCTURE",
+   "method": "import graph + mutation check",
+   "mutates_input": false,
+   "verdict": "Outside the predictive path; an API-surface annotation. Cannot reach probability/score/abstention."
+  },
+  "fia/phase33_rust.py": {
+   "call_path": [
+    "phase33_engine.py:63 rust=rust_status()",
+    "phase33_engine.py:96 emitted as 'rust_acceleration' status field only"
+   ],
+   "identity": "INFRASTRUCTURE",
+   "method": "full-file read (9 lines)",
+   "verdict": "NOT an accelerator. The entire module is a capability probe returning AVAILABLE / SOURCE_INCLUDED_NOT_COMPILED with python_fallback=True. There is no alternate numeric path, so changing it cannot alter live numerical output. Numerical-equivalence condition is satisfied vacuously because only one numeric path exists."
+  }
+ },
+ "review_required": {
+  "fia/nq_liquidity_truth.py": "SPLIT DECIDED by owner but BLOCKED: see blocked_pending_split. Provisionally PROTOCOL.",
+  "fia/providers.py": "SPLIT DECIDED by owner but BLOCKED: see blocked_pending_split. Provisionally PROTOCOL."
+ },
+ "schema": "FIA_IDENTITY_CLASSIFICATION_V1",
+ "identity_revision_history": [
+  {
+   "revision": 1,
+   "kind": "PRE_SUCCESSOR_IDENTITY_LAYOUT_REVISION",
+   "reason": "FILE_LAYOUT_REFACTOR_WITH_PROVEN_BEHAVIOURAL_EQUIVALENCE",
+   "explanation": "providers.py and nq_liquidity_truth.py were split three ways by responsibility. The identity digests are computed over a per-file hash map, so moving code between files moves the digest even when behaviour is byte-for-byte identical. This entry records a LAYOUT revision, not a scientific one.",
+   "predecessor_commit": "087c889930e40f680bd358f6d6142f01f15c6ab3",
+   "split_commit": "b5fbffe9016b59d1608bcd13ba56c8b2e47002fc",
+   "successor_commit": "b5fbffe9016b59d1608bcd13ba56c8b2e47002fc",
+   "timestamp_utc": "2026-09-12T01:01:33.334831+00:00",
+   "identities_before": {
+    "MODEL": "d419c0c6548f56cb572abda95ba1440dbff10e5ed7df5e6208c7f5d29edf76f6",
+    "PROTOCOL": "462af18434d6eb012e4023d94ffee789b5f65eb0f96014696ac652b49475b371",
+    "INFRASTRUCTURE": "dcd0dd3f7c23bc4d6ba3b457f64b00273b0c06c5b71a94226e0e2fc7ce243072",
+    "CLASSIFICATION_MANIFEST": "0d9164edf52031460d24e875612204ac9e0f984073f6d39b586769cd22823e0e"
+   },
+   "identities_after": {
+    "MODEL": "91e5d9a67625171c384dfcd6edb9bc36586a687dddb7ae7c5c54d194ce3da863",
+    "PROTOCOL": "f28842b437ffcd76c9702c15ef2bc072a0ead1e08ff3c5590cef2f61278245cc",
+    "INFRASTRUCTURE": "33f7189b68f5a45498d4bc06f029646b58a308242d7ed00b83c8f648c1abedb0",
+    "CLASSIFICATION_MANIFEST": "1e847b0588b21dc2d361e68f33d8009df4e7647efb340af36885da47ffcabca5"
+   },
+   "modules_classified": {
+    "fia/providers_model.py": "MODEL",
+    "fia/providers_protocol.py": "PROTOCOL",
+    "fia/providers_infrastructure.py": "INFRASTRUCTURE",
+    "fia/nq_liquidity_model.py": "MODEL",
+    "fia/nq_liquidity_protocol.py": "PROTOCOL",
+    "fia/nq_liquidity_infrastructure.py": "INFRASTRUCTURE"
+   },
+   "immutable_equivalence_digests": {
+    "v678_providers_deterministic_surface": {
+     "digest": "e2191da05e1a737c71ff88b3f5737b836d03974b6f784e9682a1595bd368e506",
+     "observations": 131
+    },
+    "v681_snapshot_and_network_surface": {
+     "digest": "45cdee64ce472a2abed1a48e1d5e2c11847907e51a3b3fdfb574eaaeff92ab57",
+     "observations": 55
+    },
+    "v682_nq_liquidity_truth": {
+     "digest": "cfbc40bfeb3e00a25f68110caec0aeef3cf965978d7e057e33849f2e0fca3f24",
+     "observations": 81
+    },
+    "note": "Recorded on the UNSPLIT code and unchanged by the split. These are the behavioural evidence; the identity digests above are layout bookkeeping."
+   },
+   "scientific_semantics_changed": false,
+   "successor_campaign_started": false,
+   "alpha_spent": 0,
+   "legacy_v6_continuity_claimed": false
+  }
+ ],
+ "identity_revision_note": "Append-only. Earlier identity values are preserved in identity_revision_history and are never rewritten or erased. A layout revision does not confer continuity on any sealed campaign."
+}

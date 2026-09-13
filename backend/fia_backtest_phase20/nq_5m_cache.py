@@ -7,6 +7,7 @@ from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
+from fia.artifact_guard import guarded_output_path
 
 load_dotenv()
 
@@ -86,7 +87,9 @@ def save_cache(bars, progress):
         ),
     )
 
-    CACHE_PATH.write_text(
+    # A6: sealed-artifact guard. This output is registered canonical
+    # evidence, so a default run writes to a per-run directory instead.
+    guarded_output_path(CACHE_PATH).write_text(
         json.dumps(
             {
                 "provider": "Massive Futures",

@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Any, Dict
 from .phase33_engine import analyze_phase33
 from .phase33_common import signal_map
+from .signal_identity import CANONICAL_EQUAL_WEIGHT_PARTICIPATION
 from .phase34_common import raw_snapshot, f, clamp
 from .phase34_source_registry import audit_sources
 from .phase34_public_data import collect_public_inputs
@@ -41,7 +42,7 @@ def analyze_phase34(forecast:Any,snapshot:Any,record:bool=True)->Dict[str,Any]:
     regime=regime_brain(hist,f(cur.get('leading_score')),f(cur.get('price_score')),options)
     news=analyze_primary_news(enriched); event=analyze_event_surprise(enriched)
     raw=raw_snapshot(enriched)
-    state={'lead':cur.get('leading_score'),'price':cur.get('price_score'),'vix':raw.get('vix'),'vxn':raw.get('vxn'),'us2y':raw.get('us2y'),'us10y':raw.get('us10y'),'real_yield':raw.get('real_yield'),'mega':leadership['mega_cap_index_impact'].get('score'),'semi':leadership['semiconductor_breadth'].get('score'),'breadth':sm.get('Breadth',{}).get('score'),'news':sm.get('News',{}).get('score'),'options_skew':options.get('skew') if isinstance(options,dict) else None,'gamma':options.get('dealer_gamma_proxy') if isinstance(options,dict) else None}
+    state={'lead':cur.get('leading_score'),'price':cur.get('price_score'),'vix':raw.get('vix'),'vxn':raw.get('vxn'),'us2y':raw.get('us2y'),'us10y':raw.get('us10y'),'real_yield':raw.get('real_yield'),'mega':leadership['mega_cap_index_impact'].get('score'),'semi':leadership['semiconductor_breadth'].get('score'),'breadth':sm.get(CANONICAL_EQUAL_WEIGHT_PARTICIPATION,{}).get('score'),'news':sm.get('News',{}).get('score'),'options_skew':options.get('skew') if isinstance(options,dict) else None,'gamma':options.get('dealer_gamma_proxy') if isinstance(options,dict) else None}
     analog=nearest(state)
     experts=[]
     def add(name,score,weight):

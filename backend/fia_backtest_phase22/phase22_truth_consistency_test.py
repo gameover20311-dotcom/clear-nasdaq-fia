@@ -9,6 +9,7 @@ from fia.engine import build_forecast, _impact_coverage
 from fia.intelligence import intelligent_score, intelligence_coverage
 from fia.liquidity import build_liquidity_groups
 from fia.models import Signal
+from fia.signal_identity import canonical_signal_name, is_equal_weight_participation
 
 
 def assert_true(name, condition, detail=""):
@@ -81,14 +82,36 @@ def main():
     assert_true("probabilities sum 100", abs(fc.bullish_probability + fc.bearish_probability - 100.0) < 0.11)
     assert_true("truth validator PASS", bool(fc.consistency.get("pass")), str(fc.consistency))
 
-    expected_weights = {
+    # SEMANTIC WEIGHT CHECK.
+    # The Phase21 numeric weight vector is asserted by CANONICAL SIGNAL IDENTITY
+    # rather than by literal label. The participation signal was renamed from
+    # "Breadth" to "Equal-weight participation" because the old name was
+    # provably misleading (it is an equal-weighted mean of 15 large caps, not
+    # market breadth). Its WEIGHT never changed. Comparing canonically means a
+    # truthfulness rename cannot fail this assertion, while a genuine weight
+    # change still does. The legacy spelling is preserved in the literal below
+    # so the historical expectation remains readable and auditable.
+    legacy_expected = {
         "NQ structure": 0.20, "SPX confirmation": 0.10, "DXY": 0.08,
         "US10Y": 0.07, "Mega-cap leadership": 0.20, "Semiconductors": 0.12,
         "Breadth": 0.08, "News": 0.07, "Macro calendar": 0.04,
         "Earnings/guidance": 0.04,
     }
-    actual_weights = {s.name: round(float(s.weight), 2) for s in fc.signals}
-    assert_true("Phase21 weights unchanged", actual_weights == expected_weights, str(actual_weights))
+    expected_weights = {canonical_signal_name(k): v for k, v in legacy_expected.items()}
+    actual_weights = {canonical_signal_name(s.name): round(float(s.weight), 2) for s in fc.signals}
+    assert_true("Phase21 weights unchanged (canonical identity)",
+                actual_weights == expected_weights, str(actual_weights))
+    assert_true("numeric weight multiset unchanged",
+                sorted(actual_weights.values()) == sorted(legacy_expected.values()),
+                str(sorted(actual_weights.values())))
+    assert_true("weight vector sums to exactly 1.0",
+                abs(sum(float(s.weight) for s in fc.signals) - 1.0) < 1e-9,
+                str(sum(float(s.weight) for s in fc.signals)))
+    assert_true("no alias collapses two signals into one",
+                len(actual_weights) == len(fc.signals),
+                f"{len(actual_weights)} canonical vs {len(fc.signals)} emitted")
+    assert_true("participation signal emitted exactly once",
+                sum(1 for s in fc.signals if is_equal_weight_participation(s.name)) == 1)
 
     # Missing evidence must not dilute the intelligence score like a neutral vote.
     active = [

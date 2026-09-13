@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fia.providers import ProviderHub
+from fia.artifact_guard import guarded_output_path
 from fia_backtest_phase15.historical_news import filter_news_point_in_time
 from fia_backtest_phase19.full_engine import build_forecast
 from fia_backtest_phase19.full_snapshot import (
@@ -625,7 +626,10 @@ async def main():
 
     if rows:
         fieldnames = list(rows[0].keys())
-        with CSV_PATH.open("w", newline="", encoding="utf-8") as handle:
+        # A6: sealed-artifact guard. The canonical result is evidence, so a
+        # default run writes to a non-canonical per-run directory instead.
+        csv_target = guarded_output_path(CSV_PATH)
+        with csv_target.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(rows)
@@ -659,10 +663,11 @@ async def main():
         "polygon_cache_path": str(POLYGON_CACHE_PATH),
         "polygon_cache_exists": POLYGON_CACHE_PATH.exists(),
         "earnings_pool_size": len(earnings_pool),
-        "csv_path": str(CSV_PATH),
+        "csv_path": str(csv_target) if rows else str(CSV_PATH),
     }
 
-    JSON_PATH.write_text(
+    json_target = guarded_output_path(JSON_PATH)
+    json_target.write_text(
         json.dumps(summary, indent=2, default=str),
         encoding="utf-8",
     )
@@ -713,8 +718,8 @@ async def main():
     print("earnings pool =", len(earnings_pool))
     print()
 
-    print("CSV =", CSV_PATH)
-    print("SUMMARY =", JSON_PATH)
+    print("CSV =", csv_target if rows else CSV_PATH)
+    print("SUMMARY =", json_target)
     print("=== FIA PHASE 19 FULL BACKTEST COMPLETE ===")
 
 

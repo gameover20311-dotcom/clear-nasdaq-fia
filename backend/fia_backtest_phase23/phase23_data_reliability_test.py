@@ -10,6 +10,7 @@ BACKEND = HERE.parents[1]
 ROOT = BACKEND.parent
 sys.path.insert(0, str(BACKEND))
 
+from fia.signal_identity import canonical_signal_name, is_equal_weight_participation
 from fia.provider_reliability import (
     build_provider_health,
     classify_freshness,
@@ -71,7 +72,13 @@ health3 = build_provider_health(stale)
 check("critical stale => DEGRADED", health3["overall"] == "DEGRADED")
 
 # Static wiring checks
-providers_text = (BACKEND / "fia/providers.py").read_text(encoding="utf-8")
+# providers.py was split three ways by responsibility, so the provider layer is
+# now a facade plus three mixin modules. Reading providers.py alone would look
+# at 58 lines of imports and silently stop finding wiring that is still there.
+# Read the whole layer instead; the assertion below is unchanged.
+providers_text = "".join((BACKEND / "fia" / _m).read_text(encoding="utf-8")
+                         for _m in ("providers.py", "providers_model.py", "providers_protocol.py",
+              "providers_infrastructure.py"))
 engine_text = (BACKEND / "fia/engine.py").read_text(encoding="utf-8")
 main_text = (BACKEND / "main.py").read_text(encoding="utf-8")
 proxy_text = (ROOT / "frontend/app/api/fia/provider-health/route.ts").read_text(encoding="utf-8")
@@ -106,8 +113,15 @@ raw = {
     "provider_health": health,
 }
 f = build_forecast({"data": raw})
-weights = {s.name: round(float(s.weight), 2) for s in f.signals}
-expected = {
+
+# The Phase21 numeric weight vector is compared by CANONICAL SIGNAL IDENTITY,
+# not by literal label. "Breadth" was renamed to "Equal-weight participation"
+# because the old name was misleading; the WEIGHT never changed. Comparing
+# canonically means a truthfulness rename cannot fail this check, while a real
+# weight change still does. The legacy spelling is kept in the literal below so
+# the historical expectation stays readable.
+weights = {canonical_signal_name(s.name): round(float(s.weight), 2) for s in f.signals}
+expected = {canonical_signal_name(k): v for k, v in {
     "NQ structure": 0.20,
     "SPX confirmation": 0.10,
     "DXY": 0.08,
@@ -118,8 +132,15 @@ expected = {
     "News": 0.07,
     "Macro calendar": 0.04,
     "Earnings/guidance": 0.04,
-}
-check("Phase21 weights unchanged", weights == expected, str(weights))
+}.items()}
+check("Phase21 weights unchanged (canonical identity)", weights == expected, str(weights))
+check("weight vector sums to exactly 1.0",
+      abs(sum(float(s.weight) for s in f.signals) - 1.0) < 1e-9,
+      str(sum(float(s.weight) for s in f.signals)))
+check("no alias collapses two signals into one",
+      len(weights) == len(f.signals), f"{len(weights)} canonical vs {len(f.signals)} emitted")
+check("participation signal emitted exactly once",
+      sum(1 for s in f.signals if is_equal_weight_participation(s.name)) == 1)
 check("binary decision preserved", f.direction in {"BULLISH", "BEARISH"})
 
 failed = [name for name, ok, _ in checks if not ok]

@@ -8,6 +8,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from fia.providers import ProviderHub
+from fia.artifact_guard import guarded_output_path
 
 load_dotenv()
 
@@ -408,7 +409,9 @@ async def main():
         exist_ok=True,
     )
 
-    OUT_PATH.write_text(
+    # A6: sealed-artifact guard. This output is registered canonical
+    # evidence, so a default run writes to a per-run directory instead.
+    guarded_output_path(OUT_PATH).write_text(
         json.dumps(
             {
                 "method": (

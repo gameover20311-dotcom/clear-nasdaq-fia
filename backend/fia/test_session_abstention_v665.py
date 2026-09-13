@@ -30,6 +30,10 @@ from fia.premove_watch import age_gate, build_watch  # noqa: E402
 FAILURES = []
 
 
+class _NoEvent(Exception):
+    """Abstention event file absent; remaining checks are unreachable."""
+
+
 def check(name, cond, detail=""):
     if cond:
         print("  PASS  %s" % name)
@@ -213,11 +217,30 @@ try:
     F.checkpoint_state = lambda now=None: {
         "eligible_now": True, "checkpoint_date_et": "2026-09-08",
         "scheduled_checkpoint_et": "2026-09-08T13:00:00-04:00"}
+
+    # The retired V6 campaign seal no longer matches the production fingerprint:
+    # Step A, A6 and A7 changed eight backend files and added three more, so
+    # lock_abstention_observation now refuses everything with
+    # CAMPAIGN_SEAL_OR_MODEL_FINGERPRINT_INVALID before any abstention semantics
+    # run. That refusal is CORRECT and is asserted first, below. It is not what
+    # this section is for, so the seal gate is then neutralised exactly as
+    # test_freeze_parity_v667 does, leaving the abstention guard under test.
+    # Nothing is resealed and no fingerprint is altered.
+    _orig_seal = F.verify_campaign_seal
     try:
+        refused = asyncio.run(
+            F.lock_abstention_observation(None, SNAP, PREMOVE, tmp))
+        F.verify_campaign_seal = lambda *a, **k: {"ok": True, "policy": {}}
         r = asyncio.run(F.lock_abstention_observation(None, SNAP, PREMOVE, tmp))
         dup = asyncio.run(F.lock_abstention_observation(None, SNAP, PREMOVE, tmp))
     finally:
+        F.verify_campaign_seal = _orig_seal
         F.checkpoint_state = _cp
+
+    check("retired V6 seal refuses the lock fail-closed",
+          refused.get("created") is False
+          and refused.get("reason") == "CAMPAIGN_SEAL_OR_MODEL_FINGERPRINT_INVALID",
+          json.dumps(refused)[:160])
 
     check("abstention record created", r.get("created") is True, json.dumps(r)[:160])
     check("tagged as an ABSTENTION observation", r.get("observation_type") == "ABSTENTION")
@@ -225,6 +248,18 @@ try:
           and dup.get("reason") == "CHECKPOINT_ABSTENTION_ALREADY_RECORDED")
 
     events = sorted((tmp / "events").glob("*.json"))
+    check("an abstention event file was written", len(events) == 1, str(len(events)))
+    if not events:
+        # Without the event file every remaining check is unreachable. Indexing
+        # events[0] anyway raised IndexError and destroyed the run's report, so
+        # the real cause never reached the summary. Record them and let the
+        # summary at the end of the file decide the exit code.
+        for _name in ("distinct event type", "directional flag false",
+                      "not scoreable as directional",
+                      "excluded from directional statistics",
+                      "no historical backfill"):
+            check(_name, False, "no abstention event file was written")
+        raise _NoEvent()
     payload = json.loads(events[0].read_text())["payload"]
     ev_type = json.loads(events[0].read_text()).get("event_type")
     check("distinct event type", ev_type == "ABSTENTION_OBSERVATION", str(ev_type))
@@ -259,6 +294,8 @@ try:
     check("DIRECTIONAL SAMPLE UNCONTAMINATED (forecast_locks == 0)",
           v.get("forecast_locks") == 0, str(v.get("forecast_locks")))
     check("abstention still counted as a ledger event", v["events"] == 1, str(v["events"]))
+except _NoEvent:
+    pass
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

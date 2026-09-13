@@ -21,6 +21,7 @@ from .premove_engine import (
     analyze_premove,
     snapshot_row,
 )
+from .signal_identity import canonical_name_list, canonicalize_signal_keys
 
 DEFAULT_MAX_HISTORY = Path(__file__).resolve().parents[1] / "fia_premove" / "data" / "premove_max_history.jsonl"
 
@@ -204,10 +205,16 @@ def _historical_analogs(rows: List[Dict[str, Any]], current: Dict[str, Any], lim
     prior = [r for r in rows if _dt(r.get("timestamp")) < _dt(current.get("timestamp"))]
     if len(prior) < 8:
         return {"status": "INSUFFICIENT_HISTORY", "neighbors": []}
-    core_names = ["DXY", "US10Y", "Mega-cap leadership", "Semiconductors", "Breadth", "SPX confirmation"]
+    # Canonical axes, de-duplicated: one signal can never occupy two axes.
+    core_names = canonical_name_list(
+        ["DXY", "US10Y", "Mega-cap leadership", "Semiconductors", "Breadth", "SPX confirmation"]
+    )
 
     def vec(r: Dict[str, Any]) -> List[float]:
-        sig = r.get("signals") or {}
+        # Read boundary: premove history rows written before the truthfulness
+        # rename carry the legacy spelling. Files are not rewritten; they are
+        # translated on read so historical and live vectors share one space.
+        sig = canonicalize_signal_keys(r.get("signals") or {})
         return [
             _f(r.get("leading_score")),
             _f(r.get("price_score")),
