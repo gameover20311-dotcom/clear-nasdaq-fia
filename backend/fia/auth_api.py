@@ -10,6 +10,7 @@ Design goals:
 - Python 3.9 compatible
 - local SQLite storage with WAL and bounded account lockout
 - signed, expiring session token usable by the Next.js access gate
+- server-side protection for scientific mutation commands
 
 This is an application access layer, not a billing system. Payment/email-verification
 providers are deliberately not fabricated.
@@ -29,6 +30,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from fastapi import Body, Header, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 AUTH_MARKER = "CLEAR_NASDAQ_OBSIDIAN_FULL_ACCESS_V3_1"
@@ -37,6 +39,13 @@ SESSION_SECONDS = 7 * 24 * 60 * 60
 LOCK_AFTER_FAILURES = 5
 LOCK_SECONDS = 10 * 60
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+# These routes are commands, not public reads.  The browser/frontend access gate
+# is not a security boundary for a directly reachable FastAPI backend.
+_AUTHENTICATED_COMMANDS = {
+    ("POST", "/api/learning/resolve"),
+    ("POST", "/api/forward-oos/run-once"),
+}
 
 
 class SignupRequest(BaseModel):
@@ -72,13 +81,7 @@ def _secret_path() -> Path:
 
 
 def _auth_secret() -> bytes:
-    """Signing secret. Must be at least as durable as the accounts it signs for.
-
-    V6.6.8: on an ephemeral filesystem this file was regenerated on every deploy,
-    so even a surviving account would have had all of its sessions invalidated.
-    Order of preference: explicit env var, then the durable database, then the
-    local file.
-    """
+    """Signing secret. Must be at least as durable as the accounts it signs for."""
     raw = str(os.getenv("CLEAR_NASDAQ_AUTH_SECRET") or "").strip()
     if not raw and _database_url() and _PG_AVAILABLE:
         raw = _durable_secret() or ""
@@ -93,27 +96,12 @@ def _auth_secret() -> bytes:
     return raw.encode("utf-8")
 
 
-# ------------------------------------------------------------------ V6.6.8
-# DURABLE AUTH STORAGE.
-#
-# Proven ephemeral on 2026-09-07: two accounts created through the live signup
-# flow returned 401 INVALID_CREDENTIALS after a single redeploy, and the issued
-# session token stopped validating. Render's filesystem -- including the home
-# directory that held auth.sqlite3 and auth_secret -- does not survive a deploy,
-# so every user was silently forced to sign up again.
-#
-# When DATABASE_URL is set the store is a managed Postgres and survives restarts,
-# redeploys and sleep/wake. When it is absent the SQLite file is used exactly as
-# before, and durable_backend() reports EPHEMERAL so nothing claims otherwise.
-#
-# Password handling is unchanged: scrypt/pbkdf2 with a per-user salt. No
-# plaintext password is written to either backend.
 _PG_AVAILABLE = False
-try:  # psycopg 3
+try:
     import psycopg as _psycopg
     from psycopg.rows import dict_row as _pg_dict_row
     _PG_AVAILABLE = True
-except Exception:  # pragma: no cover - driver absent locally
+except Exception:
     _psycopg = None
     _pg_dict_row = None
 
@@ -140,12 +128,6 @@ def durable_backend() -> Dict[str, Any]:
 
 
 class _PgConn:
-    """Minimal sqlite3-shaped wrapper so the existing SQL runs unchanged.
-
-    Translates '?' placeholders to '%s' and returns mapping rows, which is all
-    the callers in this module rely on.
-    """
-
     def __init__(self, conn):
         self._conn = conn
 
@@ -214,8 +196,6 @@ _PG_SCHEMA = (
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
-    # The signing secret must be as durable as the accounts it authenticates;
-    # a regenerated secret invalidates every live session.
     """
     CREATE TABLE IF NOT EXISTS auth_secret (
         id INTEGER PRIMARY KEY,
@@ -227,8 +207,7 @@ _PG_SCHEMA = (
 
 
 def _connect_pg():
-    conn = _psycopg.connect(_database_url(), row_factory=_pg_dict_row,
-                            connect_timeout=10)
+    conn = _psycopg.connect(_database_url(), row_factory=_pg_dict_row, connect_timeout=10)
     shim = _PgConn(conn)
     for ddl in _PG_SCHEMA:
         shim.execute(ddl)
@@ -237,7 +216,6 @@ def _connect_pg():
 
 
 def _durable_secret() -> Optional[str]:
-    """Read (or create once) the signing secret inside the durable database."""
     try:
         with _connect_pg() as conn:
             row = conn.execute("SELECT secret FROM auth_secret WHERE id=1").fetchone()
@@ -252,7 +230,7 @@ def _durable_secret() -> Optional[str]:
             conn.commit()
             row = conn.execute("SELECT secret FROM auth_secret WHERE id=1").fetchone()
             return str(row["secret"]).strip() if row else fresh
-    except Exception as exc:                                         # noqa: BLE001
+    except Exception as exc:
         print("Durable auth secret unavailable -> %s" % type(exc).__name__)
         return None
 
@@ -327,19 +305,13 @@ def _validate_password(value: str) -> str:
     return password
 
 
-# V6.6.2: scrypt is only present when Python is linked against a real OpenSSL.
-# The stock macOS python3.9 is linked against LibreSSL 2.8.3, where
-# hashlib.scrypt does not exist -- so create_user() raised AttributeError and
-# account signup was broken on this exact machine. Prefer scrypt where it is
-# available and fall back to PBKDF2-HMAC-SHA256, which is always present.
 _SCRYPT_AVAILABLE = hasattr(hashlib, "scrypt")
-_PBKDF2_ITERATIONS = 600_000          # OWASP 2023 guidance for PBKDF2-HMAC-SHA256
+_PBKDF2_ITERATIONS = 600_000
 _KDF_SCRYPT = "scrypt"
 _KDF_PBKDF2 = "pbkdf2_sha256"
 
 
 def active_kdf() -> str:
-    """Which key-derivation function this interpreter will use for NEW passwords."""
     return _KDF_SCRYPT if _SCRYPT_AVAILABLE else _KDF_PBKDF2
 
 
@@ -359,8 +331,6 @@ def _encode_password(password: str) -> Tuple[str, str]:
     salt = secrets.token_bytes(16)
     kdf = active_kdf()
     digest = _password_digest(password, salt, kdf)
-    # The salt field carries an explicit KDF tag so stored hashes stay verifiable
-    # if the interpreter later gains or loses scrypt. Untagged salts are legacy scrypt.
     salt_text = kdf + "$" + base64.urlsafe_b64encode(salt).decode("ascii")
     return salt_text, base64.urlsafe_b64encode(digest).decode("ascii")
 
@@ -370,7 +340,6 @@ def _decode_salt(salt_text: str) -> Tuple[str, bytes]:
     if "$" in text:
         kdf, _, raw = text.partition("$")
         return kdf, base64.urlsafe_b64decode(raw.encode("ascii"))
-    # Legacy rows were written before the KDF tag existed and are always scrypt.
     return _KDF_SCRYPT, base64.urlsafe_b64decode(text.encode("ascii"))
 
 
@@ -439,7 +408,6 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
     try:
         row = conn.execute("SELECT * FROM users WHERE email=?", (normalized_email,)).fetchone()
         if row is None:
-            # Deliberately perform comparable password work to reduce account enumeration timing signal.
             _password_digest(supplied, b"0" * 16)
             raise ValueError("INVALID_CREDENTIALS")
         if str(row["status"]).upper() != "ACTIVE":
@@ -453,16 +421,12 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
             next_lock = now + LOCK_SECONDS if failures >= LOCK_AFTER_FAILURES else 0
             if next_lock:
                 failures = 0
-            conn.execute(
-                "UPDATE users SET failed_attempts=?, locked_until=? WHERE id=?",
-                (failures, next_lock, str(row["id"])),
-            )
+            conn.execute("UPDATE users SET failed_attempts=?, locked_until=? WHERE id=?",
+                         (failures, next_lock, str(row["id"])))
             conn.commit()
             raise ValueError("INVALID_CREDENTIALS")
-        conn.execute(
-            "UPDATE users SET failed_attempts=0, locked_until=0, last_login_at=? WHERE id=?",
-            (now, str(row["id"])),
-        )
+        conn.execute("UPDATE users SET failed_attempts=0, locked_until=0, last_login_at=? WHERE id=?",
+                     (now, str(row["id"])))
         conn.commit()
         fresh = conn.execute("SELECT * FROM users WHERE id=?", (str(row["id"]),)).fetchone()
         if fresh is None:
@@ -479,25 +443,16 @@ def _nonce_hash(nonce: str) -> str:
 def issue_session_token(user: Dict[str, Any], now: Optional[int] = None) -> str:
     issued = int(now if now is not None else time.time())
     nonce = secrets.token_hex(16)
-    payload = {
-        "v": 1,
-        "sub": str(user["id"]),
-        "email": str(user["email"]),
-        "plan": PLAN,
-        "iat": issued,
-        "exp": issued + SESSION_SECONDS,
-        "nonce": nonce,
-    }
+    payload = {"v": 1, "sub": str(user["id"]), "email": str(user["email"]), "plan": PLAN,
+               "iat": issued, "exp": issued + SESSION_SECONDS, "nonce": nonce}
     payload_raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     encoded = _b64url(payload_raw)
     signature = hmac.new(_auth_secret(), encoded.encode("ascii"), hashlib.sha256).digest()
     conn = _connect()
     try:
         conn.execute("DELETE FROM sessions WHERE expires_at < ?", (issued,))
-        conn.execute(
-            "INSERT INTO sessions (nonce_hash,user_id,issued_at,expires_at,revoked_at) VALUES (?,?,?,?,0)",
-            (_nonce_hash(nonce), str(user["id"]), issued, issued + SESSION_SECONDS),
-        )
+        conn.execute("INSERT INTO sessions (nonce_hash,user_id,issued_at,expires_at,revoked_at) VALUES (?,?,?,?,0)",
+                     (_nonce_hash(nonce), str(user["id"]), issued, issued + SESSION_SECONDS))
         conn.commit()
     finally:
         conn.close()
@@ -525,10 +480,8 @@ def decode_session_token(token: str, now: Optional[int] = None) -> Dict[str, Any
             raise ValueError("INVALID_SESSION_USER")
         conn = _connect()
         try:
-            session_row = conn.execute(
-                "SELECT * FROM sessions WHERE nonce_hash=? AND user_id=?",
-                (_nonce_hash(nonce), user_id),
-            ).fetchone()
+            session_row = conn.execute("SELECT * FROM sessions WHERE nonce_hash=? AND user_id=?",
+                                       (_nonce_hash(nonce), user_id)).fetchone()
             if session_row is None:
                 raise ValueError("SESSION_NOT_REGISTERED")
             if int(session_row["revoked_at"] or 0) > 0:
@@ -550,7 +503,6 @@ def decode_session_token(token: str, now: Optional[int] = None) -> Dict[str, Any
         raise ValueError("INVALID_SESSION") from exc
 
 
-
 def revoke_session_token(token: str, now: Optional[int] = None) -> None:
     decoded = decode_session_token(token, now=now)
     nonce = str(decoded["payload"].get("nonce") or "")
@@ -559,13 +511,12 @@ def revoke_session_token(token: str, now: Optional[int] = None) -> None:
     current = int(now if now is not None else time.time())
     conn = _connect()
     try:
-        conn.execute(
-            "UPDATE sessions SET revoked_at=? WHERE nonce_hash=? AND user_id=?",
-            (current, _nonce_hash(nonce), str(decoded["user"]["id"])),
-        )
+        conn.execute("UPDATE sessions SET revoked_at=? WHERE nonce_hash=? AND user_id=?",
+                     (current, _nonce_hash(nonce), str(decoded["user"]["id"])))
         conn.commit()
     finally:
         conn.close()
+
 
 def _bearer(authorization: Optional[str]) -> str:
     raw = str(authorization or "").strip()
@@ -577,8 +528,6 @@ def _bearer(authorization: Optional[str]) -> str:
     return token
 
 
-# Only SCREAMING_SNAKE_CASE application codes may be returned to a client.
-# Anything else (driver messages, tracebacks, DSNs) is withheld.
 _SAFE_DETAIL_RE = re.compile(r"^[A-Z][A-Z0-9_]{2,63}$")
 
 
@@ -592,19 +541,37 @@ def _http_error(exc: Exception, *, login: bool = False) -> HTTPException:
         return HTTPException(status_code=503, detail=code)
     if login or code.startswith("INVALID_") or code in {"MISSING_SESSION", "SESSION_EXPIRED", "SESSION_REVOKED", "SESSION_NOT_REGISTERED", "SESSION_USER_NOT_ACTIVE", "SESSION_IDENTITY_MISMATCH"}:
         return HTTPException(status_code=401, detail="INVALID_CREDENTIALS" if login else code)
-    # V6.6.8 NEVER ECHO AN UNRECOGNISED EXCEPTION STRING.
-    # With Postgres in the path, a driver error (bad DSN, unreachable host, auth
-    # failure) carries the CONNECTION STRING -- including the password -- in
-    # str(exc). Returning it here would publish DATABASE_URL over HTTP. Only the
-    # curated, non-sensitive codes above are echoed; anything else becomes an
-    # opaque code, with the exception TYPE only on stdout for operators.
     if not _SAFE_DETAIL_RE.match(code):
         print("Auth error (detail withheld) -> %s" % type(exc).__name__)
         return HTTPException(status_code=500, detail="AUTH_BACKEND_ERROR")
     return HTTPException(status_code=400, detail=code)
 
 
+def require_authenticated_session(authorization: Optional[str]) -> Dict[str, Any]:
+    """Shared server-side authorization boundary for mutation handlers."""
+    try:
+        return decode_session_token(_bearer(authorization))
+    except Exception as exc:
+        raise _http_error(exc)
+
+
 def install_auth_routes(app) -> None:
+    # Install once.  This middleware sees routes registered before and after the
+    # auth module because it evaluates the request path at runtime.
+    if not getattr(app.state, "clear_nasdaq_mutation_auth_installed", False):
+        @app.middleware("http")
+        async def authenticated_scientific_commands(request, call_next):
+            key = (request.method.upper(), request.url.path.rstrip("/") or "/")
+            if key in _AUTHENTICATED_COMMANDS:
+                try:
+                    require_authenticated_session(request.headers.get("authorization"))
+                except HTTPException as exc:
+                    # Middleware cannot `raise HTTPException` and rely on route
+                    # exception handling; return the same safe public payload.
+                    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+            return await call_next(request)
+        app.state.clear_nasdaq_mutation_auth_installed = True
+
     @app.get("/api/auth/health")
     async def auth_health():
         try:
@@ -615,12 +582,7 @@ def install_auth_routes(app) -> None:
                 users = int(row["n"] if row else 0)
             finally:
                 conn.close()
-            # V6.6.8: publish what the store actually is, so nobody has to guess
-            # whether accounts survive a redeploy.
             storage = durable_backend()
-            # Record the interpreter so dependency compatibility is never guessed
-            # again -- the earlier build failure was a wheel/ABI mismatch that no
-            # live endpoint could confirm. Version only; no environment values.
             storage["python_runtime"] = "%d.%d.%d" % sys.version_info[:3]
             return {"ok": True, "status": "READY", "plan": PLAN, "users": users,
                     "billing": "NOT_CONFIGURED", "storage": storage}
