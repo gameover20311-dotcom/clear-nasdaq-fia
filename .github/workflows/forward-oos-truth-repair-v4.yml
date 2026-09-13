@@ -139,7 +139,7 @@ jobs:
         run: git diff --exit-code origin/main -- backend/fia/forward_oos.py
 
       - name: Install focused dependencies
-        run: python -m pip install -q fastapi 'psycopg[binary]'
+        run: python -m pip install -q -r backend/requirements.txt
 
       - name: Compile
         run: python -m py_compile backend/fia/forward_oos.py backend/fia/forward_oos_durable.py backend/fia/forward_oos_api.py backend/fia/test_forward_oos_truth_status_v683.py
