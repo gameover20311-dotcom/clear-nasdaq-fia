@@ -138,9 +138,6 @@ class V2ValidationSuite:
     predictive_edge_proven: bool = False
 
     def __post_init__(self) -> None:
-        # Passing a statistical gate is not the same thing as globally proving
-        # predictive edge. Promotion is a governed decision after the complete
-        # preregistered campaign/audit, not a boolean this object may assert.
         if self.predictive_edge_proven:
             raise ValueError("validation suite cannot self-declare predictive edge proven")
 
@@ -154,9 +151,7 @@ def _protocol_reasons(records: Sequence[V2PairedForecastRecord], plan: V2Validat
     if len(ids) != len(set(ids)):
         reasons.append("DUPLICATE_FORECAST_ID")
 
-    # Distinct forecast ids over identical evidence are not distinct
-    # observations. Without this the same evidence could be counted N times
-    # toward a preregistered N (200/200 duplicates previously passed).
+    # Distinct forecast ids over identical evidence are not distinct observations.
     hashes = [r.evidence_hash for r in records]
     if len(hashes) != len(set(hashes)):
         reasons.append("DUPLICATE_EVIDENCE_HASH")
@@ -190,10 +185,6 @@ def _protocol_reasons(records: Sequence[V2PairedForecastRecord], plan: V2Validat
             reasons.append("OUTCOME_RESOLVED_BEFORE_HORIZON")
             break
 
-    # The horizon was previously a floor with no ceiling, so an 8H forecast
-    # could be scored against an outcome resolved 30 days later. That is
-    # outcome-window shopping. A plan may declare the tolerated lag; the
-    # default admits at most one extra horizon of slack.
     slack = (float(plan.max_outcome_lag_seconds)
              if plan.max_outcome_lag_seconds is not None
              else float(plan.horizon.seconds))
@@ -204,14 +195,19 @@ def _protocol_reasons(records: Sequence[V2PairedForecastRecord], plan: V2Validat
             reasons.append("OUTCOME_RESOLVED_AFTER_MAXIMUM_LAG")
             break
 
-    # Overlapping forecasts violate the block bootstrap's independence
-    # assumption. An 8H horizon locked hourly is dependent across ~8 records,
-    # so a block_size of 5 understates the dependence and narrows the interval.
+    # Decision-unit identity is temporal before block-size arithmetic.  Two
+    # separately named/hash-distinct records locked at the same instant are not
+    # independent observations merely because their identifiers differ.  The
+    # old positive-spacing filter silently dropped zeros and allowed a fully
+    # simultaneous sample to bypass the overlap contract.
     locks = sorted(r.locked_at_utc for r in records)
-    spacings = [(b - a).total_seconds() for a, b in zip(locks, locks[1:])
-                if (b - a).total_seconds() > 0]
-    if spacings:
-        min_spacing = min(spacings)
+    if len(locks) != len(set(locks)):
+        reasons.append("COINCIDENT_LOCK_TIMES_NOT_INDEPENDENT_DECISION_UNITS")
+
+    spacings = [(b - a).total_seconds() for a, b in zip(locks, locks[1:])]
+    positive_spacings = [spacing for spacing in spacings if spacing > 0]
+    if positive_spacings:
+        min_spacing = min(positive_spacings)
         required = math.ceil(plan.horizon.seconds / min_spacing)
         if plan.block_size < required:
             reasons.append("BLOCK_SIZE_BELOW_FORECAST_OVERLAP")
@@ -286,10 +282,6 @@ def evaluate_v2_suite(
     if not secondary.protocol_eligible:
         reasons.append("SECONDARY_4H_PROTOCOL_NOT_ELIGIBLE")
 
-    # Hierarchical gatekeeping: 8H is the sole primary statistical endpoint.
-    # 4H must exist as a protocol-valid companion horizon, but its effect does
-    # not become a second co-primary hurdle and does not spend alpha unless the
-    # primary gate has opened its interpretation.
     promotion = primary.promotion_gate_pass and secondary.protocol_eligible
 
     return V2ValidationSuite(
