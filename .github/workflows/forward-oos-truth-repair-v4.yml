@@ -1,0 +1,178 @@
+name: Forward-OOS truth repair v4
+
+on:
+  push:
+    branches:
+      - fix/forward-oos-truth-status-20260914
+
+permissions:
+  contents: write
+
+jobs:
+  repair-test-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Apply fail-closed repair without altering scientific core
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess, textwrap
+
+          wf = Path('.github/workflows/forward-oos-truth-repair-once.yml').read_text()
+          sm = "          python - <<'PY'\n"
+          em = "\n          PY\n\n      - name: Install focused runtime dependencies"
+          a = wf.index(sm) + len(sm); b = wf.index(em, a)
+          body = textwrap.dedent(wf[a:b])
+          for name in ('new_status','new_mirror_event','new_restore','new_restore_hook','new_write_evidence','campaign_route'):
+              body = re.sub(
+                  r"re\.subn\((r'.*?'), " + re.escape(name) + r",",
+                  lambda m, n=name: "re.subn(" + m.group(1) + ", lambda _m: " + n + ",",
+                  body,
+              )
+          exec(compile(body, '<truth-repair>', 'exec'), {})
+
+          # Infrastructure/reporting repair only. Core Forward-OOS logic stays byte-identical.
+          subprocess.run(['git','checkout','origin/main','--','backend/fia/forward_oos.py'], check=True)
+
+          durable = Path('backend/fia/forward_oos_durable.py')
+          s = durable.read_text()
+          if 'import hashlib\n' not in s:
+              s = s.replace('import json\nimport os\n', 'import hashlib\nimport json\nimport os\n', 1)
+
+          helpers = r'''
+          def _lock_evidence_payload(root: Path, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+              """Load exact immutable evidence bytes referenced by a forecast lock."""
+              if str(event.get("event_type") or "") != "FORECAST_LOCK":
+                  return None
+              meta = ((event.get("payload") or {}).get("evidence") or {})
+              rel = str(meta.get("path") or "")
+              digest = str(meta.get("sha256") or "")
+              if not rel or not digest or not _EVIDENCE_FILE_RE.match(rel):
+                  raise RuntimeError("FORECAST_LOCK_EVIDENCE_REFERENCE_INVALID")
+              path = root / rel
+              if not path.exists():
+                  raise RuntimeError("FORECAST_LOCK_EVIDENCE_FILE_MISSING")
+              blob = path.read_bytes()
+              if hashlib.sha256(blob).hexdigest() != digest:
+                  raise RuntimeError("FORECAST_LOCK_EVIDENCE_HASH_MISMATCH")
+              return {"file_name": rel, "digest": digest, "blob": blob}
+
+
+          def _mirror_evidence_tx(cur: Any, campaign_id: str, event: Dict[str, Any],
+                                  evidence: Optional[Dict[str, Any]]) -> None:
+              """Persist exact evidence bytes in the same transaction as the event/head."""
+              if evidence is None:
+                  return
+              forecast_id = str(event.get("forecast_id") or "")
+              cur.execute(
+                  "INSERT INTO forward_oos_evidence "
+                  "(campaign_id, forecast_id, file_name, sha256, canonical_json) "
+                  "VALUES (%s,%s,%s,%s,%s) "
+                  "ON CONFLICT (campaign_id, forecast_id) DO NOTHING",
+                  (campaign_id, forecast_id, evidence["file_name"],
+                   evidence["digest"], evidence["blob"]))
+              cur.execute(
+                  "SELECT file_name, sha256, canonical_json FROM forward_oos_evidence "
+                  "WHERE campaign_id=%s AND forecast_id=%s", (campaign_id, forecast_id))
+              existing = cur.fetchone() or {}
+              if (str(existing.get("file_name") or "") != evidence["file_name"]
+                      or str(existing.get("sha256") or "") != evidence["digest"]
+                      or bytes(existing.get("canonical_json") or b"") != evidence["blob"]):
+                  raise RuntimeError("EVIDENCE_MIRROR_CONFLICT")
+
+
+          '''
+          idx = s.index('def mirror_event(')
+          s = s[:idx] + textwrap.dedent(helpers) + s[idx:]
+
+          pat = re.compile(
+              r'(?P<i> +)head_obj = json\.loads\(head_blob\.decode\("utf-8"\)\)\n'
+              r'(?P=i)with _connect\(\) as conn:'
+          )
+          s,n = pat.subn(lambda m: m.group(0).split('\n')[0] + '\n' +
+                         m.group('i') + 'evidence = _lock_evidence_payload(root, event)\n' +
+                         m.group('i') + 'with _connect() as conn:', s, count=1)
+          if n != 1: raise SystemExit('evidence loader insertion failed')
+
+          pat2 = re.compile(
+              r'(?P<i> +)file_name, canonical, bool\(is_test\)\)\)\n'
+              r'(?P<j> +)if not is_test:'
+          )
+          def add_tx(m):
+              return (m.group('i')+'file_name, canonical, bool(is_test)))\n'+
+                      m.group('j')+'_mirror_evidence_tx(cur, cid, event, evidence)\n'+
+                      m.group('j')+'if not is_test:')
+          s,n = pat2.subn(add_tx,s,count=1)
+          if n != 1: raise SystemExit('evidence transaction insertion failed')
+          durable.write_text(s)
+
+          api = Path('backend/fia/forward_oos_api.py')
+          s = api.read_text()
+          pat3=re.compile(
+              r'(?P<i> +)async def startup\(\) -> None:\n'
+              r'(?P<j> +)if not _enabled\(\):\n'
+              r'(?P<k> +)return\n'
+              r'(?P=j)existing: Optional\[asyncio\.Task\] = getattr\(app\.state, "forward_oos_task", None\)'
+          )
+          def add_restore(m):
+              return (m.group('i')+'async def startup() -> None:\n'+
+                      m.group('j')+'if not _enabled():\n'+m.group('k')+'return\n'+
+                      m.group('j')+'# Restore only exact mirrored artifacts; never synthesize proof.\n'+
+                      m.group('j')+'from fia.forward_oos_durable import restore_missing\n'+
+                      m.group('j')+'restore_missing(DEFAULT_ROOT)\n'+
+                      m.group('j')+'existing: Optional[asyncio.Task] = getattr(app.state, "forward_oos_task", None)')
+          s,n=pat3.subn(add_restore,s,count=1)
+          if n != 1: raise SystemExit('startup restore insertion failed')
+          api.write_text(s)
+          PY
+
+      - name: Prove scientific core file unchanged
+        run: git diff --exit-code origin/main -- backend/fia/forward_oos.py
+
+      - name: Install focused dependencies
+        run: python -m pip install -q fastapi 'psycopg[binary]'
+
+      - name: Compile
+        run: python -m py_compile backend/fia/forward_oos.py backend/fia/forward_oos_durable.py backend/fia/forward_oos_api.py backend/fia/test_forward_oos_truth_status_v683.py
+
+      - name: Focused regressions
+        run: |
+          python backend/fia/test_forward_oos_durable_v668.py
+          python backend/fia/test_forward_oos_truth_status_v683.py
+          python backend/fia/test_evidence_truth_v667.py
+
+      - name: Source assertions
+        run: |
+          grep -q 'STORAGE_ONLY_NOT_SCIENTIFIC_VERIFICATION' backend/fia/forward_oos_durable.py
+          grep -q 'FORECAST_LOCK_EVIDENCE_HASH_MISMATCH' backend/fia/forward_oos_durable.py
+          grep -q 'forward_oos_ledger_heads' backend/fia/forward_oos_durable.py
+          grep -q 'scientifically_countable_n' backend/fia/forward_oos_api.py
+          grep -q 'restore_missing(DEFAULT_ROOT)' backend/fia/forward_oos_api.py
+          python - <<'PY'
+          import sys, inspect
+          sys.path.insert(0,'backend')
+          from fia import forward_oos_durable as d
+          src=inspect.getsource(d.mirror_event)
+          assert 'sha256' not in src
+          assert 'canonical' in src
+          print('PASS: mirror_event still copies canonical event; evidence verification delegated')
+          PY
+
+      - name: Commit tested repair
+        shell: bash
+        run: |
+          rm -f .github/workflows/forward-oos-truth-repair-once.yml .github/workflows/forward-oos-truth-repair-v2.yml .github/workflows/forward-oos-truth-repair-v3.yml .github/workflows/forward-oos-truth-repair-v4.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Fail closed Forward-OOS storage versus scientific proof'
+          git push origin HEAD:fix/forward-oos-truth-status-20260914
