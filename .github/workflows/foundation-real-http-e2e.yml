@@ -1,0 +1,58 @@
+name: Foundation real HTTP E2E
+
+on:
+  push:
+    branches:
+      - fix/scientific-operation-auth-20260914
+
+jobs:
+  http-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: clear_http_ci
+          POSTGRES_PASSWORD: ci_http_test_only
+          POSTGRES_DB: clear_http_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U clear_http_ci -d clear_http_e2e"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgresql://clear_http_ci:ci_http_test_only@127.0.0.1:5432/clear_http_e2e
+      FIA_FORWARD_OOS_ENABLED: "0"
+      E2E_BASE_URL: http://127.0.0.1:8123
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Create ephemeral server-only test credentials
+        run: |
+          echo "FIA_SCIENTIFIC_OPERATION_SECRET=$(python -c 'import secrets; print(secrets.token_hex(32))')" >> "$GITHUB_ENV"
+          echo "E2E_MEMBER_TEST_PASSWORD=$(python -c 'import secrets; print(secrets.token_urlsafe(24))')" >> "$GITHUB_ENV"
+      - name: Start real Uvicorn and exercise HTTP boundary
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          uvicorn main:app --host 127.0.0.1 --port 8123 > /tmp/clear-uvicorn.log 2>&1 &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8123/api/health >/dev/null; then break; fi
+            sleep 1
+          done
+          python ../.github/scripts/real_http_scientific_auth_e2e.py
+          ! grep -F "$FIA_SCIENTIFIC_OPERATION_SECRET" /tmp/clear-uvicorn.log
+          ! grep -F "ci-invalid-scientific-credential" /tmp/clear-uvicorn.log
+          echo REAL_UVICORN_HTTP_E2E=PASS
