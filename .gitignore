@@ -22,6 +22,8 @@ runtime_logs/
 *.log
 *.pid
 *.sock
+# Forward-OOS advisory lock is concurrency state, never scientific evidence.
+backend/fia_forward_oos/.ledger.lock
 
 # macOS
 .DS_Store
