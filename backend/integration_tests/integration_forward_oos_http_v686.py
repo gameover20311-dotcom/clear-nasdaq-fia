@@ -1,9 +1,9 @@
 """V6.8.6 — actual Uvicorn/FastAPI + isolated Postgres OOS integration.
 
-Runs the real app from a disposable backend copy.  No handler mocks, no
-production DB, no production filesystem writes.  It proves public read routes
+Runs the real app from a disposable backend copy. No handler mocks, no
+production DB, no production filesystem writes. It proves public read routes
 fail closed and HTTP scientific mutations require BOTH membership and the
-independent operation secret.  A successful mutation uses only the dedicated
+independent operation secret. A successful mutation uses only the dedicated
 is_test durability fixture and is deleted before the schema is dropped.
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ import psycopg
 from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
-from fia.integration_forward_oos_postgres_v686 import isolated_dsn
+from integration_tests.integration_forward_oos_postgres_v686 import isolated_dsn
 
 BACKEND = Path(__file__).resolve().parents[1]
 SCIENCE_SECRET = "v686-scientific-operation-secret-0123456789abcdef"
@@ -37,9 +37,7 @@ def request_json(base, path, *, method="GET", body=None, headers=None, timeout=3
     final_headers = {"Accept": "application/json", **(headers or {})}
     if raw is not None:
         final_headers["Content-Type"] = "application/json"
-    request = urllib.request.Request(
-        base + path, data=raw, headers=final_headers, method=method
-    )
+    request = urllib.request.Request(base + path, data=raw, headers=final_headers, method=method)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             data = response.read()
@@ -88,14 +86,8 @@ def main() -> int:
             shutil.copytree(
                 BACKEND,
                 backend,
-                ignore=shutil.ignore_patterns(
-                    "__pycache__", ".env", ".env.*", "v686-test-results", "pr6-test-results"
-                ),
+                ignore=shutil.ignore_patterns("__pycache__", ".env", ".env.*", "v686-test-results", "pr6-test-results"),
             )
-
-            # Deterministic test-only OOS root.  The deliberately incomplete seal
-            # makes scientific readiness fail closed without borrowing any old
-            # production observation as test evidence.
             ledger = backend / "fia_forward_oos"
             shutil.rmtree(ledger, ignore_errors=True)
             (ledger / "events").mkdir(parents=True)
@@ -148,8 +140,6 @@ def main() -> int:
                 require(checks, "health_200", status == 200 and health.get("ok") is True,
                         {"status": status, "payload": health})
 
-                # Public scientific reads may exist, but an invalid seal / disabled
-                # collector must not surface READY or metrics.
                 status, campaign = request_json(base, "/api/forward-oos/campaign")
                 require(checks, "campaign_read_public", status == 200, {"status": status})
                 require(checks, "campaign_fails_closed",
@@ -164,33 +154,26 @@ def main() -> int:
                         report_payload.get("ok") is False, report_payload)
 
                 science_header = {"X-Clear-Nasdaq-Scientific-Secret": SCIENCE_SECRET}
-                status, payload = request_json(
-                    base, "/api/forward-oos/run-once", method="POST", headers=science_header
-                )
+                status, payload = request_json(base, "/api/forward-oos/run-once", method="POST", headers=science_header)
                 require(checks, "run_once_rejects_anonymous_member",
                         status == 401, {"status": status, "payload": payload})
 
                 status, signup = request_json(
                     base, "/api/auth/signup", method="POST",
-                    body={"display_name": "V686 Test", "email": "v686@example.test",
-                          "password": "v686Password12345"},
+                    body={"display_name": "V686 Test", "email": "v686@example.test", "password": "v686Password12345"},
                 )
                 token = signup.get("token") if isinstance(signup, dict) else None
                 require(checks, "signup_real_route", status == 200 and bool(token),
                         {"status": status, "ok": signup.get("ok") if isinstance(signup, dict) else None})
                 auth = {"Authorization": "Bearer " + str(token)}
 
-                status, payload = request_json(
-                    base, "/api/forward-oos/run-once", method="POST", headers=auth
-                )
+                status, payload = request_json(base, "/api/forward-oos/run-once", method="POST", headers=auth)
                 require(checks, "membership_alone_cannot_run_once",
                         status == 403 and payload.get("detail") == "SCIENTIFIC_OPERATION_FORBIDDEN",
                         {"status": status, "payload": payload})
 
                 wrong = {**auth, "X-Clear-Nasdaq-Scientific-Secret": SCIENCE_SECRET + "x"}
-                status, payload = request_json(
-                    base, "/api/forward-oos/run-once", method="POST", headers=wrong
-                )
+                status, payload = request_json(base, "/api/forward-oos/run-once", method="POST", headers=wrong)
                 require(checks, "wrong_science_secret_cannot_run_once",
                         status == 403 and payload.get("detail") == "SCIENTIFIC_OPERATION_FORBIDDEN",
                         {"status": status, "payload": payload})
@@ -205,9 +188,7 @@ def main() -> int:
                         status == 200 and created.get("ok") is True and created.get("is_test") is True,
                         {"status": status, "payload": created})
 
-                status, readback = request_json(
-                    base, "/api/forward-oos/durability/test-fixture/" + marker
-                )
+                status, readback = request_json(base, "/api/forward-oos/durability/test-fixture/" + marker)
                 require(checks, "test_fixture_readback",
                         status == 200 and readback.get("found") is True,
                         {"status": status, "payload": readback})
@@ -222,12 +203,8 @@ def main() -> int:
                         {"status": status, "payload": deleted})
 
                 with psycopg.connect(dsn) as conn:
-                    prod = conn.execute(
-                        "SELECT COUNT(*) FROM forward_oos_events WHERE is_test=FALSE"
-                    ).fetchone()[0]
-                    tests = conn.execute(
-                        "SELECT COUNT(*) FROM forward_oos_events WHERE is_test=TRUE"
-                    ).fetchone()[0]
+                    prod = conn.execute("SELECT COUNT(*) FROM forward_oos_events WHERE is_test=FALSE").fetchone()[0]
+                    tests = conn.execute("SELECT COUNT(*) FROM forward_oos_events WHERE is_test=TRUE").fetchone()[0]
                 require(checks, "http_test_left_zero_production_rows", prod == 0, {"count": prod})
                 require(checks, "http_test_fixture_cleaned_up", tests == 0, {"count": tests})
 

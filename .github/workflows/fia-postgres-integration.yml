@@ -64,7 +64,7 @@ jobs:
         working-directory: backend
         run: |
           mkdir -p "$FIA_TEST_OUTPUT_DIR"
-          python -m unittest fia.integration_forward_oos_postgres_v686 -v 2>&1 \
+          python -m unittest integration_tests.integration_forward_oos_postgres_v686 -v 2>&1 \
             | tee "$FIA_TEST_OUTPUT_DIR/postgres-v686.log"
 
       - name: Actual Uvicorn/FastAPI routes with isolated Postgres
@@ -74,7 +74,7 @@ jobs:
         working-directory: backend
         run: |
           mkdir -p "$FIA_TEST_OUTPUT_DIR"
-          python -m fia.integration_forward_oos_http_v686 2>&1 \
+          python -m integration_tests.integration_forward_oos_http_v686 2>&1 \
             | tee "$FIA_TEST_OUTPUT_DIR/http-v686.log"
 
       - name: Save integration evidence
