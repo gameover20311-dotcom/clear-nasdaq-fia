@@ -955,15 +955,24 @@ def _catalyst_risk(fc: Dict[str, Any], snapshot: Dict[str, Any]) -> Dict[str, An
     raw = (snapshot or {}).get("data") or snapshot or {}
     macro_high = raw.get("macro_high_impact")
     earnings_risk = raw.get("earnings_catalyst_risk")
-    known = macro_high is not None or earnings_risk is not None
-    level = "UNKNOWN"
-    if known:
-        level = "HIGH" if (macro_high or earnings_risk) else "LOW"
+    # One clear calendar cannot establish that *both* calendars are clear.
+    # Missing macro + no earnings event used to manufacture a LOW risk label.
+    # Only actual booleans are evidence; strings such as "false" are unknown.
+    inputs = {"macro": macro_high, "earnings": earnings_risk}
+    missing_inputs = [name for name, value in inputs.items()
+                      if not isinstance(value, bool)]
+    known_high = any(value is True for value in inputs.values())
+    known = known_high or not missing_inputs
+    level = "HIGH" if known_high else ("UNKNOWN" if missing_inputs else "LOW")
     return {
         "level": level,
         "macro_high_impact": macro_high,
         "earnings_catalyst_risk": earnings_risk,
         "known": known,
-        "note": ("catalyst inputs unavailable; risk is UNKNOWN and is not "
-                 "assumed to be LOW" if not known else ""),
+        "coverage_complete": not missing_inputs,
+        "missing_inputs": missing_inputs,
+        "note": (("Known high-impact catalyst; additional calendar coverage is missing."
+                  if known_high else
+                  "Calendar coverage is incomplete; overall catalyst risk is UNKNOWN.")
+                 if missing_inputs else ""),
     }

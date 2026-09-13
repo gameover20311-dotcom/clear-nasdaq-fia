@@ -13,6 +13,7 @@ from .learning_engine import build_learning_status
 from .liquidity import build_liquidity_groups
 from .phase22_truth import validate_truth
 from .cognitive import build_cognitive_report
+from .forward_oos_monitor import build_campaign_status
 
 UTC = timezone.utc
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -147,7 +148,9 @@ async def build_final_status(hub: Any, build_forecast) -> Dict[str, Any]:
     p26_manifest = _phase_manifest(26)
     phase25 = _phase25_status(learning)
 
+    forward_oos = build_campaign_status(BACKEND_DIR / "fia_forward_oos")
     checks = {
+        "forward_oos_operational": forward_oos.get("operational_ok") is True,
         "phase22_truth_consistency": bool(truth.get("pass")),
         # V6.6.2 FAIL-CLOSED FIX: an ABSENT provider-health object produced
         # "UNKNOWN" != "ERROR" -> True, so a completely dataless system reported
@@ -178,6 +181,7 @@ async def build_final_status(hub: Any, build_forecast) -> Dict[str, Any]:
         "module": "Final Integration & Full System Audit",
         "generated_at": datetime.now(UTC).isoformat(),
         "overall": overall,
+        "forward_oos": forward_oos,
         "checks": checks,
         "phase22": {"truth": truth},
         "phase23": {

@@ -1,0 +1,69 @@
+{
+  "row": {
+    "bytes_sha256": "a6cc297bb14e8eb049528ef24d2843253396ad6488127a7d5a03bc9157546a25",
+    "campaign_id": "CLEAR-NASDAQ-FORWARD-OOS-V6-V672",
+    "created_at_utc": "2026-09-09T17:00:44.445937+00:00",
+    "event_hash": "b75e9b4bafa2b1f76e5e7929a006ddba4c29626433f92aee280ccaa702c070d8",
+    "event_type": "FORECAST_LOCK",
+    "file_name": "00000001_forecast-lock_NQ-FOOS-20260909.json",
+    "forecast_id": "NQ-FOOS-20260909",
+    "is_test": false,
+    "seq": 1,
+    "stored_bytes": 14518
+  },
+  "schema": {
+    "constraints": [
+      "NOT NULL campaign_id",
+      "NOT NULL canonical_json",
+      "NOT NULL created_at_utc",
+      "NOT NULL event_hash",
+      "NOT NULL event_type",
+      "NOT NULL file_name",
+      "NOT NULL forecast_id",
+      "NOT NULL is_test",
+      "NOT NULL mirrored_at",
+      "PRIMARY KEY (campaign_id, seq)",
+      "NOT NULL prev_event_hash",
+      "NOT NULL seq"
+    ],
+    "counts": [
+      {
+        "campaign_id": "CLEAR-NASDAQ-FORWARD-OOS-V5-V662",
+        "events": 1
+      },
+      {
+        "campaign_id": "CLEAR-NASDAQ-FORWARD-OOS-V6-V672",
+        "events": 1
+      }
+    ],
+    "indexes": [
+      {
+        "ddl": "CREATE UNIQUE INDEX forward_oos_events_pkey ON public.forward_oos_events USING btree (campaign_id, seq)",
+        "name": "forward_oos_events_pkey"
+      },
+      {
+        "ddl": "CREATE UNIQUE INDEX idx_foos_event_hash ON public.forward_oos_events USING btree (campaign_id, event_hash)",
+        "name": "idx_foos_event_hash"
+      },
+      {
+        "ddl": "CREATE INDEX idx_foos_test ON public.forward_oos_events USING btree (campaign_id, is_test)",
+        "name": "idx_foos_test"
+      }
+    ],
+    "server_version": "18.6 (Debian 18.6-1.pgdg12+2)"
+  },
+  "captured_at_utc": "2026-09-11T11:15:15.144267+00:00",
+  "classification": "PERMANENTLY_UNVERIFIED",
+  "validation_eligible": false,
+  "evidence_recovered": false,
+  "anchor_recovered": false,
+  "archive_completeness": "PARTIAL_MISSING_ORIGINAL_PROOFS",
+  "seal_file_sha256": "737a9668e8bddd7fec600d3e9aa79cdadb970379b3f4fb5adfd356020e7954ce",
+  "missing_files": [
+    "evidence/NQ-FOOS-20260909.json",
+    "LEDGER_HEAD.json"
+  ],
+  "expected_evidence_bytes": 25721,
+  "expected_evidence_sha256": "0786654e46093ce1c4c35084847aab97d23a93a1198377680ef259b0584689fb",
+  "source": "Read-only Render Postgres query; original event bytes exported, never regenerated."
+}

@@ -16,6 +16,7 @@ import json
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 BACKEND = Path(__file__).resolve().parent.parent
 if str(BACKEND) not in sys.path:
@@ -65,7 +66,10 @@ class _H:
 
 
 def health(data):
-    return asyncio.run(enrich_provider_reliability(_H(), copy.deepcopy(data)))
+    # All observations for this frozen regression come from SNAP. Unrelated
+    # live Yahoo requests would make the fixture nondeterministic and can hang.
+    with patch("fia.provider_reliability.yahoo_observation", new=AsyncMock(return_value=None)):
+        return asyncio.run(enrich_provider_reliability(_H(), copy.deepcopy(data)))
 
 
 SNAP = json.loads((Path(__file__).resolve().parent / "fixtures"

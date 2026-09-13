@@ -31,6 +31,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 BACKEND = Path(__file__).resolve().parent.parent
 if str(BACKEND) not in sys.path:
@@ -153,10 +154,13 @@ print("\n[E] source health identifies the Polygon fallback truthfully")
 def health_for(data):
     class _H:
         keys = {}
-    return asyncio.run(enrich_provider_reliability(_H(), data))
+    # This offline candle fixture has no Yahoo observations. Keep the unrelated
+    # network boundary explicit; provider-health logic still executes normally.
+    with patch("fia.provider_reliability.yahoo_observation", new=AsyncMock(return_value=None)):
+        return asyncio.run(enrich_provider_reliability(_H(), data))
 
 
-d_av = {"provider_candle_evidence": "available"}
+d_av = {"provider_candle_evidence": "available", "nq_structure_source": struct["source"]}
 h_av = health_for(d_av)
 c_av = h_av["source_health"]["candles"]
 check("available -> candles available", c_av["available"] is True)
@@ -176,8 +180,12 @@ check("available + fresh completed bar -> live/current_for_session",
 check("a real bar age is reported, not 0.0",
       _c_dated["age_seconds"] is not None and _c_dated["age_seconds"] < 60,
       str(_c_dated["age_seconds"]))
-check("source names Finnhub AND the Polygon fallback",
-      "Polygon fallback" in c_av["source"], c_av["source"])
+check("source names the provider that actually returned the candle series",
+      c_av["source"] == "polygon_fallback", c_av["source"])
+check("Polygon fallback is explicitly identified", c_av["fallback"] is True)
+_c_unspecified = health_for({"provider_candle_evidence": "available"})["source_health"]["candles"]
+check("missing provenance is never filled with an invented provider",
+      _c_unspecified["source"] == "Candle provider unspecified", _c_unspecified["source"])
 check("delayed Polygon is NOT relabelled 'Finnhub LIVE'",
       c_av["source"] != "Finnhub", c_av["source"])
 
