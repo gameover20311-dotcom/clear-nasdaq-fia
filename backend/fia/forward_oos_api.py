@@ -136,15 +136,72 @@ async def _worker(app: Any, hub: Any, build_forecast: Callable[[dict], Any]) -> 
         await asyncio.sleep(interval)
 
 
+def _campaign_truth_payload(led: dict, rep: dict, recs: list, durability: dict,
+                            checkpoint: dict, milestone: int = 30) -> dict:
+    """Build a fail-closed campaign status without conflating storage with proof."""
+    ledger_ok = bool(led.get("ok"))
+    directional = [r for r in recs if not r.get("excluded_from_directional_statistics")]
+    abstention = [r for r in recs if r.get("excluded_from_directional_statistics")]
+    stored_directional_n = len(directional)
+    countable_directional_n = stored_directional_n if ledger_ok else 0
+    resolved_4h = sum(1 for r in directional if r.get("outcome_4h") is not None) if ledger_ok else 0
+    resolved_8h = sum(1 for r in directional if r.get("outcome_8h") is not None) if ledger_ok else 0
+    metrics_available = ledger_ok and countable_directional_n >= milestone
+    return {
+        "ok": ledger_ok,
+        "campaign_state": "VERIFIED" if ledger_ok else "UNVERIFIED",
+        "scientific_verification": "PASS" if ledger_ok else "FAIL",
+        "verification_issues": list(led.get("issues") or []),
+        "eligible_for_scientific_counting": ledger_ok,
+        "campaign_id": (rep.get("campaign_seal") or {}).get("campaign_id"),
+        "model_fingerprint": ((rep.get("campaign_seal") or {})
+                              .get("sealed_model_fingerprint") or {}).get("digest"),
+        "stored_observation_n": len(recs),
+        "stored_directional_n": stored_directional_n,
+        "scientifically_countable_n": countable_directional_n,
+        "forward_oos_n": countable_directional_n,
+        "directional_n": countable_directional_n,
+        "abstention_n": (len(abstention) if ledger_ok else 0),
+        "stored_abstention_n": len(abstention),
+        "resolved_4h_n": resolved_4h,
+        "resolved_8h_n": resolved_8h,
+        "milestones": {"next": milestone,
+                       "reached": ledger_ok and countable_directional_n >= milestone,
+                       "remaining": max(0, milestone - countable_directional_n)},
+        "last_lock_utc": (directional[-1].get("created_at_utc") if ledger_ok and directional else None),
+        "last_resolution_utc": (rep.get("last_resolution_utc") if ledger_ok else None),
+        "ledger_ok": ledger_ok,
+        "ledger_events": led.get("events"),
+        "tamper_evident": bool(led.get("tamper_evident")),
+        "storage_state": durability.get("durability"),
+        "storage_survives_redeploy": bool(durability.get("survives_redeploy")),
+        "storage_scientific_artifacts_complete": bool(durability.get("scientific_artifacts_complete")),
+        "durability": durability,
+        "checkpoint": checkpoint,
+        "metrics_available": metrics_available,
+        "metrics": ({"see": "/api/forward-oos/report"} if metrics_available else None),
+        "metrics_withheld_reason": (None if metrics_available else
+            ("ledger verification failed; stored rows are not scientific evidence"
+             if not ledger_ok else
+             "n=%d verified directional observations. Brier, calibration and accuracy are "
+             "withheld until n=%d: below that they are noise, not evidence."
+             % (countable_directional_n, milestone))),
+        "base_fia": "PRODUCTION_INCUMBENT_UNCHANGED",
+        "shadow_candidate": "NOT_SCORED_YET_NO_UNSEEN_ROWS",
+        "predictive_edge": "NOT_PROVEN",
+    }
+
+
+
 def install_forward_oos_routes(app: Any, hub: Any, build_forecast: Callable[[dict], Any]) -> None:
     @app.get("/api/forward-oos/status")
     async def forward_oos_status():
-        return {
-            "enabled": _enabled(),
-            "checkpoint": checkpoint_state(),
-            "ledger": verify_ledger(DEFAULT_ROOT),
-            "report": forward_report(DEFAULT_ROOT),
-        }
+        from fia.forward_oos_durable import durability_status
+        led = verify_ledger(DEFAULT_ROOT)
+        rep = forward_report(DEFAULT_ROOT)
+        recs = records(DEFAULT_ROOT) or []
+        truth = _campaign_truth_payload(led, rep, recs, durability_status(DEFAULT_ROOT), checkpoint_state())
+        return {"enabled": _enabled(), "truth": truth, "ledger": led, "report": rep}
 
     @app.get("/api/forward-oos/report")
     async def forward_oos_report():
@@ -156,60 +213,25 @@ def install_forward_oos_routes(app: Any, hub: Any, build_forecast: Callable[[dic
 
     @app.get("/api/forward-oos/records")
     async def forward_oos_records():
-        # Evidence snapshots are preserved on disk by hash. This endpoint returns
-        # derived records, not a mutation surface and not raw secret-bearing env.
-        return {"ok": True, "records": records(DEFAULT_ROOT)}
+        # Stored rows and scientifically verified evidence are different states.
+        led = verify_ledger(DEFAULT_ROOT)
+        recs = records(DEFAULT_ROOT) or []
+        return {"ok": bool(led.get("ok")),
+                "ledger_verified": bool(led.get("ok")),
+                "scientifically_countable": bool(led.get("ok")),
+                "verification_issues": list(led.get("issues") or []),
+                "records": recs}
 
     @app.get("/api/forward-oos/campaign")
     async def forward_oos_campaign():
-        """Truthful campaign monitor for the 30/50/100 programme.
-
-        Deliberately refuses to publish accuracy, Brier or calibration below the
-        n=30 milestone. A win rate at n=1-5 is noise, and showing it would invite
-        exactly the conclusion this campaign exists to avoid.
-        """
+        """Truthful campaign monitor: storage durability is not evidence verification."""
         from fia.forward_oos_durable import durability_status
         led = verify_ledger(DEFAULT_ROOT)
         rep = forward_report(DEFAULT_ROOT)
         recs = records(DEFAULT_ROOT) or []
-        directional = [r for r in recs
-                       if not r.get("excluded_from_directional_statistics")]
-        abstention = [r for r in recs
-                      if r.get("excluded_from_directional_statistics")]
-        n = len(directional)
-        resolved_4h = sum(1 for r in directional if r.get("outcome_4h") is not None)
-        resolved_8h = sum(1 for r in directional if r.get("outcome_8h") is not None)
-        MILESTONE = 30
-        return {
-            "ok": True,
-            "campaign_id": (rep.get("campaign_seal") or {}).get("campaign_id"),
-            "model_fingerprint": ((rep.get("campaign_seal") or {})
-                                  .get("sealed_model_fingerprint") or {}).get("digest"),
-            "forward_oos_n": len(recs),
-            "directional_n": n,
-            "abstention_n": len(abstention),
-            "resolved_4h_n": resolved_4h,
-            "resolved_8h_n": resolved_8h,
-            "milestones": {"next": MILESTONE, "reached": n >= MILESTONE,
-                           "remaining": max(0, MILESTONE - n)},
-            "last_lock_utc": (directional[-1].get("created_at_utc") if directional else None),
-            "last_resolution_utc": (rep.get("last_resolution_utc")),
-            "ledger_ok": bool(led.get("ok")),
-            "ledger_events": led.get("events"),
-            "tamper_evident": led.get("tamper_evident"),
-            "durability": durability_status(DEFAULT_ROOT),
-            "checkpoint": checkpoint_state(),
-            "metrics_available": n >= MILESTONE,
-            "metrics": (None if n < MILESTONE else {"see": "/api/forward-oos/report"}),
-            "metrics_withheld_reason": (
-                None if n >= MILESTONE else
-                "n=%d directional observations. Brier, calibration and accuracy are "
-                "withheld until n=%d: below that they are noise, not evidence."
-                % (n, MILESTONE)),
-            "base_fia": "PRODUCTION_INCUMBENT_UNCHANGED",
-            "shadow_candidate": "NOT_SCORED_YET_NO_UNSEEN_ROWS",
-            "predictive_edge": "NOT_PROVEN",
-        }
+        return _campaign_truth_payload(
+            led, rep, recs, durability_status(DEFAULT_ROOT), checkpoint_state(), milestone=30
+        )
 
     @app.get("/api/forward-oos/durability")
     async def forward_oos_durability():
@@ -269,6 +291,9 @@ def install_forward_oos_routes(app: Any, hub: Any, build_forecast: Callable[[dic
     async def startup() -> None:
         if not _enabled():
             return
+        # Restore only exact mirrored artifacts; never synthesize proof.
+        from fia.forward_oos_durable import restore_missing
+        restore_missing(DEFAULT_ROOT)
         existing: Optional[asyncio.Task] = getattr(app.state, "forward_oos_task", None)
         if existing is None or existing.done():
             app.state.forward_oos_task = asyncio.create_task(_worker(app, hub, build_forecast))

@@ -35,6 +35,7 @@ WHAT IT DOES NOT DO
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -51,6 +52,7 @@ except Exception:                                                    # pragma: n
 
 TABLE = "forward_oos_events"
 _LEDGER_FILE_RE = __import__("re").compile(r"^\d{8}_[a-z0-9-]+_.+\.json$")
+_EVIDENCE_FILE_RE = __import__("re").compile(r"^evidence/[A-Za-z0-9._-]+\.json$")
 _LAST_ERROR: Optional[str] = None
 
 _SCHEMA = (
@@ -72,6 +74,27 @@ _SCHEMA = (
     """,
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_foos_event_hash ON forward_oos_events(campaign_id, event_hash)",
     "CREATE INDEX IF NOT EXISTS idx_foos_test ON forward_oos_events(campaign_id, is_test)",
+    """
+    CREATE TABLE IF NOT EXISTS forward_oos_evidence (
+        campaign_id   TEXT NOT NULL,
+        forecast_id   TEXT NOT NULL,
+        file_name     TEXT NOT NULL,
+        sha256        TEXT NOT NULL,
+        canonical_json BYTEA NOT NULL,
+        mirrored_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (campaign_id, forecast_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS forward_oos_ledger_heads (
+        campaign_id    TEXT NOT NULL,
+        events         BIGINT NOT NULL,
+        head_event_hash TEXT NOT NULL,
+        canonical_json BYTEA NOT NULL,
+        mirrored_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (campaign_id, events)
+    )
+    """,
 )
 
 
@@ -101,45 +124,140 @@ def _campaign_id(root: Path) -> str:
 
 
 def durability_status(root: Path | str) -> Dict[str, Any]:
-    """What the ledger's durability actually is. Never claims more than it has."""
+    """Report storage durability separately from scientific verification.
+
+    DURABLE means bytes survive a redeploy. It is never a claim that the
+    scientific record verifies. Evidence and ledger-head completeness are
+    reported independently so a durable-but-incomplete mirror cannot be
+    mistaken for verified Forward-OOS evidence.
+    """
     root = Path(root)
     if not _database_url():
         return {"durable": False, "backend": "filesystem", "durability": "EPHEMERAL",
+                "scope": "STORAGE_ONLY_NOT_SCIENTIFIC_VERIFICATION",
                 "survives_redeploy": False,
+                "scientific_artifacts_complete": False,
                 "detail": "no DATABASE_URL; the ledger is destroyed by every redeploy"}
     if not _PG_AVAILABLE:
         return {"durable": False, "backend": "filesystem", "durability": "EPHEMERAL",
+                "scope": "STORAGE_ONLY_NOT_SCIENTIFIC_VERIFICATION",
                 "survives_redeploy": False,
+                "scientific_artifacts_complete": False,
                 "detail": "DATABASE_URL is set but the psycopg driver is not installed"}
     try:
         cid = _campaign_id(root)
         with _connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT COUNT(*) AS n, COUNT(*) FILTER (WHERE is_test) AS t "
+                    "SELECT COUNT(*) AS n, COUNT(*) FILTER (WHERE is_test) AS t, "
+                    "COUNT(*) FILTER (WHERE NOT is_test AND event_type='FORECAST_LOCK') AS locks "
                     "FROM forward_oos_events WHERE campaign_id=%s", (cid,))
                 row = cur.fetchone() or {}
+                cur.execute(
+                    "SELECT COUNT(*) AS n FROM forward_oos_evidence WHERE campaign_id=%s", (cid,))
+                evidence = cur.fetchone() or {}
+                cur.execute(
+                    "SELECT COUNT(*) AS missing FROM forward_oos_events e "
+                    "LEFT JOIN forward_oos_evidence v ON v.campaign_id=e.campaign_id "
+                    "AND v.forecast_id=e.forecast_id "
+                    "WHERE e.campaign_id=%s AND e.is_test=FALSE "
+                    "AND e.event_type='FORECAST_LOCK' AND v.forecast_id IS NULL", (cid,))
+                missing_evidence = int((cur.fetchone() or {}).get("missing") or 0)
+                cur.execute(
+                    "SELECT seq, event_hash FROM forward_oos_events "
+                    "WHERE campaign_id=%s AND is_test=FALSE ORDER BY seq DESC LIMIT 1", (cid,))
+                last_event = cur.fetchone() or {}
+                event_count = int(row.get("n") or 0) - int(row.get("t") or 0)
+                head_complete = event_count == 0
+                if event_count:
+                    cur.execute(
+                        "SELECT COUNT(*) AS n FROM forward_oos_ledger_heads "
+                        "WHERE campaign_id=%s AND events=%s AND head_event_hash=%s",
+                        (cid, event_count, str(last_event.get("event_hash") or "")))
+                    head_complete = int((cur.fetchone() or {}).get("n") or 0) == 1
+        complete = missing_evidence == 0 and head_complete
+        missing = []
+        if missing_evidence:
+            missing.append("evidence:%d" % missing_evidence)
+        if not head_complete:
+            missing.append("ledger_head:1")
         return {"durable": True, "backend": "postgres", "durability": "DURABLE",
+                "scope": "STORAGE_ONLY_NOT_SCIENTIFIC_VERIFICATION",
                 "survives_redeploy": True, "campaign_id": cid,
                 "mirrored_events": int(row.get("n") or 0),
+                "production_events": event_count,
+                "forecast_locks": int(row.get("locks") or 0),
+                "mirrored_evidence": int(evidence.get("n") or 0),
+                "ledger_head_complete": bool(head_complete),
+                "scientific_artifacts_complete": bool(complete),
+                "missing_scientific_artifacts": missing,
                 "test_fixtures": int(row.get("t") or 0),
                 "last_error": _LAST_ERROR,
-                "detail": "events are mirrored to Postgres and restored after a redeploy"}
+                "detail": ("storage is durable; scientific verification is a separate gate")}
     except Exception as exc:                                         # noqa: BLE001
-        # Never surface the driver message: it carries the DSN.
         return {"durable": False, "backend": "postgres", "durability": "DEGRADED",
+                "scope": "STORAGE_ONLY_NOT_SCIENTIFIC_VERIFICATION",
                 "survives_redeploy": False,
+                "scientific_artifacts_complete": False,
                 "detail": "database unreachable (%s)" % type(exc).__name__}
+
+
+def _lock_evidence_payload(root: Path, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Load exact immutable evidence bytes referenced by a forecast lock."""
+    if str(event.get("event_type") or "") != "FORECAST_LOCK":
+        return None
+    meta = ((event.get("payload") or {}).get("evidence") or {})
+    rel = str(meta.get("path") or "")
+    digest = str(meta.get("sha256") or "")
+    if not rel or not digest or not _EVIDENCE_FILE_RE.match(rel):
+        raise RuntimeError("FORECAST_LOCK_EVIDENCE_REFERENCE_INVALID")
+    path = root / rel
+    if not path.exists():
+        raise RuntimeError("FORECAST_LOCK_EVIDENCE_FILE_MISSING")
+    blob = path.read_bytes()
+    if hashlib.sha256(blob).hexdigest() != digest:
+        raise RuntimeError("FORECAST_LOCK_EVIDENCE_HASH_MISMATCH")
+    return {"file_name": rel, "digest": digest, "blob": blob}
+
+
+def _mirror_evidence_tx(cur: Any, campaign_id: str, event: Dict[str, Any],
+                        evidence: Optional[Dict[str, Any]]) -> None:
+    """Persist exact evidence bytes in the same transaction as the event/head."""
+    if evidence is None:
+        return
+    forecast_id = str(event.get("forecast_id") or "")
+    cur.execute(
+        "INSERT INTO forward_oos_evidence "
+        "(campaign_id, forecast_id, file_name, sha256, canonical_json) "
+        "VALUES (%s,%s,%s,%s,%s) "
+        "ON CONFLICT (campaign_id, forecast_id) DO NOTHING",
+        (campaign_id, forecast_id, evidence["file_name"],
+         evidence["digest"], evidence["blob"]))
+    cur.execute(
+        "SELECT file_name, sha256, canonical_json FROM forward_oos_evidence "
+        "WHERE campaign_id=%s AND forecast_id=%s", (campaign_id, forecast_id))
+    existing = cur.fetchone() or {}
+    if (str(existing.get("file_name") or "") != evidence["file_name"]
+            or str(existing.get("sha256") or "") != evidence["digest"]
+            or bytes(existing.get("canonical_json") or b"") != evidence["blob"]):
+        raise RuntimeError("EVIDENCE_MIRROR_CONFLICT")
 
 
 def mirror_event(root: Path | str, event: Dict[str, Any], canonical: bytes,
                  file_name: str, is_test: bool = False) -> Dict[str, Any]:
-    """Copy one appended event into Postgres. INSERT only; never updates."""
+    """Copy an event and its exact ledger-head anchor in one DB transaction."""
     global _LAST_ERROR
     if not enabled():
         return {"mirrored": False, "reason": "DURABLE_STORE_NOT_CONFIGURED"}
     try:
+        root = Path(root)
         cid = _campaign_id(root)
+        head_path = root / "LEDGER_HEAD.json"
+        if not head_path.exists():
+            raise RuntimeError("LEDGER_HEAD_MISSING_AT_MIRROR_TIME")
+        head_blob = head_path.read_bytes()
+        head_obj = json.loads(head_blob.decode("utf-8"))
+        evidence = _lock_evidence_payload(root, event)
         with _connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -152,9 +270,25 @@ def mirror_event(root: Path | str, event: Dict[str, Any], canonical: bytes,
                      str(event.get("forecast_id") or ""), str(event.get("created_at_utc") or ""),
                      str(event.get("prev_event_hash") or ""), str(event.get("event_hash") or ""),
                      file_name, canonical, bool(is_test)))
+                _mirror_evidence_tx(cur, cid, event, evidence)
+                if not is_test:
+                    cur.execute(
+                        "INSERT INTO forward_oos_ledger_heads "
+                        "(campaign_id, events, head_event_hash, canonical_json) "
+                        "VALUES (%s,%s,%s,%s) ON CONFLICT (campaign_id, events) DO NOTHING",
+                        (cid, int(head_obj.get("events") or 0),
+                         str(head_obj.get("head_event_hash") or ""), head_blob))
+                    cur.execute(
+                        "SELECT head_event_hash, canonical_json FROM forward_oos_ledger_heads "
+                        "WHERE campaign_id=%s AND events=%s",
+                        (cid, int(head_obj.get("events") or 0)))
+                    existing = cur.fetchone() or {}
+                    if (str(existing.get("head_event_hash") or "") != str(head_obj.get("head_event_hash") or "")
+                            or bytes(existing.get("canonical_json") or b"") != head_blob):
+                        raise RuntimeError("LEDGER_HEAD_MIRROR_CONFLICT")
             conn.commit()
         _LAST_ERROR = None
-        return {"mirrored": True, "seq": event.get("seq")}
+        return {"mirrored": True, "seq": event.get("seq"), "ledger_head_mirrored": not is_test}
     except Exception as exc:                                         # noqa: BLE001
         _LAST_ERROR = type(exc).__name__
         print("Forward-OOS durable mirror FAILED -> %s "
@@ -163,39 +297,74 @@ def mirror_event(root: Path | str, event: Dict[str, Any], canonical: bytes,
                 "error_type": type(exc).__name__}
 
 
-def restore_missing(root: Path | str) -> Dict[str, Any]:
-    """Recreate ledger files from Postgres when local storage came back empty.
+def mirror_evidence(root: Path | str, forecast_id: str, file_name: str,
+                    digest: str, canonical: bytes) -> Dict[str, Any]:
+    """Persist exact pre-move evidence bytes before the lock can be accepted."""
+    global _LAST_ERROR
+    if not enabled():
+        return {"mirrored": False, "reason": "DURABLE_STORE_NOT_CONFIGURED"}
+    if not _EVIDENCE_FILE_RE.match(str(file_name)):
+        return {"mirrored": False, "reason": "INVALID_EVIDENCE_PATH"}
+    try:
+        cid = _campaign_id(Path(root))
+        with _connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO forward_oos_evidence "
+                    "(campaign_id, forecast_id, file_name, sha256, canonical_json) "
+                    "VALUES (%s,%s,%s,%s,%s) "
+                    "ON CONFLICT (campaign_id, forecast_id) DO NOTHING",
+                    (cid, str(forecast_id), str(file_name), str(digest), canonical))
+                cur.execute(
+                    "SELECT file_name, sha256, canonical_json FROM forward_oos_evidence "
+                    "WHERE campaign_id=%s AND forecast_id=%s", (cid, str(forecast_id)))
+                existing = cur.fetchone() or {}
+                if (str(existing.get("file_name") or "") != str(file_name)
+                        or str(existing.get("sha256") or "") != str(digest)
+                        or bytes(existing.get("canonical_json") or b"") != canonical):
+                    raise RuntimeError("EVIDENCE_MIRROR_CONFLICT")
+            conn.commit()
+        _LAST_ERROR = None
+        return {"mirrored": True, "forecast_id": str(forecast_id), "sha256": str(digest)}
+    except Exception as exc:                                         # noqa: BLE001
+        _LAST_ERROR = type(exc).__name__
+        return {"mirrored": False, "reason": "EVIDENCE_MIRROR_FAILED",
+                "error_type": type(exc).__name__}
 
-    Only writes files that are absent. An existing file is never overwritten, so
-    a live ledger can never be clobbered by the mirror.
+def restore_missing(root: Path | str) -> Dict[str, Any]:
+    """Restore only exact bytes that were previously mirrored.
+
+    Missing old evidence/head artifacts are never synthesized. If the
+    mirror does not contain them, the verifier remains failed/UNVERIFIED.
     """
     root = Path(root)
     if not enabled():
         return {"restored": 0, "reason": "DURABLE_STORE_NOT_CONFIGURED"}
     events_dir = root / "events"
+    evidence_dir = root / "evidence"
     try:
         cid = _campaign_id(root)
         with _connect() as conn:
             with conn.cursor() as cur:
-                # is_test rows must NEVER be restored into the ledger.
-                # Without this predicate a durability fixture was written into
-                # events/ and the hash-chain verifier correctly rejected the whole
-                # ledger (sequence/chain_prev/event_hash issues). The fixture is
-                # durable in Postgres; it is not, and must never become, a ledger
-                # event.
                 cur.execute(
                     "SELECT seq, file_name, canonical_json, event_hash FROM forward_oos_events "
                     "WHERE campaign_id=%s AND is_test = FALSE ORDER BY seq ASC", (cid,))
                 rows = cur.fetchall() or []
-        if not rows:
-            return {"restored": 0, "available": 0}
+                cur.execute(
+                    "SELECT forecast_id, file_name, sha256, canonical_json "
+                    "FROM forward_oos_evidence WHERE campaign_id=%s", (cid,))
+                evidence_rows = cur.fetchall() or []
+                cur.execute(
+                    "SELECT events, head_event_hash, canonical_json FROM forward_oos_ledger_heads "
+                    "WHERE campaign_id=%s ORDER BY events DESC LIMIT 1", (cid,))
+                head_row = cur.fetchone()
         events_dir.mkdir(parents=True, exist_ok=True)
-        written = 0
+        evidence_dir.mkdir(parents=True, exist_ok=True)
+        event_written = 0
+        evidence_written = 0
+        head_written = 0
         for r in rows:
             name = str(r["file_name"])
-            # Defence in depth: a ledger file is always NNNNNNNN_<type>_<id>.json.
-            # Anything else (a fixture, a stray row) is refused even if the
-            # is_test predicate above were somehow bypassed.
             if not _LEDGER_FILE_RE.match(name):
                 print("Forward-OOS restore skipped non-ledger row: %s" % name[:64])
                 continue
@@ -205,11 +374,35 @@ def restore_missing(root: Path | str) -> Dict[str, Any]:
             blob = bytes(r["canonical_json"])
             fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o444)
             with os.fdopen(fd, "wb") as f:
-                f.write(blob)
-                f.flush()
-                os.fsync(f.fileno())
-            written += 1
-        return {"restored": written, "available": len(rows)}
+                f.write(blob); f.flush(); os.fsync(f.fileno())
+            event_written += 1
+        for r in evidence_rows:
+            rel = str(r["file_name"])
+            if not _EVIDENCE_FILE_RE.match(rel):
+                print("Forward-OOS restore skipped invalid evidence path: %s" % rel[:64])
+                continue
+            path = root / rel
+            if path.exists():
+                continue
+            blob = bytes(r["canonical_json"])
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o444)
+            with os.fdopen(fd, "wb") as f:
+                f.write(blob); f.flush(); os.fsync(f.fileno())
+            evidence_written += 1
+        head_path = root / "LEDGER_HEAD.json"
+        if head_row and not head_path.exists():
+            blob = bytes(head_row["canonical_json"])
+            fd = os.open(head_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o444)
+            with os.fdopen(fd, "wb") as f:
+                f.write(blob); f.flush(); os.fsync(f.fileno())
+            head_written = 1
+        return {"restored": event_written + evidence_written + head_written,
+                "events_restored": event_written,
+                "evidence_restored": evidence_written,
+                "ledger_head_restored": head_written,
+                "available_events": len(rows),
+                "available_evidence": len(evidence_rows),
+                "head_available": bool(head_row)}
     except Exception as exc:                                         # noqa: BLE001
         print("Forward-OOS durable restore FAILED -> %s" % type(exc).__name__)
         return {"restored": 0, "reason": "RESTORE_FAILED",
