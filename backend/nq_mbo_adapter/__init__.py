@@ -9,10 +9,12 @@ from .types import FeedCapability, EventAction, Side, MBOEvent, SourceCapabiliti
 from .validation import MBOValidationError, validate_event, validate_capability_claim
 from .provider import MarketDataAdapter, AdapterHealth
 from .rithmic import RithmicAdapter, RithmicAdapterStatus, RithmicConnectionSpec
+from .integrity import IntegrityStatus, IntegrityResult, SequenceContract, StreamIntegrityGate
 
 __all__ = [
     "FeedCapability", "EventAction", "Side", "MBOEvent", "SourceCapabilities",
     "MBOValidationError", "validate_event", "validate_capability_claim",
     "MarketDataAdapter", "AdapterHealth", "RithmicAdapter", "RithmicAdapterStatus",
-    "RithmicConnectionSpec",
+    "RithmicConnectionSpec", "IntegrityStatus", "IntegrityResult",
+    "SequenceContract", "StreamIntegrityGate",
 ]
