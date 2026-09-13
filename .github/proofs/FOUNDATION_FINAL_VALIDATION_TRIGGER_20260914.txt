@@ -1,0 +1,2 @@
+Trigger full exact-state foundation validation after restoring the Phase26 provenance marker.
+Scientific meaning is unchanged; this file exists only to trigger CI from the exact repaired branch state.
