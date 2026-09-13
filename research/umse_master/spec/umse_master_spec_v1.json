@@ -1,0 +1,114 @@
+{
+  "schema": "UMSE_MASTER_SPEC_V1",
+  "project": "CLEAR_NASDAQ_FIA",
+  "instrument_scope": ["NQ"],
+  "mode": "SHADOW_CANDIDATE_ONLY",
+  "production_integration": false,
+  "confirmatory_campaign_started": false,
+  "alpha_spent": 0,
+  "predictive_edge": "NOT_PROVEN",
+  "scientific_question": "I(UMSE_t;Y_future|FIA_t)>0?",
+  "latent_state": {
+    "P": "directional_pressure",
+    "L": "liquidity_state",
+    "A": "aggression_urgency",
+    "I": "information_asymmetry",
+    "R": "resilience",
+    "C": "criticality_cascade_susceptibility",
+    "S": "structural_regime"
+  },
+  "horizons_hours": [4, 8],
+  "primary_confirmatory_horizon_hours": 8,
+  "data_classes": [
+    "REAL_LIVE_MBO",
+    "REAL_HISTORICAL_MBO",
+    "REAL_L2_DEPTH",
+    "REAL_TRADES_QUOTES",
+    "REAL_CROSS_MARKET",
+    "PROXY_RESEARCH",
+    "SYNTHETIC_TEST"
+  ],
+  "quality_states": ["FRESH", "STALE", "MISSING", "DEGRADED", "PROXY", "INELIGIBLE"],
+  "causal_rule": "available_time_utc <= decision_time_utc",
+  "required_provenance_fields": [
+    "event_time_utc",
+    "available_time_utc",
+    "ingested_time_utc",
+    "source",
+    "instrument",
+    "data_class",
+    "quality_state",
+    "is_proxy",
+    "provenance_id"
+  ],
+  "candidate_states": [
+    "BALANCED_AUCTION",
+    "INFORMED_ACCUMULATION",
+    "DISTRIBUTION",
+    "LIQUIDITY_VACUUM",
+    "SHORT_COVERING",
+    "FORCED_LIQUIDATION",
+    "DIRECTIONAL_CASCADE",
+    "ABSORPTION",
+    "TRANSITION",
+    "CHAOS_UNCERTAIN"
+  ],
+  "candidate_mechanisms": [
+    "INFORMED_BUYING",
+    "INFORMED_SELLING",
+    "SHORT_COVERING",
+    "LONG_LIQUIDATION",
+    "PASSIVE_ACCUMULATION",
+    "PASSIVE_DISTRIBUTION",
+    "LIQUIDITY_VACUUM",
+    "ABSORPTION",
+    "BALANCED_NOISE"
+  ],
+  "module_classification": {
+    "causal_provenance_contract": "ESSENTIAL",
+    "data_quality_contract": "ESSENTIAL",
+    "liquidity_flow_impact_primitives": "ESSENTIAL",
+    "state_uncertainty": "ESSENTIAL",
+    "cross_scale_persistence_gate": "ESSENTIAL",
+    "base_comparison": "ESSENTIAL",
+    "abstention_kill_switch": "ESSENTIAL",
+    "hawkes_event_network": "PLAUSIBLE_BUT_UNPROVEN",
+    "response_surprise": "PLAUSIBLE_BUT_UNPROVEN",
+    "survival_hazard": "PLAUSIBLE_BUT_UNPROVEN",
+    "transfer_entropy": "PLAUSIBLE_BUT_UNPROVEN",
+    "information_geometry": "PLAUSIBLE_BUT_UNPROVEN",
+    "mst_closed_form": "SPECULATIVE",
+    "exact_queue_position_without_mbo": "NOT_IDENTIFIABLE_WITH_CURRENT_DATA",
+    "individual_order_survival_without_order_ids": "NOT_IDENTIFIABLE_WITH_CURRENT_DATA"
+  },
+  "shadow_statuses": [
+    "SHADOW_ESTIMATE",
+    "NO_UMSE_EDGE",
+    "INSUFFICIENT_DATA",
+    "PROTOCOL_INELIGIBLE"
+  ],
+  "cross_scale_path": ["MICRO", "MESO", "SESSION", "4H", "8H"],
+  "historical_replay_allowed_for": ["DEBUG", "CALIBRATION", "PARAMETER_ESTIMATION", "FALSIFICATION", "ROBUSTNESS"],
+  "historical_replay_is_prospective_proof": false,
+  "evaluation": {
+    "same_unseen_observations_as_base": true,
+    "metrics": ["PAIRED_BRIER_DIFFERENCE", "CALIBRATION", "CONFIDENCE_RELIABILITY", "NO_EDGE_SELECTIVITY", "REGIME_PERFORMANCE"],
+    "paired_delta": "L_BASE - L_FIA_PLUS_UMSE"
+  },
+  "kill_switch_conditions": [
+    "NO_INCREMENTAL_INFORMATION",
+    "DUPLICATES_FIA",
+    "IN_SAMPLE_ONLY_GAIN",
+    "WORSE_CALIBRATION",
+    "FALSE_CONFIDENCE_INCREASE",
+    "FUTURE_LEAKAGE",
+    "UNREPRODUCIBLE_FEATURES",
+    "UNAVAILABLE_PRODUCTION_DATA_DEPENDENCY",
+    "UNSTABLE_PARAMETERS"
+  ],
+  "mst": {
+    "status": "SPECULATIVE_NOT_VALIDATED",
+    "conceptual_formula": "(P*C*F*I*S)/(1+H+R_d+U+D)"
+  },
+  "phase_0_freeze_status": "PENDING_IMPLEMENTATION_CONTRACT_TESTS"
+}
