@@ -74,7 +74,7 @@ jobs:
         working-directory: backend
         run: |
           mkdir -p "$FIA_TEST_OUTPUT_DIR"
-          python fia/integration_forward_oos_http_v686.py 2>&1 \
+          python -m fia.integration_forward_oos_http_v686 2>&1 \
             | tee "$FIA_TEST_OUTPUT_DIR/http-v686.log"
 
       - name: Save integration evidence
