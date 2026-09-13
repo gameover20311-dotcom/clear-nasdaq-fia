@@ -270,6 +270,38 @@ def mirror_event(root: Path | str, event: Dict[str, Any], canonical: bytes,
                      str(event.get("forecast_id") or ""), str(event.get("created_at_utc") or ""),
                      str(event.get("prev_event_hash") or ""), str(event.get("event_hash") or ""),
                      file_name, canonical, bool(is_test)))
+                # ON CONFLICT must never turn a different event at the same
+                # scientific sequence into a false success. Re-read the row and
+                # prove the durable bytes/identity are exactly the event being
+                # mirrored before evidence/head writes may continue.
+                cur.execute(
+                    "SELECT event_type, forecast_id, created_at_utc, prev_event_hash, "
+                    "event_hash, file_name, canonical_json, is_test "
+                    "FROM forward_oos_events WHERE campaign_id=%s AND seq=%s",
+                    (cid, int(event.get("seq") or 0)))
+                existing_event = cur.fetchone() or {}
+                expected_event = {
+                    "event_type": str(event.get("event_type") or ""),
+                    "forecast_id": str(event.get("forecast_id") or ""),
+                    "created_at_utc": str(event.get("created_at_utc") or ""),
+                    "prev_event_hash": str(event.get("prev_event_hash") or ""),
+                    "event_hash": str(event.get("event_hash") or ""),
+                    "file_name": str(file_name),
+                    "canonical_json": bytes(canonical),
+                    "is_test": bool(is_test),
+                }
+                observed_event = {
+                    "event_type": str(existing_event.get("event_type") or ""),
+                    "forecast_id": str(existing_event.get("forecast_id") or ""),
+                    "created_at_utc": str(existing_event.get("created_at_utc") or ""),
+                    "prev_event_hash": str(existing_event.get("prev_event_hash") or ""),
+                    "event_hash": str(existing_event.get("event_hash") or ""),
+                    "file_name": str(existing_event.get("file_name") or ""),
+                    "canonical_json": bytes(existing_event.get("canonical_json") or b""),
+                    "is_test": bool(existing_event.get("is_test")),
+                }
+                if observed_event != expected_event:
+                    raise RuntimeError("EVENT_MIRROR_CONFLICT")
                 _mirror_evidence_tx(cur, cid, event, evidence)
                 if not is_test:
                     cur.execute(
