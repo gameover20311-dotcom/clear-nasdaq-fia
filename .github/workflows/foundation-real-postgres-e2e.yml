@@ -1,0 +1,73 @@
+name: Foundation real Postgres E2E
+
+on:
+  push:
+    branches:
+      - fix/scientific-operation-auth-20260914
+
+permissions:
+  contents: write
+
+jobs:
+  postgres-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: clear_ci
+          POSTGRES_PASSWORD: ci_test_only
+          POSTGRES_DB: clear_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U clear_ci -d clear_e2e"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgresql://clear_ci:ci_test_only@127.0.0.1:5432/clear_e2e
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Apply idempotent durability conflict hardening
+        run: python .github/scripts/harden_forward_oos_event_conflict.py
+      - name: Compile hardened durability module
+        run: python -m py_compile backend/fia/forward_oos_durable.py
+      - name: Real Postgres Forward-OOS transactional E2E
+        run: python .github/scripts/real_postgres_forward_oos_e2e.py
+      - name: Prove protected old scientific artifacts untouched
+        run: |
+          set -euo pipefail
+          BASE=69f5d35dc6b85d03a8bb686b435e1233e1f483b1
+          test -z "$(git diff --name-only "$BASE" -- backend/fia_forward_oos backend/fia_backtest_phase20/data backend/fia_backtest_phase14/data 2>/dev/null || true)"
+      - name: Capture scientific identities after hardening
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import json
+          from fia.identity import all_fingerprints
+          d=all_fingerprints()
+          print(json.dumps({k:d[k]['digest'] for k in ('model','protocol','infrastructure')},sort_keys=True))
+          PY
+      - name: Commit hardened infrastructure if changed
+        run: |
+          if [ -n "$(git status --porcelain backend/fia/forward_oos_durable.py)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add backend/fia/forward_oos_durable.py
+            git commit -m "Fail closed duplicate Forward-OOS durable event conflicts"
+            git push origin HEAD:fix/scientific-operation-auth-20260914
+          else
+            echo 'Durability hardening already present.'
+          fi
