@@ -1,0 +1,223 @@
+name: Controlled final research integration
+
+on:
+  push:
+    branches:
+      - feat/final-controlled-integration-20260914
+
+permissions:
+  contents: write
+
+jobs:
+  integrate-in-order:
+    if: github.event.head_commit.message == 'Execute controlled research integration'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Pin foundation and source refs
+        run: |
+          set -euo pipefail
+          echo 'FOUNDATION=982930c2f87ec70d46b4bac813068f77868df804' >> "$GITHUB_ENV"
+          echo 'UMSE_SHA=29ef2b56f4a761db2e30c1ac2c104e64884bc497' >> "$GITHUB_ENV"
+          echo 'SHADOW_SHA=6c52e44b516ec9d707e3acbc3b958fe4dd9d6fe7' >> "$GITHUB_ENV"
+          echo 'DPCSE_SHA=d1cafc7c7a36f8fdc7926f8986e14fbc8da9505a' >> "$GITHUB_ENV"
+          echo 'MBO_SHA=85a3c0b297839ca1e12089cdb44ab699e626528f' >> "$GITHUB_ENV"
+          echo 'MFRE_SHA=ffef7e12ce1561836b588f57f3b27aefa82282ab' >> "$GITHUB_ENV"
+          git fetch origin fix/umse-v2-a2z-20260913 research/simons-shadow-lab-v2-hybrid feat/dpcse-v2-3-shadow-20260913 feat/real-nq-mbo-adapter-20260913 feat/mfre-v1-2-5-shadow-integration-20260913
+          for s in 29ef2b56f4a761db2e30c1ac2c104e64884bc497 6c52e44b516ec9d707e3acbc3b958fe4dd9d6fe7 d1cafc7c7a36f8fdc7926f8986e14fbc8da9505a 85a3c0b297839ca1e12089cdb44ab699e626528f ffef7e12ce1561836b588f57f3b27aefa82282ab; do git cat-file -e "$s^{commit}"; done
+
+      - name: Capture frozen foundation identities
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import json
+          from fia.identity import all_fingerprints
+          d=all_fingerprints()
+          out={k:d[k]['digest'] for k in ('model','protocol','infrastructure')}
+          json.dump(out,open('/tmp/foundation-identities.json','w'),sort_keys=True)
+          print('FOUNDATION_IDENTITIES',json.dumps(out,sort_keys=True))
+          PY
+
+      - name: Stage 1 — integrate repaired UMSE V2 research package
+        run: |
+          set -euo pipefail
+          git checkout "$UMSE_SHA" -- research/umse_master research/umse_master_v2
+          python -m compileall -q research/umse_master/src research/umse_master_v2/src
+          PYTHONPATH=research/umse_master/src python -m unittest discover -s research/umse_master/tests -p 'test_*.py' -v
+          PYTHONPATH=research/umse_master/src:research/umse_master_v2/src python -m unittest discover -s research/umse_master_v2/tests -p 'test_*.py' -v
+          PYTHONPATH=research/umse_master/src:research/umse_master_v2/src python - <<'PY'
+          from umse_master.research_identity import unclassified_files
+          from umse_master_v2.research_identity import unclassified_files as v2_unclassified, missing_classified_files
+          assert unclassified_files() == (), unclassified_files()
+          assert v2_unclassified() == (), v2_unclassified()
+          assert missing_classified_files() == (), missing_classified_files()
+          print('UMSE_RESEARCH_ONLY_IDENTITY=PASS')
+          PY
+          git add research/umse_master research/umse_master_v2
+          git commit -m 'Integrate repaired UMSE V2 as research shadow only'
+          git push origin HEAD:feat/final-controlled-integration-20260914
+
+      - name: Prove Stage 1 BASE and old Forward-OOS isolation
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only "$FOUNDATION"..HEAD -- backend/fia_forward_oos backend/fia_backtest_phase14/data backend/fia_backtest_phase20/data)"
+          cd backend
+          python - <<'PY'
+          import json
+          from fia.identity import all_fingerprints
+          base=json.load(open('/tmp/foundation-identities.json'))
+          now={k:all_fingerprints()[k]['digest'] for k in ('model','protocol','infrastructure')}
+          assert now==base,(base,now)
+          print('UMSE_BASE_FIA_UNCHANGED=PASS')
+          PY
+
+      - name: Stage 2 — integrate Shadow Lab V2 Hybrid research package
+        run: |
+          set -euo pipefail
+          git checkout "$SHADOW_SHA" -- backend/run_simons_shadow_lab_v1.py backend/simons_shadow_lab_v1 backend/tests/test_simons_shadow_lab_v1.py backend/tests/test_simons_shadow_lab_v1_causal.py backend/tests/test_simons_shadow_lab_v1_metrics.py backend/tests/test_simons_shadow_lab_v1_readiness.py backend/tests/test_simons_shadow_lab_v2_controls.py backend/tests/test_simons_shadow_lab_v2_durable.py backend/tests/test_simons_shadow_lab_v2_hybrid.py
+          cd backend
+          python -m compileall -q simons_shadow_lab_v1
+          python - <<'PY'
+          import unittest
+          names=['tests.test_simons_shadow_lab_v1','tests.test_simons_shadow_lab_v1_metrics','tests.test_simons_shadow_lab_v1_causal','tests.test_simons_shadow_lab_v1_readiness','tests.test_simons_shadow_lab_v2_hybrid','tests.test_simons_shadow_lab_v2_durable','tests.test_simons_shadow_lab_v2_controls']
+          suite=unittest.TestSuite(unittest.TestLoader().loadTestsFromName(n) for n in names)
+          n=suite.countTestCases(); print('SHADOW_DISCOVERED_TESTS',n); assert n>=50,n
+          PY
+          python -m unittest tests.test_simons_shadow_lab_v1 tests.test_simons_shadow_lab_v1_metrics tests.test_simons_shadow_lab_v1_causal tests.test_simons_shadow_lab_v1_readiness tests.test_simons_shadow_lab_v2_hybrid tests.test_simons_shadow_lab_v2_durable tests.test_simons_shadow_lab_v2_controls -v
+          cd ..
+          git add backend/run_simons_shadow_lab_v1.py backend/simons_shadow_lab_v1 backend/tests/test_simons_shadow_lab_v1.py backend/tests/test_simons_shadow_lab_v1_causal.py backend/tests/test_simons_shadow_lab_v1_metrics.py backend/tests/test_simons_shadow_lab_v1_readiness.py backend/tests/test_simons_shadow_lab_v2_controls.py backend/tests/test_simons_shadow_lab_v2_durable.py backend/tests/test_simons_shadow_lab_v2_hybrid.py
+          git commit -m 'Integrate Shadow Lab V2 Hybrid as parallel research only'
+          git push origin HEAD:feat/final-controlled-integration-20260914
+
+      - name: Prove Stage 2 BASE and old Forward-OOS isolation
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only "$FOUNDATION"..HEAD -- backend/fia_forward_oos backend/fia_backtest_phase14/data backend/fia_backtest_phase20/data)"
+          cd backend
+          python - <<'PY'
+          import json
+          from fia.identity import all_fingerprints
+          base=json.load(open('/tmp/foundation-identities.json')); d=all_fingerprints(); now={k:d[k]['digest'] for k in ('model','protocol','infrastructure')}
+          assert now==base,(base,now)
+          print('SHADOW_BASE_FIA_UNCHANGED=PASS')
+          PY
+
+      - name: Stage 3 — integrate exact frozen DPCSE V2.3 shadow package
+        run: |
+          set -euo pipefail
+          git checkout "$DPCSE_SHA" -- backend/dpcse_v23_shadow
+          cd backend
+          python -m unittest -v dpcse_v23_shadow.test_v23_protocol
+          python - <<'PY'
+          from dpcse_v23_shadow.campaign import bootstrap_manifest
+          m=bootstrap_manifest()
+          assert m['status']=='NOT_ARMED' and m['candidate_model'] is None
+          assert m['locked_rows']==0 and m['resolved_rows']==0
+          assert m['pilot_alpha']==0.0 and m['historical_backfill']=='FORBIDDEN'
+          print('DPCSE_V2_3=SHADOW NOT_ARMED N=0')
+          PY
+          cd ..
+          git add backend/dpcse_v23_shadow
+          git commit -m 'Integrate frozen DPCSE V2.3 in shadow research mode'
+          git push origin HEAD:feat/final-controlled-integration-20260914
+
+      - name: Prove Stage 3 BASE and old Forward-OOS isolation
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only "$FOUNDATION"..HEAD -- backend/fia_forward_oos backend/fia_backtest_phase14/data backend/fia_backtest_phase20/data)"
+          cd backend
+          python - <<'PY'
+          import json
+          from fia.identity import all_fingerprints
+          base=json.load(open('/tmp/foundation-identities.json')); d=all_fingerprints(); now={k:d[k]['digest'] for k in ('model','protocol','infrastructure')}
+          assert now==base,(base,now)
+          print('DPCSE_BASE_FIA_UNCHANGED=PASS')
+          PY
+
+      - name: Stage 4 — integrate provider-neutral NQ MBO adapter only
+        run: |
+          set -euo pipefail
+          git checkout "$MBO_SHA" -- backend/nq_mbo_adapter
+          cd backend
+          python -m unittest discover -v -s nq_mbo_adapter/tests -p 'test_*.py'
+          python - <<'PY'
+          import asyncio
+          from nq_mbo_adapter.rithmic import RithmicAdapter
+          a=RithmicAdapter()
+          assert a.health().status=='AWAITING_VENDOR_CONTRACT'
+          try:
+              asyncio.run(a.connect())
+          except RuntimeError as e:
+              assert str(e)=='RITHMIC_VENDOR_CONTRACT_NOT_BOUND'
+          else:
+              raise AssertionError('unbound Rithmic adapter connected unexpectedly')
+          c=a.capabilities()
+          assert not c.individual_order_identity and not c.sequence_semantics and not c.add_modify_cancel_semantics
+          print('RITHMIC_UNVERIFIED_FAIL_CLOSED=PASS')
+          PY
+          cd ..
+          git add backend/nq_mbo_adapter
+          git commit -m 'Integrate NQ MBO adapter boundary without claiming live data'
+          git push origin HEAD:feat/final-controlled-integration-20260914
+
+      - name: Prove Stage 4 BASE/DPCSE/old Forward-OOS isolation
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only "$FOUNDATION"..HEAD -- backend/fia_forward_oos backend/fia_backtest_phase14/data backend/fia_backtest_phase20/data)"
+          cd backend
+          python - <<'PY'
+          import json
+          from fia.identity import all_fingerprints
+          from dpcse_v23_shadow.campaign import bootstrap_manifest
+          base=json.load(open('/tmp/foundation-identities.json')); d=all_fingerprints(); now={k:d[k]['digest'] for k in ('model','protocol','infrastructure')}
+          assert now==base,(base,now)
+          m=bootstrap_manifest(); assert m['status']=='NOT_ARMED' and m['locked_rows']==0 and m['resolved_rows']==0
+          print('MBO_STAGE_ISOLATION=PASS')
+          PY
+
+      - name: Stage 5 — integrate accepted MFRE V1.2.5 as shadow reasoning controller
+        run: |
+          set -euo pipefail
+          git checkout "$MFRE_SHA" -- backend/mfre_v125_shadow
+          cd backend
+          python -m unittest discover -v -s mfre_v125_shadow/tests -p 'test_*.py'
+          cd ..
+          git add backend/mfre_v125_shadow
+          git commit -m 'Integrate MFRE V1.2.5 as shadow reasoning controller only'
+          git push origin HEAD:feat/final-controlled-integration-20260914
+
+      - name: Final integrated isolation and exact-source proof
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only "$FOUNDATION"..HEAD -- backend/fia_forward_oos backend/fia_backtest_phase14/data backend/fia_backtest_phase20/data)"
+          cd backend
+          python - <<'PY'
+          import json
+          from fia.identity import all_fingerprints
+          from dpcse_v23_shadow.campaign import bootstrap_manifest
+          base=json.load(open('/tmp/foundation-identities.json')); d=all_fingerprints(); now={k:d[k]['digest'] for k in ('model','protocol','infrastructure')}
+          assert now==base,(base,now)
+          m=bootstrap_manifest(); assert m['status']=='NOT_ARMED' and m['candidate_model'] is None and m['locked_rows']==0 and m['resolved_rows']==0
+          print('BASE_FIA_UNCHANGED=PASS')
+          print('OLD_FORWARD_OOS_UNCHANGED=PASS')
+          print('HISTORICAL_BACKFILL=FORBIDDEN')
+          print('DPCSE_PRODUCTION_AUTHORITY=false')
+          print('UMSE_PRODUCTION_AUTHORITY=false')
+          print('SHADOW_PRODUCTION_AUTHORITY=false')
+          print('REAL_MBO_DATA_CONNECTED=NO')
+          print('MFRE_INCREMENTAL_VALUE=NOT_TESTED')
+          PY
+          echo CONTROLLED_INTEGRATION_SEQUENCE=PASS
