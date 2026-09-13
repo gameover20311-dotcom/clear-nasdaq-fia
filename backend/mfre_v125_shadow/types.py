@@ -6,6 +6,7 @@ from typing import Any, Mapping, Tuple
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _UNRESOLVED_MARKERS = ("UNSET", "PLACEHOLDER", "REQUIRES_FREEZE", "TBD")
+_BUDGET_NAMES = {"compute", "acquisition", "selection"}
 
 
 def _is_sha256(value: str) -> bool:
@@ -43,10 +44,15 @@ class PrimitiveSpec:
             raise ValueError("action_id must be non-empty")
         if not math.isfinite(float(self.cost)) or float(self.cost) < 0:
             raise ValueError("cost must be finite and non-negative")
-        if not self.budget_name.strip():
-            raise ValueError("budget_name must be non-empty")
-        if self.kind is ActionKind.STOP and self.randomness_ownership is not RandomnessOwnership.NONE_DETERMINISTIC:
-            raise ValueError("A_stop must be NONE_DETERMINISTIC in this integration shell")
+        if self.budget_name not in _BUDGET_NAMES:
+            raise ValueError("budget_name must be one of compute/acquisition/selection")
+        if self.kind is ActionKind.STOP:
+            if self.randomness_ownership is not RandomnessOwnership.NONE_DETERMINISTIC:
+                raise ValueError("A_stop must be NONE_DETERMINISTIC in this integration shell")
+            if float(self.cost) != 0.0:
+                raise ValueError("A_stop must have zero resource cost")
+        elif float(self.cost) < 1.0:
+            raise ValueError("every non-stop action must consume at least one budget unit")
 
     @property
     def scientifically_frozen(self) -> bool:
@@ -196,20 +202,39 @@ class DeclarationBundle:
 @dataclass(frozen=True)
 class ControlState:
     history: Tuple[Tuple[str, str], ...] = ()
-    compute_remaining: int = 0
-    acquisition_remaining: int = 0
-    selection_remaining: int = 0
+    compute_remaining: float = 0.0
+    acquisition_remaining: float = 0.0
+    selection_remaining: float = 0.0
 
-    def append(self, *, action_id: str, output_digest: str, kind: ActionKind) -> "ControlState":
+    def append(
+        self,
+        *,
+        action_id: str,
+        output_digest: str,
+        kind: ActionKind,
+        budget_name: str,
+        cost: float,
+    ) -> "ControlState":
         c, a, s = self.compute_remaining, self.acquisition_remaining, self.selection_remaining
-        if kind is ActionKind.COMPUTE:
-            if c <= 0:
-                raise RuntimeError("MFRE_COMPUTE_BUDGET_EXHAUSTED")
-            c -= 1
-        elif kind is ActionKind.ACQUIRE:
-            if a <= 0:
-                raise RuntimeError("MFRE_ACQUISITION_BUDGET_EXHAUSTED")
-            a -= 1
-        elif kind is not ActionKind.STOP:
-            raise RuntimeError("MFRE_UNKNOWN_ACTION_KIND")
+        if kind is ActionKind.STOP:
+            if float(cost) != 0.0:
+                raise RuntimeError("MFRE_STOP_COST_MUST_BE_ZERO")
+        else:
+            if budget_name not in _BUDGET_NAMES:
+                raise RuntimeError("MFRE_UNKNOWN_BUDGET_NAME")
+            charge = float(cost)
+            if not math.isfinite(charge) or charge < 1.0:
+                raise RuntimeError("MFRE_NON_STOP_COST_BELOW_ONE")
+            if budget_name == "compute":
+                if c < charge:
+                    raise RuntimeError("MFRE_COMPUTE_BUDGET_EXHAUSTED")
+                c -= charge
+            elif budget_name == "acquisition":
+                if a < charge:
+                    raise RuntimeError("MFRE_ACQUISITION_BUDGET_EXHAUSTED")
+                a -= charge
+            else:
+                if s < charge:
+                    raise RuntimeError("MFRE_SELECTION_BUDGET_EXHAUSTED")
+                s -= charge
         return ControlState(self.history + ((action_id, output_digest),), c, a, s)
