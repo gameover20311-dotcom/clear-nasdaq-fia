@@ -1,0 +1,17 @@
+{
+  "campaign_id": "CLEAR_NASDAQ_DPCSE_V23_SHADOW_PILOT",
+  "candidate_model": null,
+  "confirmatory": false,
+  "historical_backfill": "FORBIDDEN",
+  "locked_rows": 0,
+  "pilot_alpha": 0,
+  "pilot_n_target": 50,
+  "predictive_edge": "NOT_PROVEN",
+  "primary_horizon": "8H",
+  "promotion_eligible": false,
+  "reason": "CANDIDATE_MODEL_NOT_FROZEN",
+  "repair_base_commit": "14e2a60b7c2fd0b58a8dcba3be263129eae1d482",
+  "resolved_rows": 0,
+  "schema": "CLEAR_NASDAQ_DPCSE_V23_SHADOW_BOOTSTRAP_STATIC_V1",
+  "status": "NOT_ARMED"
+}

@@ -1,0 +1,57 @@
+name: DPCSE V2.3 shadow protocol
+
+on:
+  push:
+    branches:
+      - "feat/dpcse-v2-3-shadow-*"
+    paths:
+      - "backend/dpcse_v23_shadow/**"
+      - ".github/workflows/dpcse-v23-shadow.yml"
+  pull_request:
+    paths:
+      - "backend/dpcse_v23_shadow/**"
+      - ".github/workflows/dpcse-v23-shadow.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: DPCSE V2.3 protocol regression
+        working-directory: backend
+        run: python -m unittest -v dpcse_v23_shadow.test_v23_protocol
+      - name: Prove BASE scientific identities are unchanged
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          from fia.identity import all_fingerprints
+          expected = {
+              "model": "ee7ede6c0db89266e2383baf3bdb87775251df80323bea4c3bea756a186d8eee",
+              "protocol": "d0b52e47ec576784ce3f42c9e02f187eb094a4ee23af3ffa37e26f82a03e42ce",
+              "infrastructure": "4a114cf7b9b3df738a83b2986c1d4ccb1cfd8c05f7e3fc248248dc9aa7f294a1",
+          }
+          current = all_fingerprints()
+          for key, digest in expected.items():
+              got = current[key]["digest"]
+              print(key, got)
+              if got != digest: raise SystemExit(f"BASE_IDENTITY_MOVED:{key}:{got}")
+          if current["classification_manifest_id"] != "1e847b0588b21dc2d361e68f33d8009df4e7647efb340af36885da47ffcabca5": raise SystemExit("BASE_CLASSIFICATION_MANIFEST_MOVED")
+          print("BASE_FIA_IDENTITIES_UNCHANGED")
+          PY
+      - name: Prove campaign is unarmed and N=0
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          from dpcse_v23_shadow.campaign import bootstrap_manifest
+          m = bootstrap_manifest()
+          assert m["status"] == "NOT_ARMED" and m["candidate_model"] is None
+          assert m["locked_rows"] == 0 and m["resolved_rows"] == 0
+          assert m["pilot_alpha"] == 0.0 and m["historical_backfill"] == "FORBIDDEN"
+          print("DPCSE_V23_NOT_ARMED_N0_FAIL_CLOSED")
+          PY
