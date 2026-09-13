@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import os
 import fcntl
+import hmac
 from typing import Any, Callable, Optional
 
 from fastapi import Body, Header, HTTPException
@@ -24,6 +25,30 @@ from .forward_oos import (
 
 def _enabled() -> bool:
     return str(os.getenv("FIA_FORWARD_OOS_ENABLED", "1") or "1").strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _require_scientific_operation_secret(provided: Optional[str]) -> None:
+    """Independent authorization boundary for HTTP scientific mutations.
+
+    A normal FULL_ACCESS membership proves application access, not authority to
+    create or delete scientific records.  Manual mutation routes therefore need
+    a second high-entropy server secret that is never shipped to the frontend.
+    The scheduled in-process collector does not use this HTTP boundary.
+    """
+    expected = str(os.getenv("CLEAR_NASDAQ_SCIENTIFIC_OPERATION_SECRET") or "").strip()
+    if len(expected) < 32:
+        raise HTTPException(status_code=503, detail="SCIENTIFIC_OPERATION_SECRET_NOT_CONFIGURED")
+    supplied = str(provided or "").strip()
+    if not supplied or not hmac.compare_digest(supplied, expected):
+        raise HTTPException(status_code=403, detail="SCIENTIFIC_OPERATION_FORBIDDEN")
+
+
+def _authorize_scientific_mutation(authorization: Optional[str], operation_secret: Optional[str]) -> None:
+    """Require BOTH an authenticated account and independent operation secret."""
+    from fia.auth_api import require_authenticated_session
+
+    require_authenticated_session(authorization)
+    _require_scientific_operation_secret(operation_secret)
 
 
 async def run_once(hub: Any, build_forecast: Callable[[dict], Any]) -> dict:
@@ -249,9 +274,11 @@ def install_forward_oos_routes(app: Any, hub: Any, build_forecast: Callable[[dic
     async def forward_oos_durability_fixture(
         marker: str = Body(..., embed=True),
         authorization: Optional[str] = Header(default=None),
+        scientific_operation_secret: Optional[str] = Header(
+            default=None, alias="X-Clear-Nasdaq-Scientific-Secret"
+        ),
     ):
-        from fia.auth_api import require_authenticated_session
-        require_authenticated_session(authorization)
+        _authorize_scientific_mutation(authorization, scientific_operation_secret)
         clean = "".join(ch for ch in str(marker) if ch.isalnum() or ch in "-_")[:64]
         if not clean:
             raise HTTPException(status_code=400, detail="INVALID_MARKER")
@@ -268,20 +295,26 @@ def install_forward_oos_routes(app: Any, hub: Any, build_forecast: Callable[[dic
     async def forward_oos_durability_fixture_delete(
         marker: str,
         authorization: Optional[str] = Header(default=None),
+        scientific_operation_secret: Optional[str] = Header(
+            default=None, alias="X-Clear-Nasdaq-Scientific-Secret"
+        ),
     ):
-        from fia.auth_api import require_authenticated_session
-        require_authenticated_session(authorization)
+        _authorize_scientific_mutation(authorization, scientific_operation_secret)
         clean = "".join(ch for ch in str(marker) if ch.isalnum() or ch in "-_")[:64]
         from fia.forward_oos_durable import delete_test_fixture
         return delete_test_fixture(DEFAULT_ROOT, clean)
 
     @app.post("/api/forward-oos/run-once")
-    async def forward_oos_run_once(authorization: Optional[str] = Header(default=None)):
-        # Manual invocation is a scientific mutation command. It must be
-        # authenticated even though timing gates still independently prevent
-        # hindsight/backfill.
-        from fia.auth_api import require_authenticated_session
-        require_authenticated_session(authorization)
+    async def forward_oos_run_once(
+        authorization: Optional[str] = Header(default=None),
+        scientific_operation_secret: Optional[str] = Header(
+            default=None, alias="X-Clear-Nasdaq-Scientific-Secret"
+        ),
+    ):
+        # Manual invocation is a scientific mutation command.  Membership alone
+        # is deliberately insufficient; timing/no-backfill gates still apply
+        # independently after authorization succeeds.
+        _authorize_scientific_mutation(authorization, scientific_operation_secret)
         return await run_once(hub, build_forecast)
 
     async def startup() -> None:
