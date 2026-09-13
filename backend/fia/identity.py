@@ -1,73 +1,33 @@
 # CLEAR NASDAQ — THREE SCIENTIFIC IDENTITIES  (A7 / Amendment A s.26)
-#
-# WHY
-# ---
-# The Forward-OOS campaign was re-sealed 24 times between 3 and 8 September,
-# every time with 0 forecast locks, because ONE fingerprint covered the whole
-# backend. Adding fia/auth_api.py invalidated a campaign whose model had not
-# changed by a single coefficient. A commit hash is not the scientific identity
-# of an experiment.
-#
-# Amendment A s.26 therefore splits identity three ways:
-#
-#   MODEL           anything that can change the forecast itself — weights,
-#                   features/transforms, probability generation, aggregation,
-#                   abstention decision logic.
-#   PROTOCOL        anything that changes WHICH observations are admitted or
-#                   HOW they are evaluated — checkpoints, horizon semantics,
-#                   source eligibility, fallback/proxy rules, staleness rules,
-#                   evidence requirements, resolution rules, baseline
-#                   definition, outcome definition, validation eligibility,
-#                   primary statistical protocol.
-#   INFRASTRUCTURE  machinery that must NOT alter scientific meaning — storage
-#                   adapters, evidence mirroring, recovery plumbing, API
-#                   transport, logging, deployment wiring.
-#
-# HOW
-# ---
-# Classification is an EXPLICIT per-file registry (identity_classification.json),
-# never a heuristic on filenames. Heuristics drift silently; an explicit list can
-# be audited and diffed. Every file in the fingerprint scope must appear exactly
-# once, and an unclassified file is a hard error rather than a silent default —
-# so a new module cannot slip into the experiment unclassified.
-#
-# HONESTY CONSTRAINTS
-# -------------------
-#  * The legacy whole-backend digest in fia/forward_oos.py is NOT changed here.
-#    The sealed V6 campaign was pinned with it and that record stays readable.
-#    This module adds the split; adopting it for sealing is a successor-campaign
-#    decision, which has not been taken.
-#  * No historical fingerprint is reconstructed. Campaigns sealed before the
-#    split simply have no MODEL/PROTOCOL/INFRASTRUCTURE digests, and
-#    historical_identity_available() says so instead of inventing them.
-#  * Entries listed under review_required in the registry are PROPOSED
-#    assignments and must be signed off before any successor seal.
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 BACKEND = Path(__file__).resolve().parents[1]
 CLASSIFICATION_PATH = Path(__file__).resolve().parent / "identity_classification.json"
 
-IDENTITY_SCHEMA_VERSION = "FIA_IDENTITY_V1"
+IDENTITY_SCHEMA_VERSION = "FIA_IDENTITY_V2_EFFECTIVE_CONFIG"
 CLASSIFICATION_SCHEMA = "FIA_IDENTITY_CLASSIFICATION_V1"
 IDENTITIES = ("MODEL", "PROTOCOL", "INFRASTRUCTURE")
-
-# A7.2 — the three digests are only meaningful alongside the manifest that
-# produced them. A successor seal must be able to prove WHICH classification
-# generated MODEL/PROTOCOL/INFRASTRUCTURE, otherwise the same file set could be
-# re-partitioned later and the digests silently mean something different.
-# Pinned in code and stored in the JSON; both change together, deliberately.
 EXPECTED_CLASSIFICATION_MANIFEST_ID = (
     "1e847b0588b21dc2d361e68f33d8009df4e7647efb340af36885da47ffcabca5"
 )
 
+# Only non-secret, scientifically material runtime controls belong here.  A
+# change in these values changes which observations are eligible and therefore
+# must change the PROTOCOL identity even when source bytes are identical.
+_SCIENTIFIC_PROTOCOL_ENV_DEFAULTS = {
+    "FIA_FORWARD_OOS_CHECKPOINT_ET": "13:00",
+    "FIA_FORWARD_OOS_GRACE_MINUTES": "10",
+}
+
 
 class ClassificationIntegrityError(RuntimeError):
-    """Raised when the classification manifest cannot be trusted."""
+    pass
 
 
 _CLS: Optional[Dict[str, Any]] = None
@@ -117,12 +77,10 @@ def classification_manifest_id() -> str:
 
 
 def blocked_pending_split() -> Dict[str, Any]:
-    """Modules the owner decided to split, where the split is not yet verifiable."""
     return dict(_classification().get("blocked_pending_split") or {})
 
 
 def resolved_classifications() -> Dict[str, Any]:
-    """Evidence-backed resolutions, with the call paths that produced them."""
     return dict(_classification().get("resolved") or {})
 
 
@@ -131,12 +89,10 @@ def classification_map() -> Dict[str, str]:
 
 
 def review_required() -> Dict[str, str]:
-    """Proposed assignments awaiting human sign-off."""
     return dict(_classification().get("review_required") or {})
 
 
 def scope_files(backend_root: Path = BACKEND) -> List[str]:
-    """The file set the existing production fingerprint covers."""
     from .forward_oos import _production_fingerprint_files
     return list(_production_fingerprint_files(backend_root))
 
@@ -156,12 +112,38 @@ def _canonical(obj: Any) -> bytes:
     return json.dumps(obj, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-def fingerprint(identity: str, backend_root: Path = BACKEND) -> Dict[str, Any]:
-    """Deterministic digest over exactly the files assigned to one identity.
+def effective_scientific_protocol_config() -> Dict[str, str]:
+    """Canonical, non-secret protocol configuration affecting eligibility.
 
-    Fail-closed: if any file in scope is unclassified, this raises rather than
-    quietly attributing it to one identity or dropping it from all three.
+    Values are normalized exactly as the Forward-OOS protocol reads them.  This
+    function intentionally excludes credentials, URLs, logging controls and
+    other operational settings that do not change scientific meaning.
     """
+    raw_checkpoint = str(os.getenv("FIA_FORWARD_OOS_CHECKPOINT_ET", "13:00") or "13:00").strip()
+    raw_grace = str(os.getenv("FIA_FORWARD_OOS_GRACE_MINUTES", "10") or "10").strip()
+
+    # Validate and canonicalize checkpoint without importing forward_oos here
+    # (avoids an identity->protocol import cycle).
+    try:
+        hh_s, mm_s = raw_checkpoint.split(":", 1)
+        hh, mm = int(hh_s), int(mm_s)
+        if not (0 <= hh <= 23 and 0 <= mm <= 59):
+            raise ValueError
+    except Exception as exc:
+        raise RuntimeError("INVALID_SCIENTIFIC_CONFIG:FIA_FORWARD_OOS_CHECKPOINT_ET") from exc
+    try:
+        grace = max(1, int(raw_grace))
+    except Exception as exc:
+        raise RuntimeError("INVALID_SCIENTIFIC_CONFIG:FIA_FORWARD_OOS_GRACE_MINUTES") from exc
+
+    return {
+        "FIA_FORWARD_OOS_CHECKPOINT_ET": f"{hh:02d}:{mm:02d}",
+        "FIA_FORWARD_OOS_GRACE_MINUTES": str(grace),
+    }
+
+
+def fingerprint(identity: str, backend_root: Path = BACKEND) -> Dict[str, Any]:
+    """Deterministic digest over assigned source plus material effective config."""
     ident = str(identity).upper()
     if ident not in IDENTITIES:
         raise ValueError(f"unknown identity {identity!r}; expected one of {IDENTITIES}")
@@ -175,14 +157,25 @@ def fingerprint(identity: str, backend_root: Path = BACKEND) -> Dict[str, Any]:
     cls = classification_map()
     rels = sorted(r for r in scope_files(backend_root) if cls[r] == ident)
     files = {rel: _sha256_file(backend_root / rel) for rel in rels}
-    return {
+
+    bound: Dict[str, Any] = {"files": files}
+    effective_config = None
+    if ident == "PROTOCOL":
+        effective_config = effective_scientific_protocol_config()
+        bound["effective_scientific_config"] = effective_config
+
+    out = {
         "schema_version": IDENTITY_SCHEMA_VERSION,
         "identity": ident,
         "algorithm": "sha256",
-        "digest": hashlib.sha256(_canonical(files)).hexdigest(),
+        "digest": hashlib.sha256(_canonical(bound)).hexdigest(),
         "file_count": len(files),
         "files": files,
     }
+    if effective_config is not None:
+        out["effective_scientific_config"] = effective_config
+        out["config_bound"] = True
+    return out
 
 
 def model_fingerprint_v2(backend_root: Path = BACKEND) -> Dict[str, Any]:
@@ -198,11 +191,9 @@ def infrastructure_fingerprint(backend_root: Path = BACKEND) -> Dict[str, Any]:
 
 
 def all_fingerprints(backend_root: Path = BACKEND, include_files: bool = False) -> Dict[str, Any]:
-    """All three identities, individually reportable."""
     out: Dict[str, Any] = {
         "schema_version": IDENTITY_SCHEMA_VERSION,
         "classification_schema": _classification().get("schema"),
-        # A7.2 — which manifest produced these digests.
         "classification_manifest_id": classification_manifest_id(),
         "review_required": sorted(review_required().keys()),
         "blocked_pending_split": sorted(blocked_pending_split().get("coverage", {}).keys())
@@ -216,9 +207,8 @@ def all_fingerprints(backend_root: Path = BACKEND, include_files: bool = False) 
     from .forward_oos import model_fingerprint as _legacy
     legacy = _legacy(backend_root)
     out["legacy_deployment_fingerprint"] = {
-        "note": "Whole-backend digest used by the sealed V6 campaign. Retained "
-                "unchanged so that historical seal record stays readable. NOT the "
-                "scientific model identity.",
+        "note": "Whole-backend digest used by the sealed V6 campaign. Retained unchanged so that "
+                "historical seal record stays readable. NOT the scientific model identity.",
         "digest": legacy.get("digest"),
         "file_count": legacy.get("file_count"),
     }
@@ -226,12 +216,6 @@ def all_fingerprints(backend_root: Path = BACKEND, include_files: bool = False) 
 
 
 def historical_identity_available(campaign_seal: Dict[str, Any]) -> Dict[str, Any]:
-    """Report honestly whether a past seal carries the three identities.
-
-    Campaigns sealed before this split recorded only the whole-backend digest.
-    Their MODEL/PROTOCOL/INFRASTRUCTURE identities are UNAVAILABLE and are never
-    reconstructed after the fact.
-    """
     seal = campaign_seal or {}
     present = {
         ident.lower(): bool((seal.get(f"{ident.lower()}_fingerprint") or {}).get("digest"))
