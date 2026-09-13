@@ -1,6 +1,8 @@
 # FastAPI helper routes for CLEAR NASDAQ — FIA Pre-Move Intelligence
 from __future__ import annotations
 from typing import Any
+from fastapi import Request
+from .auth_api import scientific_operation_authorized
 
 from .premove_engine import analyze_premove, premove_history
 from .premove_calibration import validation_report
@@ -14,10 +16,11 @@ def install_premove_routes(app: Any, hub: Any, build_forecast: Any) -> None:
 
     if "/api/premove" not in existing:
         @app.get("/api/premove")
-        async def fia_premove():
+        async def fia_premove(request: Request):
             snapshot = await hub.snapshot()
             forecast = build_forecast(snapshot)
-            return analyze_premove(forecast, snapshot, record=True)
+            record = scientific_operation_authorized(request, required=False)
+            return analyze_premove(forecast, snapshot, record=record)
 
     if "/api/premove/history" not in existing:
         @app.get("/api/premove/history")

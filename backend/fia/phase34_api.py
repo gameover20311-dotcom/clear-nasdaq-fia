@@ -2,6 +2,8 @@ from __future__ import annotations
 import asyncio, json
 from pathlib import Path
 from typing import Any
+from fastapi import Request
+from .auth_api import scientific_operation_authorized
 from .phase34_engine import analyze_phase34
 from .phase34_source_registry import audit_sources
 ROOT=Path(__file__).resolve().parents[1]
@@ -9,8 +11,8 @@ def install_phase34_routes(app:Any,hub:Any,build_forecast:Any)->None:
     existing={getattr(r,'path',None) for r in getattr(app,'routes',[])}
     if '/api/phase34' not in existing:
         @app.get('/api/phase34')
-        async def live():
-            s=await hub.snapshot(); f=build_forecast(s); return analyze_phase34(f,s,True)
+        async def live(request: Request):
+            s=await hub.snapshot(); f=build_forecast(s); record=scientific_operation_authorized(request, required=False); return analyze_phase34(f,s,record)
     if '/api/phase34/health' not in existing:
         @app.get('/api/phase34/health')
         async def health(): return {'ok':True,'module':'FIA PHASE34 ALL-POINTS PRE-MOVE','version':'34.0','points':23,'broker_execution':False,'research_only':True}

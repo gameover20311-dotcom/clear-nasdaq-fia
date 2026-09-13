@@ -1,6 +1,8 @@
 # FastAPI routes for CLEAR NASDAQ — FIA PRE-MOVE MAX RIGOR
 from __future__ import annotations
 from typing import Any
+from fastapi import Request
+from .auth_api import scientific_operation_authorized
 
 from .premove_max_engine import analyze_premove_max
 from .premove_max_validation import validation_report_max
@@ -11,10 +13,11 @@ def install_premove_max_routes(app: Any, hub: Any, build_forecast: Any) -> None:
 
     if "/api/premove/max" not in existing:
         @app.get("/api/premove/max")
-        async def fia_premove_max():
+        async def fia_premove_max(request: Request):
             snapshot = await hub.snapshot()
             forecast = build_forecast(snapshot)
-            return analyze_premove_max(forecast, snapshot, record=True)
+            record = scientific_operation_authorized(request, required=False)
+            return analyze_premove_max(forecast, snapshot, record=record)
 
     if "/api/premove/max/validation" not in existing:
         @app.get("/api/premove/max/validation")

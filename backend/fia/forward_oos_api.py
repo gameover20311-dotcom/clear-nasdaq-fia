@@ -6,7 +6,9 @@ import os
 import fcntl
 from typing import Any, Callable, Optional
 
-from fastapi import Body, Header, HTTPException
+from fastapi import Body, Header, HTTPException, Request
+
+from .auth_api import scientific_operation_authorized
 
 from .forward_oos import (
     DEFAULT_ROOT,
@@ -241,6 +243,7 @@ def install_forward_oos_routes(app: Any, hub: Any, build_forecast: Callable[[dic
 
     @app.post("/api/forward-oos/durability/test-fixture")
     async def forward_oos_durability_fixture(
+        request: Request,
         marker: str = Body(..., embed=True),
         authorization: Optional[str] = Header(default=None),
     ):
@@ -257,6 +260,7 @@ def install_forward_oos_routes(app: Any, hub: Any, build_forecast: Callable[[dic
             decode_session_token(_bearer(authorization))
         except Exception as exc:
             raise HTTPException(status_code=401, detail="AUTH_REQUIRED") from exc
+        scientific_operation_authorized(request, required=True)
         clean = "".join(ch for ch in str(marker) if ch.isalnum() or ch in "-_")[:64]
         if not clean:
             raise HTTPException(status_code=400, detail="INVALID_MARKER")
@@ -271,19 +275,21 @@ def install_forward_oos_routes(app: Any, hub: Any, build_forecast: Callable[[dic
 
     @app.delete("/api/forward-oos/durability/test-fixture/{marker}")
     async def forward_oos_durability_fixture_delete(
-        marker: str, authorization: Optional[str] = Header(default=None),
+        marker: str, request: Request, authorization: Optional[str] = Header(default=None),
     ):
         from fia.auth_api import _bearer, decode_session_token
         try:
             decode_session_token(_bearer(authorization))
         except Exception as exc:
             raise HTTPException(status_code=401, detail="AUTH_REQUIRED") from exc
+        scientific_operation_authorized(request, required=True)
         clean = "".join(ch for ch in str(marker) if ch.isalnum() or ch in "-_")[:64]
         from fia.forward_oos_durable import delete_test_fixture
         return delete_test_fixture(DEFAULT_ROOT, clean)
 
     @app.post("/api/forward-oos/run-once")
-    async def forward_oos_run_once():
+    async def forward_oos_run_once(request: Request):
+        scientific_operation_authorized(request, required=True)
         # Manual invocation does NOT bypass the live checkpoint and therefore
         # cannot create hindsight/backfilled forecasts.
         return await run_once(hub, build_forecast)

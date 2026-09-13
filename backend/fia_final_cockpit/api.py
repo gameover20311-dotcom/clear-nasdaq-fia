@@ -10,7 +10,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import Body, HTTPException, Header
+from fastapi import Body, HTTPException, Header, Request
+from fia.auth_api import scientific_operation_authorized
 
 
 def _read_json(path: Path) -> Dict[str, Any]:
@@ -371,7 +372,7 @@ def install_final_cockpit_routes(app, hub, build_forecast, backend_root=None):
 
 
     @app.post('/api/final/confluence/three-way')
-    async def final_three_way_confluence(request: Dict[str,Any]=Body(...)):
+    async def final_three_way_confluence(http_request: Request, request: Dict[str,Any]=Body(...)):
         try:
             from fia.accuracy_engine import build_accuracy_assessment
             from fia.confluence_engine import build_confluence_assessment
@@ -382,22 +383,32 @@ def install_final_cockpit_routes(app, hub, build_forecast, backend_root=None):
             snapshot_data=await hub.snapshot(); fia_forecast=build_forecast(snapshot_data); accuracy=build_accuracy_assessment(fia_forecast,snapshot_data)
             phase25=build_confluence_assessment(fia_forecast,accuracy,vision_analysis,snapshot_data)
             result=build_three_way_confluence(fia_forecast,user_analysis,vision_analysis,phase25); result['phase25']=phase25
-            try:
-                rec=record_forward_forecast(fia_forecast,snapshot_data,accuracy)
-                if rec.get('ok') and rec.get('prediction_id'):
-                    linked=attach_confluence(rec['prediction_id'],phase25,accuracy)
-                    phase25['research_alert']=linked.get('alert') or build_research_alert(accuracy,phase25)
-                    result['phase26_prediction_id']=rec['prediction_id']; result['phase26_attached']=bool(linked.get('ok'))
-                else:
-                    phase25['research_alert']=build_research_alert(accuracy,phase25); result['phase26_attached']=False
-                asyncio.create_task(resolve_due_forward_records())
-            except Exception as exc:
-                phase25['research_alert']=build_research_alert(accuracy,phase25); result['phase26_attached']=False; result['phase26_warning']=type(exc).__name__+': '+str(exc)[:300]
-            _alert=phase25.get('research_alert') or 'NONE'
-            _alert_level=str((_alert.get('level') if isinstance(_alert,dict) else _alert) or 'NONE')
-            cache={'recorded_at_utc':datetime.now(timezone.utc).isoformat(),'setup_grade':phase25.get('setup_grade'),'confluence_score':phase25.get('confluence_score'),'confluence_alignment':phase25.get('confluence_alignment'),'confluence_completeness':phase25.get('confluence_completeness'),'research_alert':_alert,'research_alert_level':_alert_level,'phase26_prediction_id':result.get('phase26_prediction_id'),'phase26_attached':bool(result.get('phase26_attached')),'research_eligible':phase25.get('research_eligible')}
-            _atomic_write_json(_phase25_cache_path(root),cache)
-            result['dashboard_phase25_persisted']=True
+            scientific_write=scientific_operation_authorized(http_request, required=False)
+            if scientific_write:
+                try:
+                    rec=record_forward_forecast(fia_forecast,snapshot_data,accuracy)
+                    if rec.get('ok') and rec.get('prediction_id'):
+                        linked=attach_confluence(rec['prediction_id'],phase25,accuracy)
+                        phase25['research_alert']=linked.get('alert') or build_research_alert(accuracy,phase25)
+                        result['phase26_prediction_id']=rec['prediction_id']; result['phase26_attached']=bool(linked.get('ok'))
+                    else:
+                        phase25['research_alert']=build_research_alert(accuracy,phase25); result['phase26_attached']=False
+                    asyncio.create_task(resolve_due_forward_records())
+                except Exception as exc:
+                    phase25['research_alert']=build_research_alert(accuracy,phase25); result['phase26_attached']=False; result['phase26_warning']=type(exc).__name__
+                _alert=phase25.get('research_alert') or 'NONE'
+                _alert_level=str((_alert.get('level') if isinstance(_alert,dict) else _alert) or 'NONE')
+                cache={'recorded_at_utc':datetime.now(timezone.utc).isoformat(),'setup_grade':phase25.get('setup_grade'),'confluence_score':phase25.get('confluence_score'),'confluence_alignment':phase25.get('confluence_alignment'),'confluence_completeness':phase25.get('confluence_completeness'),'research_alert':_alert,'research_alert_level':_alert_level,'phase26_prediction_id':result.get('phase26_prediction_id'),'phase26_attached':bool(result.get('phase26_attached')),'research_eligible':phase25.get('research_eligible')}
+                _atomic_write_json(_phase25_cache_path(root),cache)
+                result['dashboard_phase25_persisted']=True
+            else:
+                phase25['research_alert']=build_research_alert(accuracy,phase25)
+                result['phase26_attached']=False
+                result['dashboard_phase25_persisted']=False
             return result
+        except HTTPException:
+            raise
         except Exception as exc:
-            raise HTTPException(status_code=500,detail=str(exc)) from exc
+            raise HTTPException(status_code=500,detail=type(exc).__name__) from exc
+
+

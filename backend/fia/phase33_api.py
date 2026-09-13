@@ -2,6 +2,8 @@ from __future__ import annotations
 import asyncio, json, os
 from pathlib import Path
 from typing import Any
+from fastapi import Request
+from .auth_api import scientific_operation_authorized
 from .phase33_engine import analyze_phase33
 from .phase33_llm import llm_evidence_review
 
@@ -12,8 +14,8 @@ def install_phase33_routes(app:Any,hub:Any,build_forecast:Any)->None:
     existing={getattr(r,"path",None) for r in getattr(app,"routes",[])}
     if "/api/phase33" not in existing:
         @app.get("/api/phase33")
-        async def phase33_live():
-            snap=await hub.snapshot(); fc=build_forecast(snap); return analyze_phase33(fc,snap,record=True)
+        async def phase33_live(request: Request):
+            snap=await hub.snapshot(); fc=build_forecast(snap); record=scientific_operation_authorized(request, required=False); return analyze_phase33(fc,snap,record=record)
     if "/api/phase33/health" not in existing:
         @app.get("/api/phase33/health")
         async def phase33_health(): return {"ok":True,"module":"FIA PHASE33 INSTITUTIONAL PRE-MOVE","version":"33.0","research_only":True,"broker_execution":False,"features_declared":23}

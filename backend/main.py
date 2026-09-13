@@ -6,7 +6,7 @@ import csv
 import json
 from pathlib import Path
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -31,6 +31,7 @@ from fia.cognitive import build_cognitive_report, build_deep_cognitive_report, v
 from fia.cognitive.calibration import load_models
 from fia.advanced_chart_intelligence import analyze_advanced_chart_independent
 from fia.three_way_confluence import build_three_way_confluence
+from fia.auth_api import scientific_operation_authorized
 from fia.chart_analyst_report import build_chart_analyst_report
 
 
@@ -362,43 +363,28 @@ async def accuracy():
 
 
 @app.get("/api/forecast")
-async def forecast():
+async def forecast(request: Request):
     snapshot_data = await hub.snapshot()
     fia_forecast = build_forecast(snapshot_data)
+    scientific_write = scientific_operation_authorized(request, required=False)
 
-    # Historical prediction recorder.
-    # Recorder failure must never affect the live FIA forecast.
-    try:
-        snapshot_payload = snapshot_data.get("data", {})
-        nq_price = snapshot_payload.get("nq_futures_price")
-
-        record_fia_forecast(
-            fia_forecast,
-            entry_price=nq_price,
-            output_path=(
-                "fia_backtest_phase14/data/"
-                "historical_predictions.csv"
-            ),
-        )
-    except Exception as exc:
-        print("Prediction recorder ERROR:", repr(exc))
-
-    # PHASE26_LEARNING_VALIDATION_V1
-    # Forward-only checkpoint recorder. The first checkpoint in each time bucket
-    # is frozen; repeated dashboard refreshes cannot rewrite history.
-    try:
-        phase26_accuracy = build_accuracy_assessment(fia_forecast, snapshot_data)
-        phase26_record = record_forward_forecast(
-            fia_forecast,
-            snapshot_data,
-            phase26_accuracy,
-        )
-        # Resolve due target-time outcomes asynchronously so the live forecast
-        # response is not blocked by historical NQ candle retrieval.
-        asyncio.create_task(resolve_due_forward_records())
-    except Exception as exc:
-        print("Phase26 forward recorder ERROR:", repr(exc))
-
+    if scientific_write:
+        try:
+            snapshot_payload = snapshot_data.get("data", {})
+            nq_price = snapshot_payload.get("nq_futures_price")
+            record_fia_forecast(
+                fia_forecast,
+                entry_price=nq_price,
+                output_path="fia_backtest_phase14/data/historical_predictions.csv",
+            )
+        except Exception as exc:
+            print("Prediction recorder ERROR:", type(exc).__name__)
+        try:
+            phase26_accuracy = build_accuracy_assessment(fia_forecast, snapshot_data)
+            record_forward_forecast(fia_forecast, snapshot_data, phase26_accuracy)
+            asyncio.create_task(resolve_due_forward_records())
+        except Exception as exc:
+            print("Phase26 forward recorder ERROR:", type(exc).__name__)
     return fia_forecast
 
 
@@ -644,7 +630,7 @@ async def chart_analyst_report(
 
 
 @app.post("/api/confluence")
-async def confluence(request: ConfluenceRequest):
+async def confluence(request: ConfluenceRequest, http_request: Request):
     snapshot_data = await hub.snapshot()
     fia_forecast = build_forecast(snapshot_data)
     accuracy_assessment = build_accuracy_assessment(fia_forecast, snapshot_data)
@@ -654,42 +640,32 @@ async def confluence(request: ConfluenceRequest):
         request.chart_analysis,
         snapshot_data,
     )
-
-    # PHASE26_LEARNING_VALIDATION_V1
-    try:
-        rec = record_forward_forecast(fia_forecast, snapshot_data, accuracy_assessment)
-        if rec.get("ok") and rec.get("prediction_id"):
-            linked = attach_confluence(
-                rec["prediction_id"],
-                assessment,
-                accuracy_assessment,
-            )
-            assessment["research_alert"] = linked.get("alert") or build_research_alert(
-                accuracy_assessment,
-                assessment,
-            )
-        else:
+    scientific_write = scientific_operation_authorized(http_request, required=False)
+    if scientific_write:
+        try:
+            rec = record_forward_forecast(fia_forecast, snapshot_data, accuracy_assessment)
+            if rec.get("ok") and rec.get("prediction_id"):
+                linked = attach_confluence(rec["prediction_id"], assessment, accuracy_assessment)
+                assessment["research_alert"] = linked.get("alert") or build_research_alert(accuracy_assessment, assessment)
+            else:
+                assessment["research_alert"] = build_research_alert(accuracy_assessment, assessment)
+            asyncio.create_task(resolve_due_forward_records())
+        except Exception as exc:
             assessment["research_alert"] = build_research_alert(accuracy_assessment, assessment)
-        asyncio.create_task(resolve_due_forward_records())
-    except Exception as exc:
+            assessment["phase26_warning"] = "Forward learning attachment unavailable: %s" % type(exc).__name__
+    else:
         assessment["research_alert"] = build_research_alert(accuracy_assessment, assessment)
-        assessment["phase26_warning"] = f"Forward learning attachment unavailable: {exc}"
-
     return assessment
 
 
 @app.get("/api/learning/status")
 async def learning_status():
-    # Attempt any due target-time resolutions before reporting monitoring stats.
-    try:
-        await resolve_due_forward_records()
-    except Exception as exc:
-        print("Phase26 resolver status ERROR:", repr(exc))
     return build_learning_status()
 
 
 @app.post("/api/learning/resolve")
-async def learning_resolve():
+async def learning_resolve(request: Request):
+    scientific_operation_authorized(request, required=True)
     changed = await resolve_due_forward_records()
     payload = build_learning_status()
     payload["resolved_fields_updated"] = changed
@@ -739,18 +715,19 @@ async def dashboard():
 
 
 @app.get("/api/cognitive/forecast")
-async def cognitive_forecast(deep: bool = False, horizon: str = "8h"):
+async def cognitive_forecast(request: Request, deep: bool = False, horizon: str = "8h"):
     horizon = str(horizon or "8h").lower()
     if horizon not in {"4h", "8h"}:
         raise HTTPException(status_code=400, detail="horizon must be 4h or 8h")
     snapshot_data = await hub.snapshot()
     fia_forecast = build_forecast(snapshot_data)
+    persist = scientific_operation_authorized(request, required=False)
     if deep:
         return await build_deep_cognitive_report(
-            hub, snapshot_data, fia_forecast, horizon=horizon, persist=True
+            hub, snapshot_data, fia_forecast, horizon=horizon, persist=persist
         )
     return build_cognitive_report(
-        snapshot_data, fia_forecast, horizon=horizon, persist=True
+        snapshot_data, fia_forecast, horizon=horizon, persist=persist
     )
 
 

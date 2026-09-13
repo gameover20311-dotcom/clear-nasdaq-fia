@@ -604,6 +604,30 @@ def _http_error(exc: Exception, *, login: bool = False) -> HTTPException:
     return HTTPException(status_code=400, detail=code)
 
 
+SCIENTIFIC_OPERATION_ENV = "FIA_SCIENTIFIC_OPERATION_SECRET"
+SCIENTIFIC_OPERATION_HEADER = "x-fia-scientific-operation"
+
+
+def scientific_operation_authorized(request: Any, *, required: bool = True) -> bool:
+    """Authorize scientific state mutation with a server-only credential.
+
+    A normal membership/session token is intentionally unrelated to this
+    boundary. Optional callers remain read-only when the header is absent.
+    Secrets are never returned or logged.
+    """
+    supplied = str(getattr(request, "headers", {}).get(SCIENTIFIC_OPERATION_HEADER, "") or "").strip()
+    configured = str(os.getenv(SCIENTIFIC_OPERATION_ENV) or "").strip()
+    if not supplied:
+        if required:
+            raise HTTPException(status_code=403, detail="SCIENTIFIC_OPERATION_AUTH_REQUIRED")
+        return False
+    if len(configured) < 32:
+        raise HTTPException(status_code=503, detail="SCIENTIFIC_OPERATION_AUTH_NOT_CONFIGURED")
+    if not hmac.compare_digest(supplied.encode("utf-8"), configured.encode("utf-8")):
+        raise HTTPException(status_code=403, detail="SCIENTIFIC_OPERATION_AUTH_FAILED")
+    return True
+
+
 def install_auth_routes(app) -> None:
     @app.get("/api/auth/health")
     async def auth_health():
