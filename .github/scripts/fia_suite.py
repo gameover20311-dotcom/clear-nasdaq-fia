@@ -65,6 +65,21 @@ ENTRY_GLOBS = (
     "clear_nasdaq_brain/tests/run_all.py",
 )
 
+# v681 is an immutable PRE-REPAIR equivalence baseline.  It is supposed to hard
+# stop after the intentional 2026-09-13 earnings temporal-admission change and
+# therefore is forensic evidence, not a current-code PASS gate.  It is not
+# deleted or re-recorded.  Current change control is mandatory through v683
+# (semantic point-in-time regression) and v684 (proves that swapping ONLY the
+# earnings admission method back to its legacy implementation restores v681's
+# original digest).
+HISTORICAL_ONLY_ENTRIES = {
+    "fia/test_providers_snapshot_equivalence_v681.py",
+}
+REQUIRED_ACTIVE_REPLACEMENTS = {
+    "fia/test_earnings_temporal_admission_v683.py",
+    "fia/test_providers_snapshot_change_control_v684.py",
+}
+
 PER_ENTRY_TIMEOUT = 900
 
 FAILING_STATUSES = (
@@ -88,11 +103,22 @@ _ZERO_TEST_PATTERNS = (
 
 
 def discover():
-    """Entry paths relative to the backend root."""
+    """Entry paths relative to the backend root.
+
+    Historical-only checks remain in the repository as immutable forensic
+    evidence.  They may leave the active set only when an explicit replacement
+    gate is present, otherwise discovery fails closed.
+    """
     seen = set()
     for pattern in ENTRY_GLOBS:
         seen.update(glob.glob(pattern, root_dir=str(BACKEND)))
-    return sorted(seen)
+    active = seen - HISTORICAL_ONLY_ENTRIES
+    missing_replacements = sorted(REQUIRED_ACTIVE_REPLACEMENTS - active)
+    if missing_replacements:
+        raise RuntimeError(
+            "REQUIRED_CHANGE_CONTROL_REPLACEMENT_MISSING:" + ",".join(missing_replacements)
+        )
+    return sorted(active)
 
 
 def last_exception(text):
@@ -278,6 +304,8 @@ def main():
         "schema": "FIA_SUITE_RESULT_V3",
         "entry_count": len(entries),
         "counts": counts,
+        "historical_only_entries": sorted(HISTORICAL_ONLY_ENTRIES),
+        "required_active_replacements": sorted(REQUIRED_ACTIVE_REPLACEMENTS),
         "baseline_dirty": baseline_dirty,
         "mutated_by_suite": sorted(seen_dirty - set(baseline_dirty)),
         "results": results,
