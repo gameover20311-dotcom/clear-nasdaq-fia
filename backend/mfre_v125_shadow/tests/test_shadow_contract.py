@@ -14,27 +14,14 @@ from mfre_v125_shadow.contract import (
     REAL_MARKET_EDGE,
 )
 from mfre_v125_shadow.controller import MFREShadowController, ShadowRunStatus
-from mfre_v125_shadow.types import (
-    ActionKind,
-    DeclarationBundle,
-    PrimitiveSpec,
-    RandomnessOwnership,
-)
+from mfre_v125_shadow.types import ActionKind, DeclarationBundle, PrimitiveSpec, RandomnessOwnership
 
 
 def frame(*, shadow=True, umse=True, integrity=True, dpcse_frozen=False, dpcse_status="NOT_ARMED"):
     return MFREInputFrame(
         shadow=ShadowHypothesisView(shadow, ("H1",) if shadow else (), "shadow-digest"),
         umse=UMSEView(umse, integrity, "STATE", ("M1",) if umse else (), "umse-digest"),
-        dpcse=DPCSEView(
-            status=dpcse_status,
-            candidate_model_frozen=dpcse_frozen,
-            decision="NO_EDGE",
-            p_bull=None,
-            p_bear=None,
-            locked_rows=0,
-            source_digest="dpcse-digest",
-        ),
+        dpcse=DPCSEView(dpcse_status, dpcse_frozen, "NO_EDGE", None, None, 0, "dpcse-digest"),
         context={"instrument": "NQ", "horizon": "8H"},
     )
 
@@ -68,10 +55,9 @@ def frozen_fixture_declarations():
         gamma_theta_fingerprint="4"*64, phi_fingerprint="5"*64,
         delta_stop_fingerprint="6"*64, bellman_policy_fingerprint="7"*64,
         working_measure_id="TEST_ONLY_P", working_measure_fingerprint="8"*64,
-        k_max=2, c_a=0.3, tie_break=("Bull","Bear","NO_EDGE"),
+        k_max=2, c_a=0.3, tie_break=("stop","read_external","compute_countermodel"),
         l10_parameters=(("kappa","5"),("ell","4"),("B","999"),("seed","20260913"),("autocorrelation_band","0.10"),("evaluation_window","50")),
     )
-
 
 
 class MFREShadowContractTests(unittest.TestCase):
@@ -105,132 +91,53 @@ class MFREShadowContractTests(unittest.TestCase):
         self.assertIn("DPCSE_NOT_ARMED", r.reasons)
 
     def test_ready_means_shadow_only_not_direction_override(self):
-        r = MFREShadowController(frozen_fixture_declarations()).assess(
-            frame(shadow=True, umse=True, integrity=True, dpcse_frozen=True, dpcse_status="ARMED_N0")
-        )
+        r = MFREShadowController(frozen_fixture_declarations()).assess(frame(shadow=True, umse=True, integrity=True, dpcse_frozen=True, dpcse_status="ARMED_N0"))
         self.assertEqual(r.status, ShadowRunStatus.READY_SHADOW_CONTRACT_ONLY)
         self.assertIsNotNone(r.control_state)
         self.assertIsNone(r.directional_override)
         self.assertFalse(r.production_authorized)
 
     def test_external_provider_eta_is_rejected_and_provenance_required(self):
-        provenance = {
-            "event_time": "2026-09-13T15:00:00+00:00",
-            "available_time": "2026-09-13T15:00:01+00:00",
-            "provider_identity": "TEST_PROVIDER",
-            "sequence_id": "1",
-            "raw_source_hash": "abc",
-            "receive_time": "2026-09-13T15:00:01+00:00",
-        }
-        event = AuditEvent(
-            action_id="read_external",
-            observed_output_digest="digest",
-            ownership=RandomnessOwnership.EXTERNAL_PROVIDER,
-            fresh_xi=0.25,
-            provenance=provenance,
-        )
-        log = AuditLog().append(event)
-        self.assertEqual(len(log.events), 1)
-        with self.assertRaisesRegex(ValueError, "ETA_MUST_NOT_BE_RECORDED"):
-            AuditEvent(
-                action_id="read_external",
-                observed_output_digest="digest",
-                ownership=RandomnessOwnership.EXTERNAL_PROVIDER,
-                fresh_xi=0.25,
-                eta_if_owned=0.5,
-                provenance=provenance,
-            )
+        provenance = {"event_time":"2026-09-13T15:00:00+00:00","available_time":"2026-09-13T15:00:01+00:00","provider_identity":"TEST_PROVIDER","sequence_id":"1","raw_source_hash":"abc","receive_time":"2026-09-13T15:00:01+00:00"}
+        event = AuditEvent("read_external","digest",RandomnessOwnership.EXTERNAL_PROVIDER,0.25,provenance=provenance)
+        self.assertEqual(len(AuditLog().append(event).events),1)
+        with self.assertRaisesRegex(ValueError,"ETA_MUST_NOT_BE_RECORDED"):
+            AuditEvent("read_external","digest",RandomnessOwnership.EXTERNAL_PROVIDER,0.25,eta_if_owned=0.5,provenance=provenance)
 
     def test_engine_owned_eta_is_required(self):
-        with self.assertRaisesRegex(ValueError, "ENGINE_OWNED_ETA_REQUIRED"):
-            AuditEvent(
-                action_id="compute_countermodel",
-                observed_output_digest="digest",
-                ownership=RandomnessOwnership.ENGINE_OWNED,
-                fresh_xi=0.2,
-            )
-
+        with self.assertRaisesRegex(ValueError,"ENGINE_OWNED_ETA_REQUIRED"):
+            AuditEvent("compute_countermodel","digest",RandomnessOwnership.ENGINE_OWNED,0.2)
 
     def test_empty_shadow_hypotheses_fail_closed(self):
-        r = MFREShadowController(frozen_fixture_declarations()).assess(
-            MFREInputFrame(
-                shadow=ShadowHypothesisView(True, (), "shadow-digest"),
-                umse=UMSEView(True, True, "STATE", ("M1",), "umse-digest"),
-                dpcse=DPCSEView("ARMED_N0", True, "NO_EDGE", None, None, 0, "dpcse-digest"),
-                context={"instrument": "NQ", "horizon": "8H"},
-            )
-        )
-        self.assertEqual(r.status, ShadowRunStatus.INERT_UPSTREAM_NOT_READY)
-        self.assertIn("SHADOW_HYPOTHESES_EMPTY", r.reasons)
+        r=MFREShadowController(frozen_fixture_declarations()).assess(MFREInputFrame(ShadowHypothesisView(True,(),"shadow-digest"),UMSEView(True,True,"STATE",("M1",),"umse-digest"),DPCSEView("ARMED_N0",True,"NO_EDGE",None,None,0,"dpcse-digest"),{"instrument":"NQ","horizon":"8H"}))
+        self.assertEqual(r.status,ShadowRunStatus.INERT_UPSTREAM_NOT_READY)
+        self.assertIn("SHADOW_HYPOTHESES_EMPTY",r.reasons)
 
     def test_source_pinned_shadow_adapter_keeps_hypotheses_exploratory(self):
         from mfre_v125_shadow.upstream import UPSTREAM_PROVENANCE, shadow_view_from_report
-        report = {
-            "lab_version": "SIMONS_SHADOW_LAB_V2_HYBRID",
-            "scientific_status": "DISCOVERY_ONLY_NOT_PROVEN",
-            "lock_time_structural_barrier": True,
-            "automatic_strategy_selection": False,
-            "automatic_production_promotion": False,
-            "predictive_edge_proven": False,
-            "profitability_proven": False,
-            "h8": {"transitions": {"transitions": [
-                {"transition": "A -> B", "status": "EXPLORATORY_ONLY_NOT_PROVEN"}
-            ]}},
-        }
-        view = shadow_view_from_report(report)
+        report={"lab_version":"SIMONS_SHADOW_LAB_V2_HYBRID","scientific_status":"DISCOVERY_ONLY_NOT_PROVEN","lock_time_structural_barrier":True,"automatic_strategy_selection":False,"automatic_production_promotion":False,"predictive_edge_proven":False,"profitability_proven":False,"h8":{"transitions":{"transitions":[{"transition":"A -> B","status":"EXPLORATORY_ONLY_NOT_PROVEN"}]}}}
+        view=shadow_view_from_report(report)
         self.assertTrue(view.available)
-        self.assertEqual(view.hypotheses, ("H8_TRANSITION::A -> B",))
-        self.assertEqual(UPSTREAM_PROVENANCE["shadow_lab"]["branch_head"], "6c52e44b516ec9d707e3acbc3b958fe4dd9d6fe7")
+        self.assertEqual(view.hypotheses,("H8_TRANSITION::A -> B",))
+        self.assertEqual(UPSTREAM_PROVENANCE["shadow_lab"]["branch_head"],"6c52e44b516ec9d707e3acbc3b958fe4dd9d6fe7")
 
     def test_shadow_adapter_rejects_edge_or_promotion_escalation(self):
         from mfre_v125_shadow.upstream import shadow_view_from_report
-        report = {
-            "lab_version": "SIMONS_SHADOW_LAB_V2_HYBRID",
-            "scientific_status": "DISCOVERY_ONLY_NOT_PROVEN",
-            "lock_time_structural_barrier": True,
-            "automatic_strategy_selection": False,
-            "automatic_production_promotion": True,
-            "predictive_edge_proven": False,
-            "profitability_proven": False,
-            "h8": {"transitions": {"transitions": []}},
-        }
+        report={"lab_version":"SIMONS_SHADOW_LAB_V2_HYBRID","scientific_status":"DISCOVERY_ONLY_NOT_PROVEN","lock_time_structural_barrier":True,"automatic_strategy_selection":False,"automatic_production_promotion":True,"predictive_edge_proven":False,"profitability_proven":False,"h8":{"transitions":{"transitions":[]}}}
         self.assertFalse(shadow_view_from_report(report).available)
 
     def test_umse_adapter_requires_explicit_integrity_and_no_status_escalation(self):
         from mfre_v125_shadow.upstream import umse_view_from_v2_diagnostics
-        diag = {
-            "evidence_hash": "abc123",
-            "predictive_mapping_frozen": False,
-            "predictive_edge_proven": False,
-            "production_effect": False,
-            "queue_survival": {"status": "OBSERVED"},
-            "orderbook_memory": {"status": "INSUFFICIENT_DATA"},
-            "resistance_field": {"status": "OBSERVED"},
-            "information_velocity": {"status": "OBSERVED"},
-            "leadlag_evidence": {"status": "NOT_IDENTIFIABLE"},
-            "cross_scale_transport": {"status": "INSUFFICIENT_DATA"},
-        }
-        view = umse_view_from_v2_diagnostics(diag, integrity_pass=True)
-        self.assertTrue(view.available)
-        self.assertTrue(view.integrity_pass)
-        self.assertIn("queue_survival:OBSERVED", view.mechanisms)
-        bad = dict(diag)
-        bad["predictive_edge_proven"] = True
-        self.assertFalse(umse_view_from_v2_diagnostics(bad, integrity_pass=True).available)
+        diag={"evidence_hash":"abc123","predictive_mapping_frozen":False,"predictive_edge_proven":False,"production_effect":False,"queue_survival":{"status":"OBSERVED"},"orderbook_memory":{"status":"INSUFFICIENT_DATA"},"resistance_field":{"status":"OBSERVED"},"information_velocity":{"status":"OBSERVED"},"leadlag_evidence":{"status":"NOT_IDENTIFIABLE"},"cross_scale_transport":{"status":"INSUFFICIENT_DATA"}}
+        view=umse_view_from_v2_diagnostics(diag,integrity_pass=True)
+        self.assertTrue(view.available); self.assertTrue(view.integrity_pass); self.assertIn("queue_survival:OBSERVED",view.mechanisms)
+        bad=dict(diag); bad["predictive_edge_proven"]=True
+        self.assertFalse(umse_view_from_v2_diagnostics(bad,integrity_pass=True).available)
 
     def test_dpcse_bootstrap_adapter_preserves_not_armed(self):
         from mfre_v125_shadow.upstream import dpcse_view_from_bootstrap
-        manifest = {
-            "status": "NOT_ARMED",
-            "candidate_model": None,
-            "locked_rows": 0,
-            "predictive_edge": "NOT_PROVEN",
-        }
-        view = dpcse_view_from_bootstrap(manifest)
-        self.assertFalse(view.candidate_model_frozen)
-        self.assertFalse(view.armed)
-        self.assertEqual(view.predictive_edge, "NOT_PROVEN")
+        view=dpcse_view_from_bootstrap({"status":"NOT_ARMED","candidate_model":None,"locked_rows":0,"predictive_edge":"NOT_PROVEN"})
+        self.assertFalse(view.candidate_model_frozen); self.assertFalse(view.armed); self.assertEqual(view.predictive_edge,"NOT_PROVEN")
 
 
-if __name__ == "__main__":
-    unittest.main()
+if __name__=="__main__": unittest.main()

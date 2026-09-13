@@ -63,10 +63,9 @@ class PrimitiveSpec:
 class DeclarationBundle:
     """Preregistered implementation declaration record.
 
-    This object is allowed to represent an unfinished draft, but `scientifically_frozen`
-    is false until every executable slot has a pinned implementation fingerprint and
-    all protocol-level L10/decision parameters are declared. The controller MUST remain
-    inert for a draft bundle.
+    `tie_break` is the declared Bellman argmin order over A_declared action IDs.
+    Terminal Bull/Bear/NO_EDGE tie semantics belong inside the separately pinned
+    `delta_stop`; they are not this field.
     """
 
     primitives: Tuple[PrimitiveSpec, ...]
@@ -96,6 +95,9 @@ class DeclarationBundle:
             raise ValueError("action_id values must be unique")
         if not any(p.kind is ActionKind.STOP for p in self.primitives):
             raise ValueError("an always-available A_stop primitive is required")
+        if self.tie_break:
+            if len(self.tie_break) != len(set(self.tie_break)) or set(self.tie_break) != set(ids):
+                raise ValueError("tie_break must order every declared primitive action_id exactly once")
         for name, value in (
             ("compute_budget", self.compute_budget),
             ("acquisition_budget", self.acquisition_budget),
