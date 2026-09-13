@@ -150,19 +150,36 @@ def main():
                       f"{len(modified) if isinstance(modified, list) else '?'} tracked modified, "
                       f"{len(untracked) if isinstance(untracked, list) else '?'} untracked"))
 
-    # Every provider-dependent check must exist in suite results and must have
-    # executed.  Previously an absent expected result disappeared from this gate.
+    # Every ACTIVE provider-dependent check must exist in suite results and must
+    # have executed. Historical-only forensic baselines are intentionally kept in
+    # the provider inventory but are not current-code PASS gates; fia_suite.py
+    # records that exclusion explicitly and requires active replacement checks.
+    # Counting a historical-only baseline as a missing active check creates a
+    # false provider-coverage failure, so consume the suite's declared exclusion
+    # list here rather than maintaining a second hard-coded copy.
     if "_unreadable" not in providers and suite_ok:
         entries = providers.get("entries")
         results = suite["results"]
+        historical_only = suite.get("historical_only_entries")
+        historical_shape_ok = (
+            isinstance(historical_only, list)
+            and all(isinstance(entry, str) and entry for entry in historical_only)
+        )
         if not isinstance(entries, dict) or not entries:
             gates.append(("provider_coverage", False, "provider inventory missing or empty"))
+        elif not historical_shape_ok:
+            gates.append(("provider_coverage", False, "historical-only suite metadata missing or invalid"))
         else:
-            missing = sorted(entry for entry in entries if entry not in results)
-            not_run = sorted(entry for entry in entries
+            historical = set(historical_only)
+            active_entries = {entry: info for entry, info in entries.items() if entry not in historical}
+            excluded = sorted(entry for entry in entries if entry in historical)
+            missing = sorted(entry for entry in active_entries if entry not in results)
+            not_run = sorted(entry for entry in active_entries
                              if entry in results and results[entry].get("status") in NOT_EXECUTED)
             gates.append(("provider_coverage", not missing and not not_run,
-                          f"{len(entries)} expected; {len(missing)} missing; {len(not_run)} did not execute"))
+                          f"{len(active_entries)} active expected of {len(entries)} inventory; "
+                          f"{len(excluded)} historical-only excluded; "
+                          f"{len(missing)} missing; {len(not_run)} did not execute"))
     elif "_unreadable" not in providers:
         gates.append(("provider_coverage", False, "suite evidence invalid"))
 
