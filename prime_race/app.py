@@ -2,6 +2,8 @@ import os, json, time, threading, random, base64, math
 from pathlib import Path
 from flask import Flask, jsonify
 from openai import OpenAI
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import padding
 
 HERE=Path(__file__).resolve().parent
 PUB=json.loads((HERE/'benchmark_smoke.json').read_text())
@@ -10,7 +12,14 @@ ANS=json.loads(base64.b64decode(os.environ['RACE_ANSWERS_B64']).decode())['answe
 SCHEMA={"type":"object","properties":{"choice":{"type":"string","enum":["A","B","C","D"]},"confidence":{"type":"integer","minimum":0,"maximum":100},"reason":{"type":"string"}},"required":["choice","confidence","reason"],"additionalProperties":False}
 app=Flask(__name__)
 state={"status":"BOOTING","result":None,"error":None}
-client=OpenAI(api_key=os.environ['OPENAI_API_KEY'])
+def _load_api_key():
+    ct=os.environ['OPENAI_API_KEY_CIPHERTEXT']
+    priv_pem=base64.b64decode(os.environ['RACE_PRIVATE_KEY_B64'])
+    raw=base64.urlsafe_b64decode(ct + '='*((4-len(ct)%4)%4))
+    priv=serialization.load_pem_private_key(priv_pem,password=None)
+    key=priv.decrypt(raw,padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),algorithm=hashes.SHA256(),label=None)).decode().strip()
+    return key
+client=OpenAI(api_key=_load_api_key())
 
 def fmt_task(t):
     opts='\n'.join(f"{k}. {v}" for k,v in t['options'].items())
