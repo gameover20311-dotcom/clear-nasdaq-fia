@@ -1,0 +1,57 @@
+name: Baseline manifest r4 repair
+
+on:
+  push:
+    branches: [baseline-fia-gate-repair]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: baseline-fia-gate-repair
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Generate manifest revision 4 deterministically
+        run: python .github/scripts/advance_manifest_r4.py
+      - name: Verify probability contract and release manifest
+        working-directory: backend
+        run: |
+          python clear_nasdaq_brain/tests/test_probability_prompt_contract_v6_4.py
+          python clear_nasdaq_brain/tests/test_release_manifest_v661.py
+      - name: Prove runtime prompt was not changed by repair
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          p=Path('backend/clear_nasdaq_brain/fia_brain/prompts.py')
+          h=hashlib.sha256(p.read_bytes()).hexdigest()
+          print('prompts.py', p.stat().st_size, h)
+          assert p.stat().st_size == 7501
+          assert h == '723f0e68052b1af97e80523a3fd62b597fb4a3e77bf593712883045d4f157c2a'
+          PY
+      - name: Commit manifest only if regenerated
+        run: |
+          if git diff --quiet -- backend/clear_nasdaq_brain/MANIFEST.json; then
+            echo 'manifest already frozen at r4'
+            exit 0
+          fi
+          git status --short
+          OTHER=$(git status --porcelain | awk '{print $2}' | grep -v '^backend/clear_nasdaq_brain/MANIFEST.json$' || true)
+          if [ -n "$OTHER" ]; then
+            echo "Unexpected generated changes:"
+            echo "$OTHER"
+            exit 1
+          fi
+          git config user.name 'CLEAR NASDAQ Baseline Gate'
+          git config user.email 'clear-nasdaq@users.noreply.github.com'
+          git add backend/clear_nasdaq_brain/MANIFEST.json
+          git commit -m 'Advance brain manifest for stale probability-test repair'
+          git push origin HEAD:baseline-fia-gate-repair
