@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This repository branch contains a **shadow-only executable adapter** derived from the frozen CNMI Research Admission Governance Framework.
+This repository contains a **project-level shadow-only executable adapter** derived from the frozen CNMI Research Admission Governance Framework.
 
 Adapter identity:
 
@@ -32,7 +32,7 @@ Those must be supplied and justified by the protocol being governed. Missing req
 
 ## What the adapter does
 
-`backend/fia/cnmi_shadow.py` implements a deterministic, fail-closed governance check for:
+`research/cnmi_shadow/adapter.py` implements a deterministic, fail-closed governance check for:
 
 1. requested admission level (`RESEARCH`, `CORE`, `PRODUCTION`)
 2. the nine CNMI hard non-compensable gates
@@ -48,7 +48,7 @@ A positive empirical metric can never offset a failed applicable hard gate.
 
 ## Protected-system invariants
 
-The adapter is deliberately isolated from the prediction path:
+The adapter is deliberately outside the backend scientific fingerprint scope and isolated from the prediction path:
 
 - `PRODUCTION_INFLUENCE = false`
 - `DEPLOYMENT_AUTHORIZED = false`
@@ -56,6 +56,8 @@ The adapter is deliberately isolated from the prediction path:
 - BASE_FIA forecast logic is not imported or modified
 - Forward-OOS is not imported or modified
 - DPCSE/MFRE/UMSE/Shadow Lab are not imported or modified
+- `backend/fia/identity_classification.json` is not modified
+- MODEL / PROTOCOL / INFRASTRUCTURE scientific identity partition is not modified
 - no frozen evidence, seal, ledger, or scientific identity is rewritten
 
 The adapter may judge governance records supplied to it. It cannot alter forecast probabilities, direction, confidence, historical evidence, seals, or deployment state.
@@ -64,9 +66,11 @@ The adapter may judge governance records supplied to it. It cannot alter forecas
 
 The frozen CNMI package explicitly stopped at a research-governance freeze and did not itself authorize implementation/integration. The user subsequently requested a project integration. To preserve provenance honesty, the executable object is therefore named and versioned separately instead of silently relabeling the frozen CNMI artifact as executable CNMI.
 
+It lives under `research/cnmi_shadow/` rather than `backend/fia/` specifically so a research-governance adapter cannot silently enter or perturb the sealed backend scientific fingerprint scope.
+
 ## Verification
 
-`backend/tests/test_cnmi_shadow.py` attacks the main invariants, including:
+`research/cnmi_shadow/test_adapter.py` attacks the main invariants, including:
 
 - hard-gate non-compensation
 - missing-gate fail-closed behavior
@@ -81,7 +85,9 @@ The frozen CNMI package explicitly stopped at a research-governance freeze and d
 - no automatic deployment authorization
 - deterministic output identity
 
-GitHub Actions workflow `.github/workflows/cnmi-shadow-verify.yml` executes the shadow regression suite and Python compilation on the integration branch and on relevant pull requests.
+GitHub Actions workflow `.github/workflows/cnmi-shadow-verify.yml` executes the shadow regression suite, Python compilation, production-boundary scan, and confirms that no CNMI shadow module exists inside the backend fingerprint scope.
+
+The repository's existing `FIA verify` workflow independently checks the original backend identities, protected artifacts, full regression suite, and working-tree mutation boundary.
 
 ## Promotion rule
 
