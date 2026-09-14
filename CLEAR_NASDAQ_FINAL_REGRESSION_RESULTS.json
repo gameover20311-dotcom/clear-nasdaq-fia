@@ -1,0 +1,46 @@
+{
+  "project": "CLEAR NASDAQ FIA",
+  "foundation_fia_verify": {
+    "run_id": 34791021627,
+    "total_checks": 61,
+    "pass": 59,
+    "missing_fixture_or_data": 1,
+    "fail": 1,
+    "phase20": "MISSING_CANONICAL_DATA",
+    "phase28": "FAIL_DEPENDENT_ON_SAME_MISSING_POLYGON_ARCHIVE",
+    "provider_dependent_checks": 12,
+    "provider_checks_not_executed": 0,
+    "protected_artifacts": 106,
+    "protected_artifacts_changed": 0,
+    "worktree_tracked_modified": 0,
+    "worktree_untracked": 0,
+    "final_gate": "FAIL_HONEST_ARCHIVE_RED"
+  },
+  "integrated_regression": {
+    "run_id": 34791556876,
+    "conclusion": "SUCCESS",
+    "direct_test_cases_pass": 331,
+    "scientific_auth": 7,
+    "umse_v1": 136,
+    "umse_v2": 79,
+    "shadow_lab": 50,
+    "dpcse_v2_3": 7,
+    "nq_mbo_adapter": 16,
+    "mfre_v1_2_5": 36,
+    "unexpected_integration_paths": 0,
+    "protected_artifact_mismatches": 0,
+    "hidden_production_import_hits": 0,
+    "base_fia_unchanged": true,
+    "old_forward_oos_unchanged": true,
+    "historical_backfill": "FORBIDDEN"
+  },
+  "scientific_auth_boundary": "PASS",
+  "forward_oos_proof_durability": "PASS",
+  "temporal_earnings_integrity": "PASS",
+  "scientific_identities_complete": "PASS",
+  "ci_fail_closed": "PASS",
+  "notes": [
+    "Phase19 point-in-time earnings backtest and full Phase19 backtest passed in the foundation FIA suite.",
+    "The foundation final gate intentionally remained red because the canonical Polygon archive is absent; it was not substituted or fabricated."
+  ]
+}

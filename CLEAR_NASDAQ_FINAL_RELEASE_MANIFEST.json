@@ -1,0 +1,50 @@
+{
+  "project": "CLEAR NASDAQ FIA",
+  "generated_utc_date": "2026-09-14",
+  "branch": "feat/final-controlled-integration-20260914",
+  "release_candidate_code_sha": "6a69103e444825e3e97c01fddc4f502d47398093",
+  "foundation_freeze_sha": "982930c2f87ec70d46b4bac813068f77868df804",
+  "production_main_deployed_by_this_run": false,
+  "engineering_release_ready": false,
+  "predictive_edge": "NOT_PROVEN",
+  "successor_campaign_started": false,
+  "old_forward_oos": {
+    "campaign": "NQ-FOOS-20260909",
+    "status": "UNVERIFIED",
+    "scientifically_countable_n": 0,
+    "historical_backfill": "FORBIDDEN"
+  },
+  "known_historical_red": {
+    "polygon_archive": "MISSING_CANONICAL_DATA",
+    "phase20": "MISSING_FIXTURE_OR_DATA",
+    "phase28": "FAIL_DEPENDENT_ON_SAME_MISSING_ARCHIVE"
+  },
+  "identities": {
+    "model": "91e5d9a67625171c384dfcd6edb9bc36586a687dddb7ae7c5c54d194ce3da863",
+    "protocol": "f28842b437ffcd76c9702c15ef2bc072a0ead1e08ff3c5590cef2f61278245cc",
+    "infrastructure": "1b01dbf4c3458d7cbcc96cb30d7a854ecc95a8b4fe16d54bacb9382ed4a41054",
+    "classification_manifest": "1e847b0588b21dc2d361e68f33d8009df4e7647efb340af36885da47ffcabca5",
+    "artifact_registry": "b20e24a6802f90402d1403ca863b2b98e62417544a9b8baf789bde7ab42986e4"
+  },
+  "integrated_sources": {
+    "umse_v2_repaired": "29ef2b56f4a761db2e30c1ac2c104e64884bc497",
+    "shadow_lab_v2_hybrid": "6c52e44b516ec9d707e3acbc3b958fe4dd9d6fe7",
+    "dpcse_v2_3": "d1cafc7c7a36f8fdc7926f8986e14fbc8da9505a",
+    "nq_mbo_adapter": "85a3c0b297839ca1e12089cdb44ab699e626528f",
+    "mfre_v1_2_5": "ffef7e12ce1561836b588f57f3b27aefa82282ab"
+  },
+  "integration_status": {
+    "umse_master_integrated": true,
+    "shadow_lab_integrated": true,
+    "dpcse_v2_3_integrated": true,
+    "dpcse_production_authority": false,
+    "cme_mbo_adapter": "PASS",
+    "real_mbo_data_connected": false,
+    "mfre_integrated": true,
+    "mfre_scope": "SHADOW_REASONING_CONTROLLER"
+  },
+  "remaining_release_blockers": [
+    "REAL_GPT_OSS_E2E_NOT_TESTED",
+    "REAL_RITHMIC_CME_TRUE_MBO_NOT_CONNECTED_OR_VERIFIED"
+  ]
+}

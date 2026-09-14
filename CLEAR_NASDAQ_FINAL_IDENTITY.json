@@ -1,0 +1,14 @@
+{
+  "project": "CLEAR NASDAQ FIA",
+  "branch": "feat/final-controlled-integration-20260914",
+  "release_candidate_code_sha": "6a69103e444825e3e97c01fddc4f502d47398093",
+  "foundation_freeze_sha": "982930c2f87ec70d46b4bac813068f77868df804",
+  "model_identity": "91e5d9a67625171c384dfcd6edb9bc36586a687dddb7ae7c5c54d194ce3da863",
+  "protocol_identity": "f28842b437ffcd76c9702c15ef2bc072a0ead1e08ff3c5590cef2f61278245cc",
+  "infrastructure_identity": "1b01dbf4c3458d7cbcc96cb30d7a854ecc95a8b4fe16d54bacb9382ed4a41054",
+  "classification_manifest_id": "1e847b0588b21dc2d361e68f33d8009df4e7647efb340af36885da47ffcabca5",
+  "protected_artifact_registry_id": "b20e24a6802f90402d1403ca863b2b98e62417544a9b8baf789bde7ab42986e4",
+  "protected_artifact_count": 106,
+  "protected_artifact_mismatches": 0,
+  "identity_scope_note": "BASE FIA scientific identities remain byte-identical through controlled research integration; research packages retain separate provenance/identity boundaries."
+}

@@ -1,0 +1,55 @@
+{
+  "project": "CLEAR NASDAQ FIA",
+  "real_postgres_e2e": {
+    "status": "PASS",
+    "workflow_run_id": 34790948350,
+    "proved": [
+      "transaction_commit_exact_event_evidence_head_bundle",
+      "rollback",
+      "duplicate_sequence_conflict_fail_closed",
+      "partial_failure_atomic_rollback",
+      "recovery_after_local_proof_deletion",
+      "recovery_after_restart",
+      "evidence_hash_mismatch_refused",
+      "ledger_head_mismatch_refused",
+      "production_row_delete_refused",
+      "test_fixture_lifecycle"
+    ]
+  },
+  "real_http_e2e": {
+    "status": "PASS",
+    "workflow_run_id": 34790948401,
+    "server": "actual FastAPI/Uvicorn",
+    "proved": [
+      "health_readable",
+      "learning_status_read_only",
+      "missing_scientific_secret_refused",
+      "wrong_scientific_secret_refused_without_echo",
+      "valid_scientific_secret_allowed",
+      "ordinary_member_bearer_alone_insufficient",
+      "forward_oos_run_once_missing_secret_refused",
+      "scientific_secret_not_logged"
+    ]
+  },
+  "real_gpt_oss_e2e": {
+    "status": "NOT_TESTED",
+    "required_model": "gpt-oss:20b",
+    "reason": "Current execution environment does not expose the user's local Ollama/model runtime, so an exact invocation was not fabricated."
+  },
+  "cme_nq_mbo": {
+    "adapter_status": "PASS",
+    "real_data_connected": false,
+    "provider": "Rithmic intended",
+    "entitlement_status": "NOT_VERIFIED_FOR_API_TRUE_MBO",
+    "historical_mbo_available": "NOT_VERIFIED",
+    "realtime_mbo_available": "NOT_VERIFIED",
+    "symbol_mapping": "NOT_VERIFIED",
+    "timestamp_precision": "NOT_VERIFIED",
+    "sequence_numbers_available": "NOT_VERIFIED",
+    "order_ids_available": "NOT_VERIFIED",
+    "add_modify_cancel_semantics": "NOT_VERIFIED",
+    "trade_print_availability": "NOT_VERIFIED",
+    "replay_limitations": "NOT_VERIFIED",
+    "adapter_fail_closed_status": "AWAITING_VENDOR_CONTRACT"
+  }
+}
