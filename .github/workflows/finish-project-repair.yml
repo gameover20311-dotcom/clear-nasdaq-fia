@@ -1,0 +1,284 @@
+name: Finish Project Repair
+
+on:
+  push:
+    branches: ["repair/ultra-project-hardening-20260915"]
+    paths:
+      - '.github/workflows/finish-project-repair.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Apply only the three known remaining repairs
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+          import hashlib, json, os, py_compile
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          ROOT = Path.cwd()
+          BACKEND = ROOT / 'backend'
+          BRAIN = BACKEND / 'clear_nasdaq_brain'
+          MANIFEST = BRAIN / 'MANIFEST.json'
+
+          def sha256(p: Path) -> str:
+              h = hashlib.sha256()
+              with p.open('rb') as f:
+                  for block in iter(lambda: f.read(1024 * 1024), b''):
+                      h.update(block)
+              return h.hexdigest()
+
+          # Attack the assumption that only three brain-manifest entries drifted.
+          obj = json.loads(MANIFEST.read_text(encoding='utf-8'))
+          listed = {x['path']: x for x in obj['files']}
+          mismatches = []
+          missing = []
+          for rel, exp in listed.items():
+              p = BRAIN / rel
+              if not p.is_file():
+                  missing.append(rel)
+                  continue
+              actual = {'size': p.stat().st_size, 'sha256': sha256(p)}
+              if actual['size'] != exp['size'] or actual['sha256'] != exp['sha256']:
+                  mismatches.append({
+                      'path': rel,
+                      'expected_size': exp['size'],
+                      'actual_size': actual['size'],
+                      'expected_sha256': exp['sha256'],
+                      'actual_sha256': actual['sha256'],
+                  })
+          expected_drift = {
+              'fia_brain/cloud_llm.py',
+              'fia_brain/final_three_brain.py',
+              'fia_brain/prompts.py',
+          }
+          found_drift = {x['path'] for x in mismatches}
+          assert not missing, missing
+          assert found_drift == expected_drift, (found_drift, expected_drift, mismatches)
+          assert obj.get('manifest_revision') == 2, obj.get('manifest_revision')
+          pre_manifest_sha = sha256(MANIFEST)
+          pre_manifest_size = MANIFEST.stat().st_size
+          assert pre_manifest_sha == '564b43d0a116021a10f6380fb325b358fd57b50e7abb63fe7b6408dc1842a093', pre_manifest_sha
+          assert pre_manifest_size == 32017, pre_manifest_size
+
+          # Repair Phase20 to consume the already-frozen, hash-pinned Polygon archive.
+          p20 = BACKEND / 'fia_backtest_phase20' / 'full_backtest.py'
+          text = p20.read_text(encoding='utf-8')
+          marker = 'def load_polygon_archive_cache():\n    if not POLYGON_CACHE_PATH.exists():'
+          assert marker in text, 'Phase20 loader shape changed; refusing blind patch'
+          replacement = '''_FROZEN_NEWS = (Path(__file__).resolve().parents[1] / "fia_backtest_frozen"\n                / "data" / "polygon_news_minimal_20250901_20260831.jsonl.gz")\n_FROZEN_NEWS_MANIFEST = (Path(__file__).resolve().parents[1] / "fia_backtest_frozen"\n                         / "FROZEN_NEWS_MANIFEST.json")\n\n\ndef _load_frozen_news():\n    if not _FROZEN_NEWS.exists():\n        return None\n    if not _FROZEN_NEWS_MANIFEST.exists():\n        raise RuntimeError("Frozen Polygon archive exists but its manifest is missing")\n    import gzip\n    import hashlib\n    manifest = json.loads(_FROZEN_NEWS_MANIFEST.read_text(encoding="utf-8"))\n    actual_gz = hashlib.sha256(_FROZEN_NEWS.read_bytes()).hexdigest()\n    expected_gz = str(manifest.get("sha256_gz") or "")\n    if actual_gz != expected_gz:\n        raise RuntimeError(\n            f"Frozen Polygon archive hash mismatch: expected={expected_gz} actual={actual_gz}"\n        )\n    rows = []\n    with gzip.open(_FROZEN_NEWS, "rt", encoding="utf-8") as fh:\n        for line in fh:\n            line = line.strip()\n            if line:\n                rows.append(json.loads(line))\n    expected_records = int(manifest.get("records") or -1)\n    if len(rows) != expected_records:\n        raise RuntimeError(\n            f"Frozen Polygon archive record mismatch: expected={expected_records} actual={len(rows)}"\n        )\n    if rows:\n        first = str(rows[0].get("published_utc") or "")\n        last = str(rows[-1].get("published_utc") or "")\n        if first != str(manifest.get("coverage_first_published_utc") or ""):\n            raise RuntimeError("Frozen Polygon first timestamp disagrees with manifest")\n        if last != str(manifest.get("coverage_last_published_utc") or ""):\n            raise RuntimeError("Frozen Polygon last timestamp disagrees with manifest")\n    return rows, manifest\n\n\ndef load_polygon_archive_cache():\n    frozen = _load_frozen_news()\n    if frozen is not None:\n        rows, manifest = frozen\n        return rows, {\n            "status": "frozen_minimal_archive_verified",\n            "raw": len(rows),\n            "path": str(_FROZEN_NEWS),\n            "start": manifest.get("coverage_first_published_utc"),\n            "end": manifest.get("coverage_last_published_utc"),\n            "windows": 0,\n            "sha256_gz": manifest.get("sha256_gz"),\n        }\n    if not POLYGON_CACHE_PATH.exists():'''
+          text = text.replace(marker, replacement, 1)
+          p20.write_text(text, encoding='utf-8')
+          py_compile.compile(str(p20), doraise=True)
+
+          # Repair Phase28's stale raw-file existence check to verify the canonical frozen artifact.
+          p28 = BACKEND / 'fia_backtest_phase28' / 'phase28_integrity_test.py'
+          text = p28.read_text(encoding='utf-8')
+          old = 'ok("Polygon one-year news archive present",(ROOT/"fia_backtest_phase20/data/polygon_news_20250901_20260831.json").exists())'
+          assert old in text, 'Phase28 stale Polygon check not found; refusing blind patch'
+          new = '''frozen_news=ROOT/"fia_backtest_frozen/data/polygon_news_minimal_20250901_20260831.jsonl.gz"\nfrozen_manifest_path=ROOT/"fia_backtest_frozen/FROZEN_NEWS_MANIFEST.json"\nok("Frozen Polygon archive present",frozen_news.exists())\nok("Frozen Polygon manifest present",frozen_manifest_path.exists())\nfrozen_manifest=json.loads(frozen_manifest_path.read_text(encoding="utf-8"))\nok("Frozen Polygon gzip hash pinned",sha(frozen_news)==frozen_manifest.get("sha256_gz"))\nok("Frozen Polygon record count pinned",int(frozen_manifest.get("records") or 0)==64851)\nok("Frozen Polygon source count preserved",int(frozen_manifest.get("source_articles") or 0)==64851)'''
+          text = text.replace(old, new, 1)
+          p28.write_text(text, encoding='utf-8')
+          py_compile.compile(str(p28), doraise=True)
+
+          # Make release-manifest test preserve r1 AND the now-observed defective/stale r2.
+          test = BRAIN / 'tests' / 'test_release_manifest_v661.py'
+          text = test.read_text(encoding='utf-8')
+          assert "assert obj['manifest_revision'] == 2" in text
+          text = text.replace("assert obj['manifest_revision'] == 2, obj.get('manifest_revision')", "assert obj['manifest_revision'] == 3, obj.get('manifest_revision')", 1)
+          anchor = "assert r1['superseded_by_commit']\n"
+          assert anchor in text
+          r2_block = '''\n# Revision 2 later became stale after real hosted-runtime hardening changed\n# three shipped brain files. Keep that failure visible rather than silently\n# rewriting r2 as if it had always described the later bytes.\nr2 = [h for h in history if h['revision'] == 2]\nassert len(r2) == 1, 'revision 2 must be recorded exactly once'\nr2 = r2[0]\nassert r2['status'] == 'SUPERSEDED_STALE_AFTER_RUNTIME_HARDENING', r2['status']\nassert r2['manifest_sha256'] == (\n    '564b43d0a116021a10f6380fb325b358fd57b50e7abb63fe7b6408dc1842a093'), r2['manifest_sha256']\nassert r2['manifest_size'] == 32017, r2['manifest_size']\nassert {e['path'] for e in r2['entries_misdescribed']} == {\n    'fia_brain/cloud_llm.py', 'fia_brain/final_three_brain.py', 'fia_brain/prompts.py'\n}\nassert r2['correction_reason']\nassert r2['superseded_at_utc']\nassert len(r2['superseded_by_commit']) == 40\nassert all(c in '0123456789abcdef' for c in r2['superseded_by_commit'])\n'''
+          text = text.replace(anchor, anchor + r2_block, 1)
+          text = text.replace("print('PASS test_release_manifest_v661 (manifest r2, r1 recorded as superseded)')", "print('PASS test_release_manifest_v661 (manifest r3; r1+r2 preserved as superseded)')", 1)
+          test.write_text(text, encoding='utf-8')
+          py_compile.compile(str(test), doraise=True)
+
+          # Create manifest revision 3. Do not auto-normalize any unexpected file.
+          obj = json.loads(MANIFEST.read_text(encoding='utf-8'))
+          history = obj['manifest_revision_history']
+          assert [h['revision'] for h in history] == [1], history
+          history.append({
+              'revision': 2,
+              'status': 'SUPERSEDED_STALE_AFTER_RUNTIME_HARDENING',
+              'manifest_sha256': pre_manifest_sha,
+              'manifest_size': pre_manifest_size,
+              'observed_at_commit': os.environ.get('SOURCE_COMMIT'),
+              'correction_reason': (
+                  'Revision 2 accurately described its payload when recorded, but later hosted GPT-OSS '
+                  'runtime hardening changed cloud_llm.py, final_three_brain.py and prompts.py without '
+                  'refreshing the engineering release manifest. This is release metadata only; no '
+                  'Forward-OOS seal, protected scientific artifact, historical outcome or prediction '
+                  'is re-written by revision 3.'
+              ),
+              'entries_misdescribed': mismatches,
+              'entries_changed_by_this_correction': ['tests/test_release_manifest_v661.py'],
+              'superseded_at_utc': datetime.now(timezone.utc).isoformat(),
+              'superseded_by_commit': 'PENDING_REPAIR_PAYLOAD_COMMIT',
+          })
+          obj['manifest_revision'] = 3
+          obj['manifest_revision_note'] = (
+              'Release version is unchanged. Revision 3 refreshes engineering release metadata after '
+              'hosted-runtime hardening; revisions 1 and 2 remain explicitly preserved as superseded records.'
+          )
+
+          file_entries = {x['path']: x for x in obj['files']}
+          update_paths = [
+              'fia_brain/cloud_llm.py',
+              'fia_brain/final_three_brain.py',
+              'fia_brain/prompts.py',
+              'tests/test_release_manifest_v661.py',
+          ]
+          for rel in update_paths:
+              q = BRAIN / rel
+              assert q.is_file(), rel
+              file_entries[rel]['size'] = q.stat().st_size
+              file_entries[rel]['sha256'] = sha256(q)
+
+          MANIFEST.write_text(json.dumps(obj, indent=1, ensure_ascii=True) + '\n', encoding='utf-8')
+
+          # Independent-style local audit: nothing except the declared four entries may need refresh now.
+          obj2 = json.loads(MANIFEST.read_text(encoding='utf-8'))
+          listed2 = {x['path']: x for x in obj2['files']}
+          bad = []
+          for rel, exp in listed2.items():
+              q = BRAIN / rel
+              if not q.is_file() or q.stat().st_size != exp['size'] or sha256(q) != exp['sha256']:
+                  bad.append(rel)
+          assert not bad, bad
+
+          # Frozen archive itself must match the pinned historical record before any commit.
+          frozen = BACKEND / 'fia_backtest_frozen/data/polygon_news_minimal_20250901_20260831.jsonl.gz'
+          fm = json.loads((BACKEND / 'fia_backtest_frozen/FROZEN_NEWS_MANIFEST.json').read_text())
+          assert sha256(frozen) == fm['sha256_gz'] == 'bf62059fb75f768f1b15061a1fb1f2110635d0d62ebb8cad38c86dfc4327a295'
+          assert fm['records'] == fm['source_articles'] == 64851
+          print('PATCH_STAGE=PASS')
+          print('R2_MANIFEST_SHA256=', pre_manifest_sha)
+          print('FROZEN_NEWS_SHA256_GZ=', sha256(frozen))
+          PY
+
+      - name: Commit repaired payload and bind r2 supersession to the real commit
+        run: |
+          git config user.name 'CLEAR-NASDAQ repair bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add \
+            backend/fia_backtest_phase20/full_backtest.py \
+            backend/fia_backtest_phase28/phase28_integrity_test.py \
+            backend/clear_nasdaq_brain/tests/test_release_manifest_v661.py \
+            backend/clear_nasdaq_brain/MANIFEST.json
+          git commit -m 'Fix frozen news replay checks and manifest revision 3'
+          PAYLOAD_SHA="$(git rev-parse HEAD)"
+          export PAYLOAD_SHA
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p=Path('backend/clear_nasdaq_brain/MANIFEST.json')
+          obj=json.loads(p.read_text(encoding='utf-8'))
+          r2=[x for x in obj['manifest_revision_history'] if x['revision']==2]
+          assert len(r2)==1
+          assert r2[0]['superseded_by_commit']=='PENDING_REPAIR_PAYLOAD_COMMIT'
+          r2[0]['superseded_by_commit']=os.environ['PAYLOAD_SHA']
+          p.write_text(json.dumps(obj,indent=1,ensure_ascii=True)+'\n',encoding='utf-8')
+          PY
+          git add backend/clear_nasdaq_brain/MANIFEST.json
+          git commit -m 'Bind manifest r2 supersession to repair payload commit'
+          echo "FINAL_TESTED_COMMIT=$(git rev-parse HEAD)" | tee /tmp/final_commit.txt
+
+      - name: Verify brain manifest independently
+        run: |
+          python .github/scripts/brain_manifest_audit.py
+          cd backend
+          python clear_nasdaq_brain/tests/test_release_manifest_v661.py
+
+      - name: Verify CNMI hostile regressions and isolation
+        run: |
+          python -m py_compile \
+            research/cnmi_shadow/adapter.py \
+            research/cnmi_shadow/test_adapter.py \
+            research/cnmi_shadow/mutation_probe.py \
+            .github/scripts/production_isolation_gate.py
+          python -m unittest discover -s research/cnmi_shadow -p 'test_adapter.py' -v
+          python -m research.cnmi_shadow.mutation_probe
+          python .github/scripts/production_isolation_gate.py --self-test
+          python .github/scripts/production_isolation_gate.py
+          test ! -e backend/fia/cnmi_shadow.py
+          test ! -e backend/tests/test_cnmi_shadow.py
+
+      - name: Install full FIA dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Snapshot protected artifacts before full regression
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import json,sys; sys.path.insert(0,'.')
+          from fia.artifact_guard import snapshot_protected,verify_protected,registry_manifest_id
+          pre=snapshot_protected(); v=verify_protected()
+          json.dump(pre,open('/tmp/pre.json','w'))
+          json.dump({'verify_ok':v['ok'],'count':v['count'],'mismatched':v['mismatched']},open('/tmp/pre_verify.json','w'))
+          print('REGISTRY_MANIFEST',registry_manifest_id())
+          print('PROTECTED_PRE',v)
+          raise SystemExit(0 if v['ok'] else 1)
+          PY
+
+      - name: Derive provider-dependent checks
+        run: python .github/scripts/fia_providers.py --out /tmp/providers.json
+
+      - name: Run full active FIA regression suite
+        run: python .github/scripts/fia_suite.py --out /tmp/suite.json
+
+      - name: Prove protected artifacts and worktree stayed clean
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import json,sys; sys.path.insert(0,'.')
+          from fia.artifact_guard import snapshot_protected,verify_protected
+          before=json.load(open('/tmp/pre.json')); after=snapshot_protected(); v=verify_protected()
+          changed=sorted(k for k in before if before[k]!=after[k])
+          record={'verify_ok':v['ok'],'count':v['count'],'changed':changed,'mismatched':v['mismatched']}
+          json.dump(record,open('/tmp/artifacts.json','w'),indent=1)
+          print('PROTECTED_POST',record)
+          PY
+          cd ..
+          python - <<'PY'
+          import json,subprocess
+          out=subprocess.run(['git','status','--porcelain'],capture_output=True,text=True).stdout
+          rows=[x.rstrip() for x in out.splitlines() if x.strip()]
+          modified=sorted(x[3:] for x in rows if not x.startswith('??'))
+          untracked=sorted(x[3:] for x in rows if x.startswith('??'))
+          json.dump({'dirty':modified,'modified':modified,'untracked':untracked},open('/tmp/worktree.json','w'),indent=1)
+          print('WORKTREE',{'modified':modified,'untracked':untracked})
+          PY
+
+      - name: Final FIA gate
+        run: |
+          python .github/scripts/fia_gate.py \
+            --suite /tmp/suite.json \
+            --artifacts /tmp/artifacts.json \
+            --worktree /tmp/worktree.json \
+            --providers /tmp/providers.json
+
+      - name: Push only after every proof gate is green
+        run: |
+          git push origin HEAD:repair/ultra-project-hardening-20260915
+          echo 'FINAL_REPAIR_PUSH=PASS'
+          cat /tmp/final_commit.txt
