@@ -15,7 +15,7 @@ GROQ_MODEL = "openai/gpt-oss-20b"
 
 
 def _rate_limit_delay(exc: urllib.error.HTTPError, detail: str, attempt: int) -> float:
-    """Return a bounded provider-directed wait for HTTP 429 only."""
+    """Respect provider-directed HTTP 429 windows without altering model semantics."""
     candidates = []
     try:
         raw = str(exc.headers.get("Retry-After") or "").strip()
@@ -23,18 +23,38 @@ def _rate_limit_delay(exc: urllib.error.HTTPError, detail: str, attempt: int) ->
             candidates.append(float(raw))
     except Exception:
         pass
+
+    text = str(detail or "")
+    # Groq normally reports seconds, but accept minute+second wording too so a
+    # provider-directed window is never shortened by the client.
     for pattern in (
         r"try again in\s+([0-9]+(?:\.[0-9]+)?)s",
         r"retry after\s+([0-9]+(?:\.[0-9]+)?)s",
     ):
-        match = re.search(pattern, str(detail or ""), flags=re.IGNORECASE)
+        match = re.search(pattern, text, flags=re.IGNORECASE)
         if match:
             try:
                 candidates.append(float(match.group(1)))
             except Exception:
                 pass
-    delay = max(candidates) if candidates else min(60.0, 15.0 * (attempt + 1))
-    return max(1.0, min(75.0, delay + 1.0))
+    for pattern in (
+        r"try again in\s+([0-9]+)m\s*([0-9]+(?:\.[0-9]+)?)s",
+        r"retry after\s+([0-9]+)m\s*([0-9]+(?:\.[0-9]+)?)s",
+    ):
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            try:
+                candidates.append(float(match.group(1)) * 60.0 + float(match.group(2)))
+            except Exception:
+                pass
+
+    if candidates:
+        # Provider-directed waits are authoritative. Add one second of jitter-safe
+        # margin; do not cap the window and immediately re-hit the same TPM limit.
+        return max(1.0, max(candidates) + 1.0)
+
+    # Only the no-header/no-detail fallback is bounded locally.
+    return max(1.0, min(60.0, 15.0 * (attempt + 1)))
 
 
 def _smaller_completion_budget(detail: str, current: int) -> int:
