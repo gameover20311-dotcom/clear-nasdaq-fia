@@ -14,9 +14,9 @@ app=Flask(__name__)
 state={"status":"BOOTING","result":None,"error":None}
 def _load_api_key():
     ct=os.environ['OPENAI_API_KEY_CIPHERTEXT']
-    priv_pem=base64.b64decode(os.environ['RACE_PRIVATE_KEY_B64'])
+    priv_der=base64.b64decode(os.environ['RACE_PRIVATE_KEY_DER_B64'])
     raw=base64.urlsafe_b64decode(ct + '='*((4-len(ct)%4)%4))
-    priv=serialization.load_pem_private_key(priv_pem,password=None)
+    priv=serialization.load_der_private_key(priv_der,password=None)
     key=priv.decrypt(raw,padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),algorithm=hashes.SHA256(),label=None)).decode().strip()
     return key
 client=OpenAI(api_key=_load_api_key())
