@@ -1,0 +1,137 @@
+name: Integrated release regression
+
+on:
+  push:
+    branches: [feat/final-controlled-integration-20260914]
+
+jobs:
+  integrated-regression:
+    if: github.event.head_commit.message == 'Run integrated release regression'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Prove integration changed research-only paths
+        run: |
+          python - <<'PY'
+          import subprocess
+          base='982930c2f87ec70d46b4bac813068f77868df804'
+          files=subprocess.check_output(['git','diff','--name-only',base+'..HEAD']).decode().splitlines()
+          allowed_prefixes=(
+              'research/umse_master/','research/umse_master_v2/',
+              'backend/simons_shadow_lab_v1/','backend/dpcse_v23_shadow/',
+              'backend/nq_mbo_adapter/','backend/mfre_v125_shadow/',
+              'backend/tests/test_simons_shadow_lab_',
+              '.github/workflows/',
+          )
+          allowed_exact={'backend/run_simons_shadow_lab_v1.py'}
+          bad=[p for p in files if p not in allowed_exact and not p.startswith(allowed_prefixes)]
+          print('INTEGRATION_CHANGED_FILES',len(files))
+          print('UNEXPECTED_PATHS',bad)
+          assert not bad,bad
+          PY
+          git diff --exit-code 982930c2f87ec70d46b4bac813068f77868df804..HEAD -- backend/main.py backend/fia backend/fia_final_cockpit
+          test -z "$(git diff --name-only 982930c2f87ec70d46b4bac813068f77868df804..HEAD -- backend/fia_forward_oos backend/fia_backtest_phase14/data backend/fia_backtest_phase20/data)"
+          echo PRODUCTION_CODE_UNCHANGED=PASS
+          echo OLD_FORWARD_OOS_UNCHANGED=PASS
+      - name: Prove protected artifacts immutable
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          from fia.artifact_guard import verify_protected
+          v=verify_protected()
+          print('PROTECTED_ARTIFACT_COUNT',v['count'])
+          print('PROTECTED_ARTIFACT_MISMATCHED',v['mismatched'])
+          assert v['ok'],v
+          print('PROTECTED_ARTIFACT_IMMUTABILITY=PASS')
+          PY
+      - name: Prove BASE scientific identities unchanged
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          from fia.identity import all_fingerprints
+          expected={'model':'91e5d9a67625171c384dfcd6edb9bc36586a687dddb7ae7c5c54d194ce3da863','protocol':'f28842b437ffcd76c9702c15ef2bc072a0ead1e08ff3c5590cef2f61278245cc','infrastructure':'1b01dbf4c3458d7cbcc96cb30d7a854ecc95a8b4fe16d54bacb9382ed4a41054'}
+          d=all_fingerprints(); got={k:d[k]['digest'] for k in expected}
+          print('IDENTITIES',got); assert got==expected,(got,expected)
+          print('BASE_FIA_UNCHANGED=PASS')
+          PY
+      - name: Security mutation boundary regression
+        working-directory: backend
+        run: python tests/test_scientific_operation_auth.py -v
+      - name: UMSE V1 + repaired V2 regression
+        run: |
+          PYTHONPATH=research/umse_master/src python -m unittest discover -s research/umse_master/tests -p 'test_*.py' -v
+          PYTHONPATH=research/umse_master/src:research/umse_master_v2/src python -m unittest discover -s research/umse_master_v2/tests -p 'test_*.py' -v
+      - name: Shadow Lab regression
+        working-directory: backend
+        run: |
+          python -m unittest tests.test_simons_shadow_lab_v1 tests.test_simons_shadow_lab_v1_metrics tests.test_simons_shadow_lab_v1_causal tests.test_simons_shadow_lab_v1_readiness tests.test_simons_shadow_lab_v2_hybrid tests.test_simons_shadow_lab_v2_durable tests.test_simons_shadow_lab_v2_controls -v
+      - name: DPCSE V2.3 frozen regression
+        working-directory: backend
+        run: |
+          python -m unittest -v dpcse_v23_shadow.test_v23_protocol
+          python - <<'PY'
+          from dpcse_v23_shadow.campaign import bootstrap_manifest
+          m=bootstrap_manifest()
+          assert m['status']=='NOT_ARMED' and m['candidate_model'] is None
+          assert m['locked_rows']==0 and m['resolved_rows']==0
+          assert m['pilot_alpha']==0.0 and m['historical_backfill']=='FORBIDDEN'
+          print('DPCSE_V2_3_INTEGRATED=YES')
+          print('DPCSE_PRODUCTION_AUTHORITY=false')
+          PY
+      - name: MBO adapter boundary regression
+        working-directory: backend
+        run: |
+          python -m unittest discover -v -s nq_mbo_adapter/tests -p 'test_*.py'
+          python - <<'PY'
+          import asyncio
+          from nq_mbo_adapter.rithmic import RithmicAdapter
+          a=RithmicAdapter(); c=a.capabilities()
+          assert a.health().status=='AWAITING_VENDOR_CONTRACT'
+          assert not c.individual_order_identity and not c.sequence_semantics and not c.add_modify_cancel_semantics
+          try: asyncio.run(a.connect())
+          except RuntimeError as e: assert str(e)=='RITHMIC_VENDOR_CONTRACT_NOT_BOUND'
+          else: raise AssertionError('unverified Rithmic connection unexpectedly succeeded')
+          print('CME_MBO_ADAPTER=PASS')
+          print('REAL_MBO_DATA_CONNECTED=NO')
+          PY
+      - name: MFRE frozen shadow regression
+        working-directory: backend
+        run: |
+          python -m unittest discover -v -s mfre_v125_shadow/tests -p 'test_*.py'
+          python - <<'PY'
+          from mfre_v125_shadow import status
+          from mfre_v125_shadow.contract import PRODUCTION_AUTHORIZED,MFRE_INCREMENTAL_VALUE,REAL_MARKET_EDGE
+          assert status.THEORY_FREEZE=='FINAL_FREEZE_PASS'
+          assert PRODUCTION_AUTHORIZED is False and status.EXECUTION_ENGINE_BOUND is False
+          assert MFRE_INCREMENTAL_VALUE=='NOT_TESTED' and REAL_MARKET_EDGE=='NOT_TESTED'
+          print('MFRE_INTEGRATED=SHADOW_ONLY')
+          PY
+      - name: Hidden-production-vote scan
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text='\n'.join(Path(p).read_text(errors='ignore') for p in ['main.py','fia/engine.py'] if Path(p).exists())
+          forbidden=['umse_master','simons_shadow_lab_v1','dpcse_v23_shadow','nq_mbo_adapter','mfre_v125_shadow']
+          hits=[x for x in forbidden if x in text]
+          print('PRODUCTION_IMPORT_HITS',hits)
+          assert not hits,hits
+          print('HIDDEN_PRODUCTION_VOTE=false')
+          PY
+      - name: Final integrated truth
+        run: |
+          echo INTEGRATED_REGRESSION=PASS
+          echo BASE_FIA_UNCHANGED=PASS
+          echo OLD_FORWARD_OOS_UNCHANGED=PASS
+          echo HISTORICAL_BACKFILL=FORBIDDEN
+          echo NQ_FOOS_20260909=UNVERIFIED
+          echo PREDICTIVE_EDGE=NOT_PROVEN
