@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from research.cnmi_shadow.test_adapter import base_candidate
+from research.cnmi_shadow.test_adapter import base_candidate, valid_materiality_identity
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "research" / "cnmi_shadow" / "adapter.py"
@@ -34,8 +34,6 @@ def load_mutant(old: str, new: str):
 def main() -> int:
     probes: list[tuple[str, bool, str]] = []
 
-    # M1: if the external-verifier boundary is removed, a bare self-attested
-    # production candidate becomes admitted. The oracle must detect that.
     ns = load_mutant("production_ok = False", "production_ok = production_structural_ok")
     out = ns["evaluate_candidate"](base_candidate())
     probes.append((
@@ -44,8 +42,6 @@ def main() -> int:
         "mutant admitted a self-attested production candidate",
     ))
 
-    # M2: if the all-production-gates rule is disabled, omitting H9 becomes
-    # structurally eligible. That unsafe transition must be detected.
     ns = load_mutant(
         'if requested_level == "PRODUCTION":',
         'if False and requested_level == "PRODUCTION":',
@@ -59,7 +55,6 @@ def main() -> int:
         "mutant allowed omitted H9",
     ))
 
-    # M3: disabling the registered-claim check allows a locally invented claim.
     ns = load_mutant(
         "if ctype not in CLAIM_TYPES:",
         "if False and ctype not in CLAIM_TYPES:",
@@ -73,8 +68,6 @@ def main() -> int:
         "mutant admitted unregistered claim type",
     ))
 
-    # M4: disabling provenance completeness lets an unrecoverable record become
-    # structurally production eligible.
     ns = load_mutant(
         "elif completeness not in PRODUCTION_ALLOWED_PROVENANCE_STATES:",
         "elif False and completeness not in PRODUCTION_ALLOWED_PROVENANCE_STATES:",
@@ -88,7 +81,6 @@ def main() -> int:
         "mutant allowed historically unrecoverable provenance",
     ))
 
-    # M5: disabling the hard-gate value check lets H1=false pass structurally.
     ns = load_mutant(
         "if provided.get(gate) is not True:",
         "if False and provided.get(gate) is not True:",
@@ -102,8 +94,6 @@ def main() -> int:
         "mutant allowed H1=false",
     ))
 
-    # M6: disabling duplicate detection lets a malformed gate declaration remain
-    # structurally eligible.
     ns = load_mutant(
         "if len(normalized) != len(set(normalized)):",
         "if False and len(normalized) != len(set(normalized)):",
@@ -115,6 +105,38 @@ def main() -> int:
         "duplicate_applicable_gate",
         out["production_structurally_eligible"] is True,
         "mutant allowed duplicate applicable gate",
+    ))
+
+    # M7: a RESEARCH request must not silently escalate to CORE just because the
+    # candidate happens to contain CORE fields.
+    ns = load_mutant(
+        'requested in {"CORE", "PRODUCTION"}\n        and research_ok',
+        'True\n        and research_ok',
+    )
+    c = base_candidate("RESEARCH")
+    out = ns["evaluate_candidate"](c)
+    probes.append((
+        "requested_level_scope",
+        out["core_admissible"] is True,
+        "mutant escalated RESEARCH request into CORE",
+    ))
+
+    # M8: present-but-empty materiality identity values are not a valid frozen
+    # identity. Removing the empty-value check must create an unsafe pass.
+    ns = load_mutant("if empty:", "if False and empty:")
+    c = base_candidate()
+    identity = valid_materiality_identity()
+    identity["freeze_identity"] = ""
+    c["claims"] = [{
+        "type": "EMPIRICAL_NONINFERIORITY",
+        "requires_materiality": True,
+        "materiality_identity": identity,
+    }]
+    out = ns["evaluate_candidate"](c)
+    probes.append((
+        "empty_materiality_identity",
+        out["production_structurally_eligible"] is True,
+        "mutant accepted empty freeze identity",
     ))
 
     report = {
