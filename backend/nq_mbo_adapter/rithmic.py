@@ -326,11 +326,25 @@ class RithmicAdapter(MarketDataAdapter):
             self._last_error = "DEPTH_BY_ORDER_SCOPE_MISMATCH"
             return
 
-        sequence_number = int(getattr(response, "sequence_number", 0) or 0)
-        exchange_timestamp = self._source_timestamp(response)
-        if sequence_number <= 0:
+        # Rithmic Protocol 0.89.0.0 declares this field as uint64 but does not
+        # declare a positive-only constraint.  Zero is therefore a valid wire
+        # value and was observed on the credentialed Rithmic Test stream.  The
+        # old `<= 0` check incorrectly conflated a valid zero with a missing
+        # field.  We still fail closed when the field itself is unavailable,
+        # non-integral, or outside the uint64 domain.
+        if not hasattr(response, "sequence_number"):
             self._last_error = "DEPTH_BY_ORDER_SEQUENCE_MISSING"
             return
+        try:
+            sequence_number = int(response.sequence_number)
+        except (TypeError, ValueError, OverflowError):
+            self._last_error = "DEPTH_BY_ORDER_SEQUENCE_INVALID"
+            return
+        if sequence_number < 0 or sequence_number > 0xFFFFFFFFFFFFFFFF:
+            self._last_error = "DEPTH_BY_ORDER_SEQUENCE_INVALID"
+            return
+
+        exchange_timestamp = self._source_timestamp(response)
         if exchange_timestamp is None:
             self._last_error = "DEPTH_BY_ORDER_SOURCE_TIMESTAMP_MISSING"
             return
