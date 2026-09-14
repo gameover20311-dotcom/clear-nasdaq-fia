@@ -15,7 +15,12 @@ NON-NEGOTIABLE:
 """
 
 JSON_CONTRACT = r"""
-Return exactly the JSON object below. Probability fields are PERCENTAGES from 0 to 100, NOT 0-to-1 fractions. bullish_probability + bearish_probability MUST equal exactly 100.00.
+Return exactly the JSON object below. Probability fields are PERCENTAGES from 0 to 100, NOT 0-to-1 fractions.
+ARITHMETIC CONTRACT — NON-NEGOTIABLE:
+1) Choose bullish_probability first as a number from 0.00 to 100.00.
+2) Set bearish_probability = 100.00 - bullish_probability EXACTLY. Do not estimate bearish_probability independently.
+3) Before emitting JSON, recompute bullish_probability + bearish_probability and verify it equals exactly 100.00.
+4) If your reasoning cannot justify a directional split, use 50.00 and 50.00 rather than violating the arithmetic contract.
 {
   "direction":"BULLISH|BEARISH|NEUTRAL|NO_EDGE",
   "bullish_probability":0.0,
