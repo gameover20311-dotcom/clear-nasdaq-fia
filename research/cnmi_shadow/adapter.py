@@ -125,6 +125,7 @@ def status() -> Dict[str, Any]:
             "incomplete_provenance_blocks_production": True,
             "bare_candidate_self_attestation_never_enough": True,
             "production_requires_external_verifier": True,
+            "requested_level_caps_evaluation_scope": True,
         },
     }
 
@@ -186,8 +187,6 @@ def _evaluate_claims(candidate: Mapping[str, Any], reasons: List[str]) -> bool:
 
         ctype = str(claim.get("type") or "").upper()
         if ctype not in CLAIM_TYPES:
-            # A candidate must not be able to invent its own claim type and then
-            # bless it with a self-supplied "explicit evidence rule".
             reasons.append(f"CLAIM:{i}=UNKNOWN_TYPE_UNREGISTERED")
             ok = False
 
@@ -215,6 +214,17 @@ def _evaluate_claims(candidate: Mapping[str, Any], reasons: List[str]) -> bool:
                 if missing:
                     reasons.append(f"CLAIM:{i}=MATERIALITY_IDENTITY_INCOMPLETE:{','.join(missing)}")
                     ok = False
+
+                empty = sorted(
+                    name
+                    for name in required & set(identity)
+                    if identity.get(name) is None
+                    or (isinstance(identity.get(name), str) and not identity.get(name).strip())
+                )
+                if empty:
+                    reasons.append(f"CLAIM:{i}=MATERIALITY_IDENTITY_EMPTY:{','.join(empty)}")
+                    ok = False
+
                 if identity.get("confirmatory_outcome_used_to_set_margin") is True:
                     reasons.append(f"CLAIM:{i}=MATERIALITY_CONTAMINATED")
                     ok = False
@@ -338,14 +348,28 @@ def evaluate_candidate(candidate: Mapping[str, Any]) -> Dict[str, Any]:
 
     requested = str(candidate.get("requested_level") or "").upper()
     reasons: List[str] = []
-    if requested not in LEVELS:
+    requested_valid = requested in LEVELS
+    if not requested_valid:
         reasons.append("REQUESTED_LEVEL:INVALID_OR_MISSING")
 
     hard_ok = _evaluate_hard_gates(candidate, requested or "UNKNOWN", reasons)
     claims_ok = _evaluate_claims(candidate, reasons)
-    research_ok = hard_ok and claims_ok and _research_requirements(candidate, reasons)
-    core_ok = research_ok and _core_requirements(candidate, reasons)
-    production_structural_ok = core_ok and _production_requirements(candidate, reasons)
+
+    # A candidate may only earn the level it asked us to adjudicate (plus the
+    # prerequisites below it). This prevents a RESEARCH/invalid request from
+    # accidentally surfacing a production-eligibility flag that never received
+    # production-level hard-gate adjudication.
+    research_ok = requested_valid and hard_ok and claims_ok and _research_requirements(candidate, reasons)
+    core_ok = (
+        requested in {"CORE", "PRODUCTION"}
+        and research_ok
+        and _core_requirements(candidate, reasons)
+    )
+    production_structural_ok = (
+        requested == "PRODUCTION"
+        and core_ok
+        and _production_requirements(candidate, reasons)
+    )
 
     # This module is deliberately not a trusted external verifier. No combination
     # of caller-supplied booleans can turn that fact into a production proof.
