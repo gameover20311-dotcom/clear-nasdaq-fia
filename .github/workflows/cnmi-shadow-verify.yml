@@ -5,14 +5,12 @@ on:
     branches:
       - cnmi-shadow-integration
     paths:
-      - 'backend/fia/cnmi_shadow.py'
-      - 'backend/tests/test_cnmi_shadow.py'
+      - 'research/cnmi_shadow/**'
       - 'CNMI_SHADOW_INTEGRATION.md'
       - '.github/workflows/cnmi-shadow-verify.yml'
   pull_request:
     paths:
-      - 'backend/fia/cnmi_shadow.py'
-      - 'backend/tests/test_cnmi_shadow.py'
+      - 'research/cnmi_shadow/**'
       - 'CNMI_SHADOW_INTEGRATION.md'
       - '.github/workflows/cnmi-shadow-verify.yml'
 
@@ -35,19 +33,17 @@ jobs:
 
       - name: Compile adapter and regression
         run: |
-          python -m py_compile backend/fia/cnmi_shadow.py backend/tests/test_cnmi_shadow.py
+          python -m py_compile research/cnmi_shadow/adapter.py research/cnmi_shadow/test_adapter.py
 
       - name: Run hostile shadow regression
-        env:
-          PYTHONPATH: backend
         run: |
-          python -m unittest discover -s backend/tests -p 'test_cnmi_shadow.py' -v
+          python -m unittest discover -s research/cnmi_shadow -p 'test_adapter.py' -v
 
       - name: Verify production boundary literals
         run: |
           python - <<'PY'
           from pathlib import Path
-          p = Path('backend/fia/cnmi_shadow.py')
+          p = Path('research/cnmi_shadow/adapter.py')
           text = p.read_text(encoding='utf-8')
           required = [
               'PRODUCTION_INFLUENCE = False',
@@ -69,3 +65,9 @@ jobs:
               raise SystemExit('CNMI shadow crossed production boundary: ' + repr(found))
           print('CNMI_SHADOW_PRODUCTION_BOUNDARY=PASS')
           PY
+
+      - name: Verify backend scientific identity scope untouched
+        run: |
+          test ! -e backend/fia/cnmi_shadow.py
+          test ! -e backend/tests/test_cnmi_shadow.py
+          echo 'CNMI_SHADOW_OUTSIDE_BACKEND_FINGERPRINT_SCOPE=PASS'
