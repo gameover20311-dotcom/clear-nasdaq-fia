@@ -1,0 +1,22 @@
+{
+  "integration_id": "SRB_V1_1_SHADOW_INTEGRATION_V1",
+  "srb_version": "SRB_V1_1_FINAL",
+  "audit_class": "INTERNAL_HOSTILE_AUDIT",
+  "ready_for_independent_audit": true,
+  "final_scientific_validation_claimed": false,
+  "production_integration": false,
+  "production_influence": false,
+  "deployment_authorized": false,
+  "predictive_edge_claimed": false,
+  "superintelligence_claimed": false,
+  "source_generator_sha256": "e1303368e18c8b408c01866ff361fbecafb2fc83b480b496d949652684f2e61e",
+  "manifest_sha256": "d95420913c5a3401c40abf1c5da6e59451baab3f36727735ea5ada4263c00982",
+  "final_zip_sha256": "08045c3a630f50656d47f42021b27036e4250e77488e2e0df2a4d2129371474d",
+  "independent_audit_handoff_zip_sha256": "5f3317efc40782959d6c8cf0d38960454c46cbc99c4776ee278de85833d6546f",
+  "hostile_regression": "82/82 PASS",
+  "mutation_tests": "11/11 KILLED — PASS",
+  "repro_gate": "PASS",
+  "delivery_equality": "PASS",
+  "integration_policy": "EXACT_BYTES_ONLY_FAIL_CLOSED",
+  "note": "Reports and manifests are not sufficient to reconstruct the verified SRB source. Shadow execution remains blocked until the exact verified payload is vendored and hash-matches."
+}

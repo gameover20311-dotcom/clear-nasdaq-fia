@@ -1,0 +1,82 @@
+name: SRB Shadow Verify
+
+on:
+  push:
+    branches:
+      - srb-v1-1-shadow-integration
+    paths:
+      - 'research/srb_shadow/**'
+      - 'SRB_SHADOW_INTEGRATION.md'
+      - '.github/workflows/srb-shadow-verify.yml'
+  pull_request:
+    paths:
+      - 'research/srb_shadow/**'
+      - 'SRB_SHADOW_INTEGRATION.md'
+      - '.github/workflows/srb-shadow-verify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-srb-shadow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Compile shadow boundary
+        run: |
+          python -m py_compile research/srb_shadow/adapter.py research/srb_shadow/test_adapter.py
+
+      - name: Run fail-closed boundary tests
+        run: |
+          python -m unittest discover -s research/srb_shadow -p 'test_adapter.py' -v
+
+      - name: Verify project production boundary
+        run: |
+          test ! -e backend/srb
+          test ! -e backend/fia/srb.py
+          test ! -e backend/fia/srb_shadow.py
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('research/srb_shadow/adapter.py').read_text(encoding='utf-8')
+          required = [
+              'PRODUCTION_INFLUENCE = False',
+              'DEPLOYMENT_AUTHORIZED = False',
+              'PREDICTIVE_EDGE_CLAIMED = False',
+              'SUPERINTELLIGENCE_CLAIMED = False',
+          ]
+          missing = [x for x in required if x not in text]
+          if missing:
+              raise SystemExit('SRB shadow safety boundary missing: ' + repr(missing))
+          forbidden = [
+              'from fia.engine import',
+              'from fia.forward_oos import',
+              'record_forward_forecast(',
+              'build_forecast(',
+          ]
+          found = [x for x in forbidden if x in text]
+          if found:
+              raise SystemExit('SRB shadow crossed production boundary: ' + repr(found))
+          print('SRB_SHADOW_PRODUCTION_BOUNDARY=PASS')
+          PY
+
+      - name: Report exact payload status
+        run: |
+          python - <<'PY'
+          import json
+          from research.srb_shadow.adapter import verify_payload
+          status = verify_payload()
+          print(json.dumps(status, sort_keys=True, indent=2))
+          print('SRB_SHADOW_READY=' + ('true' if status['shadow_ready'] else 'false'))
+          # During staging, NOT_READY is expected and must not be silently promoted.
+          if status['shadow_ready']:
+              print('EXACT_VERIFIED_SRB_PAYLOAD_PRESENT=PASS')
+          else:
+              print('EXACT_VERIFIED_SRB_PAYLOAD_PRESENT=NOT_READY_FAIL_CLOSED')
+          PY
