@@ -70,6 +70,11 @@ class MBOEvent:
     price: Decimal | None
     quantity: int | None
     action: EventAction
+    # Some providers, including Rithmic Protocol 0.89.0.0 DepthByOrder,
+    # attach one provider sequence number to a batch containing multiple order
+    # updates.  `sequence_subindex` preserves the exact position within that
+    # provider batch without inventing a synthetic provider sequence number.
+    sequence_subindex: int | None = None
     depth: int | None = None
     raw_source_hash: str | None = None
     replay: bool = False
@@ -84,6 +89,7 @@ class MBOEvent:
             "exchange_timestamp": _iso(self.exchange_timestamp),
             "receive_timestamp": _iso(self.receive_timestamp),
             "sequence_id": self.sequence_id,
+            "sequence_subindex": self.sequence_subindex,
             "order_id": self.order_id,
             "side": self.side.value if self.side else None,
             "price": str(self.price) if self.price is not None else None,
