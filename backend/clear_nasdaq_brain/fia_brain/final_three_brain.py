@@ -140,12 +140,20 @@ def run(brain, env: Dict[str,Any], ledger: Dict[str,Any], compact: str, ids, car
         "precommitments_by_horizon":precommitments_by_horizon,"consensus_by_horizon":consensus_by_horizon,
         "skeptic":skeptic,"regime_novelty":regime,"failure_memory":memory,
     }
-    # L-9 EVIDENCE-WINDOW FIX. Specialists read domain_text(ledger, ..., max_records=N),
-    # a WIDER view than the fact-card `compact` the judges were previously given. Judges
-    # therefore flagged correct specialist citations as "unsupported evidence references"
-    # and the tribunal refused to publish. The judge view is now guaranteed to be a
-    # superset of every citation in judge_input.
-    judge_view=validator_evidence_view(compact,judge_input,ledger)
+    # L-9 + hosted-provider ceiling repair. A grounding judge does not need every
+    # unrelated fact card; it must see every REAL ledger record actually cited by the
+    # material it validates. Build that exact citation-complete subset. This preserves
+    # all cited prediction-time evidence while avoiding a provider-size failure caused
+    # by shipping the whole 96-card base view again. If coverage cannot be complete,
+    # fail closed rather than silently dropping evidence.
+    judge_view=validator_evidence_view("",judge_input,ledger,max_appendix_chars=24000)
+    if (not judge_view.get("coverage_complete")) or judge_view.get("unresolvable_ids"):
+        raise RuntimeError(
+            "judge evidence window incomplete: truncated=%s unresolvable=%s" % (
+                judge_view.get("appendix_truncated_ids") or [],
+                judge_view.get("unresolvable_ids") or [],
+            )
+        )
     judges=[
         brain._ask_judge(judge_view["view"],judge_input,18101,prompts.JUDGE_ROLES[0],runtime_policy["critics"]),
         brain._ask_judge(judge_view["view"],judge_input,18209,prompts.JUDGE_ROLES[1],runtime_policy["critics"]),
