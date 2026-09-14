@@ -15,12 +15,7 @@ GROQ_MODEL = "openai/gpt-oss-20b"
 
 
 def _rate_limit_delay(exc: urllib.error.HTTPError, detail: str, attempt: int) -> float:
-    """Return a bounded provider-directed wait for HTTP 429 only.
-
-    This does not alter prompts, schemas, probabilities, evidence, or validation.
-    It only prevents a valid hosted GPT-OSS run from failing because several
-    legitimate Three-Brain calls land inside the same Groq TPM window.
-    """
+    """Return a bounded provider-directed wait for HTTP 429 only."""
     candidates = []
     try:
         raw = str(exc.headers.get("Retry-After") or "").strip()
@@ -28,7 +23,6 @@ def _rate_limit_delay(exc: urllib.error.HTTPError, detail: str, attempt: int) ->
             candidates.append(float(raw))
     except Exception:
         pass
-
     for pattern in (
         r"try again in\s+([0-9]+(?:\.[0-9]+)?)s",
         r"retry after\s+([0-9]+(?:\.[0-9]+)?)s",
@@ -39,10 +33,38 @@ def _rate_limit_delay(exc: urllib.error.HTTPError, detail: str, attempt: int) ->
                 candidates.append(float(match.group(1)))
             except Exception:
                 pass
-
-    # Conservative fallback grows only when the provider gave no usable delay.
     delay = max(candidates) if candidates else min(60.0, 15.0 * (attempt + 1))
     return max(1.0, min(75.0, delay + 1.0))
+
+
+def _smaller_completion_budget(detail: str, current: int) -> int:
+    """Fit the SAME prompt/schema under a provider request-token ceiling.
+
+    Groq reports e.g. `Limit 8000, Requested 9620`. The hosted request accounting
+    includes completion budget, so reduce only max_completion_tokens. Evidence,
+    prompt, schema and validators remain byte-for-byte unchanged.
+    """
+    limit = requested = None
+    m = re.search(
+        r"Limit\s+([0-9]+).*?Requested\s+([0-9]+)",
+        str(detail or ""),
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if m:
+        try:
+            limit = int(m.group(1)); requested = int(m.group(2))
+        except Exception:
+            limit = requested = None
+    if limit and requested and requested > limit:
+        over = requested - limit
+        target = current - over - 384
+    else:
+        target = int(current * 0.65)
+    # Keep enough room for strict structured output while guaranteeing progress.
+    target = max(768, target)
+    if target >= current:
+        target = max(768, current - 512)
+    return target
 
 
 class GroqClient:
@@ -63,7 +85,6 @@ class GroqClient:
             raise ValueError("Groq model must remain pinned to openai/gpt-oss-20b")
         if reasoning_effort not in {"low", "medium", "high"}:
             raise ValueError("invalid reasoning_effort")
-
         self.timeout = int(timeout)
         self.num_ctx = int(num_ctx)
         self.num_predict = int(num_predict)
@@ -76,6 +97,7 @@ class GroqClient:
             "last_request_id": None,
             "last_usage": None,
             "rate_limit_retries": 0,
+            "request_size_retries": 0,
         }
 
     def _key(self) -> str:
@@ -140,35 +162,25 @@ class GroqClient:
         num_predict: Optional[int] = None,
         response_schema: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-
         t = float(temperature)
         if not 0.0 <= t <= 2.0:
             raise ValueError("temperature outside [0,2]")
-
         effort = reasoning_effort or self.reasoning_effort
         if effort not in {"low", "medium", "high"}:
             raise ValueError("invalid reasoning_effort")
-
         ctx = int(num_ctx if num_ctx is not None else self.num_ctx)
         predict = int(num_predict if num_predict is not None else self.num_predict)
-
         if not 4096 <= ctx <= 131072:
             raise ValueError("num_ctx outside safe range")
         if not 256 <= predict <= 8192:
             raise ValueError("num_predict outside safe range")
-
         if response_schema is not None and not isinstance(response_schema, dict):
             raise ValueError("response_schema must be a dict")
 
         if response_schema is not None:
-            encoded = json.dumps(
-                response_schema,
-                allow_nan=False,
-                separators=(",", ":"),
-            )
+            encoded = json.dumps(response_schema, allow_nan=False, separators=(",", ":"))
             if len(encoded) > 100000:
                 raise ValueError("response_schema too large")
-
             response_format = {
                 "type": "json_schema",
                 "json_schema": {
@@ -180,7 +192,7 @@ class GroqClient:
         else:
             response_format = {"type": "json_object"}
 
-        payload = {
+        base_payload = {
             "model": self.model,
             "stream": False,
             "messages": [
@@ -191,11 +203,8 @@ class GroqClient:
             "seed": int(seed),
             "reasoning_effort": effort,
             "include_reasoning": False,
-            "max_completion_tokens": predict,
             "response_format": response_format,
         }
-
-        raw = json.dumps(payload, allow_nan=False).encode("utf-8")
         request_timeout = int(timeout if timeout is not None else self.timeout)
         try:
             max_rate_retries = int(os.getenv("GROQ_RATE_LIMIT_RETRIES", "8"))
@@ -204,7 +213,13 @@ class GroqClient:
         max_rate_retries = max(0, min(max_rate_retries, 12))
 
         response = None
-        for attempt in range(max_rate_retries + 1):
+        rate_attempt = 0
+        size_attempt = 0
+        active_predict = predict
+        while True:
+            payload = dict(base_payload)
+            payload["max_completion_tokens"] = active_predict
+            raw = json.dumps(payload, allow_nan=False).encode("utf-8")
             req = urllib.request.Request(
                 self.base_url + "/chat/completions",
                 data=raw,
@@ -223,44 +238,64 @@ class GroqClient:
                     detail = e.read(4000).decode("utf-8", "replace")
                 except Exception:
                     detail = ""
-                if int(e.code) == 429 and attempt < max_rate_retries:
-                    delay = _rate_limit_delay(e, detail, attempt)
+                if int(e.code) == 429 and rate_attempt < max_rate_retries:
+                    delay = _rate_limit_delay(e, detail, rate_attempt)
+                    rate_attempt += 1
                     self.runtime_provenance["rate_limit_retries"] = int(
                         self.runtime_provenance.get("rate_limit_retries") or 0
                     ) + 1
                     print(
                         "GROQ_RATE_LIMIT_RETRY",
-                        json.dumps(
-                            {
-                                "attempt": attempt + 1,
-                                "sleep_seconds": round(delay, 2),
-                                "provider_model": self.model,
-                            },
-                            sort_keys=True,
-                        ),
+                        json.dumps({"attempt": rate_attempt, "sleep_seconds": round(delay, 2), "provider_model": self.model}, sort_keys=True),
                         flush=True,
                     )
                     time.sleep(delay)
                     continue
-                raise LocalModelError(
-                    "Groq HTTP %s: %s" % (e.code, detail[:1000])
-                ) from e
+                # Groq can reject a single request whose prompt + completion budget
+                # exceeds the service-tier TPM ceiling. Preserve the exact prompt and
+                # schema; only reduce max_completion_tokens and retry.
+                if (
+                    int(e.code) == 413
+                    and "rate_limit_exceeded" in detail
+                    and size_attempt < 3
+                    and active_predict > 768
+                ):
+                    new_predict = _smaller_completion_budget(detail, active_predict)
+                    if new_predict < active_predict:
+                        size_attempt += 1
+                        self.runtime_provenance["request_size_retries"] = int(
+                            self.runtime_provenance.get("request_size_retries") or 0
+                        ) + 1
+                        print(
+                            "GROQ_REQUEST_SIZE_RETRY",
+                            json.dumps(
+                                {
+                                    "attempt": size_attempt,
+                                    "from_max_completion_tokens": active_predict,
+                                    "to_max_completion_tokens": new_predict,
+                                    "provider_model": self.model,
+                                },
+                                sort_keys=True,
+                            ),
+                            flush=True,
+                        )
+                        active_predict = new_predict
+                        rate_attempt = 0
+                        continue
+                raise LocalModelError("Groq HTTP %s: %s" % (e.code, detail[:1000])) from e
             except LocalModelError:
                 raise
             except Exception as e:
-                raise LocalModelError(
-                    type(e).__name__ + ": " + str(e)[:500]
-                ) from e
+                raise LocalModelError(type(e).__name__ + ": " + str(e)[:500]) from e
 
         if not isinstance(response, dict):
-            raise LocalModelError("Groq response unavailable after rate-limit retries")
+            raise LocalModelError("Groq response unavailable after retries")
 
         fingerprint = str(response.get("system_fingerprint") or "").strip()
         if fingerprint:
             fps = self.runtime_provenance["system_fingerprints"]
             if fingerprint not in fps:
                 fps.append(fingerprint)
-
         self.runtime_provenance["last_request_id"] = (
             (response.get("x_groq") or {}).get("id")
             if isinstance(response.get("x_groq"), dict)
@@ -271,10 +306,8 @@ class GroqClient:
         choices = response.get("choices") or []
         if not choices or not isinstance(choices[0], dict):
             raise LocalModelError("Groq response missing choices")
-
         message = choices[0].get("message") or {}
         content = message.get("content") or ""
-
         try:
             return _extract_json(content)
         except LocalModelError as e:
