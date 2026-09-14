@@ -3,9 +3,9 @@
 # Reporting and adjudication are separate. The gate never converts unavailable
 # historical data into PASS. Exact registered canonical external data may be
 # reported MISSING_EXTERNAL_DATA / NOT_TESTED with zero scientific, predictive,
-# or Forward-OOS credit. Any undeclared missing input, wrong bytes, fail-open
-# check, code failure, environment block, mutation, or protected-artifact change
-# remains fatal.
+# Forward-OOS, or provider-execution coverage credit. Any undeclared missing
+# input, wrong bytes, fail-open check, code failure, environment block, mutation,
+# or protected-artifact change remains fatal.
 from __future__ import annotations
 
 import argparse
@@ -20,7 +20,8 @@ FAILING_STATUSES = (
     "TRUE_EXTERNAL_ENV_BLOCK",
 )
 NOT_TESTED_STATUSES = ("MISSING_EXTERNAL_DATA",)
-NOT_EXECUTED = ("TRUE_EXTERNAL_ENV_BLOCK", "PROJECT_IMPORT_DEFECT")
+HARD_NOT_EXECUTED = ("TRUE_EXTERNAL_ENV_BLOCK", "PROJECT_IMPORT_DEFECT")
+NO_COVERAGE_STATUSES = ("MISSING_EXTERNAL_DATA",)
 
 
 def load(path):
@@ -41,7 +42,6 @@ def validate_external_not_tested(suite):
     entry_map = reg.get("entry_map") or {}
     results = suite.get("results") or {}
 
-    # Every NOT_TESTED result must map to one exact missing registered dataset.
     not_tested = []
     for entry, record in results.items():
         if record.get("status") != "MISSING_EXTERNAL_DATA":
@@ -68,8 +68,6 @@ def validate_external_not_tested(suite):
         if ev.get("forward_oos_credit") is not False:
             errors.append(f"{entry}: missing data granted Forward-OOS credit")
 
-    # Conversely, when a registered dataset is missing, every check declared as
-    # requiring it must be explicitly NOT_TESTED. A missing entry or PASS is fatal.
     for entry, req in entry_map.items():
         dataset = datasets.get(req.get("dataset_id")) or {}
         if dataset.get("state") != "MISSING_EXTERNAL_DATA":
@@ -79,6 +77,26 @@ def validate_external_not_tested(suite):
             errors.append(f"{entry}: required missing dataset but status={status!r}")
 
     return not errors, errors, sorted(not_tested)
+
+
+def provider_execution_status(providers, results):
+    """Separate hard non-execution from explicit external-data NOT_TESTED.
+
+    MISSING_EXTERNAL_DATA is not a provider coverage success. It receives zero
+    provider-execution credit, but when the external-data contract has already
+    validated it as an expected canonical-data absence it is also not a code or
+    environment regression. The final output must preserve that distinction.
+    """
+    entries = providers.get("entries", {}) if isinstance(providers, dict) else {}
+    hard_not_run = sorted(
+        entry for entry in entries
+        if (results.get(entry) or {}).get("status") in HARD_NOT_EXECUTED
+    )
+    no_coverage = sorted(
+        entry for entry in entries
+        if (results.get(entry) or {}).get("status") in NO_COVERAGE_STATUSES
+    )
+    return hard_not_run, no_coverage
 
 
 def main():
@@ -146,13 +164,12 @@ def main():
         ))
 
     if "_unreadable" not in providers and "_unreadable" not in suite:
-        not_run = sorted(
-            entry for entry in providers.get("entries", {})
-            if results.get(entry, {}).get("status") in NOT_EXECUTED
-        )
+        hard_not_run, no_coverage = provider_execution_status(providers, results)
         gates.append((
-            "provider_coverage", not not_run,
-            f"{providers.get('count', 0)} provider-dependent checks, {len(not_run)} did not execute",
+            "provider_coverage", not hard_not_run,
+            f"{providers.get('count', 0)} provider-dependent checks; "
+            f"{len(no_coverage)} explicit external NOT_TESTED with zero coverage credit; "
+            f"{len(hard_not_run)} unexpectedly did not execute",
         ))
 
     width = max(len(name) for name, _, _ in gates)
@@ -172,6 +189,13 @@ def main():
         for entry in not_tested_entries:
             ev = results[entry].get("evidence", {})
             print(f"    {entry}  dataset={ev.get('dataset_id')}  expected_sha256={ev.get('expected_sha256')}")
+
+    if "_unreadable" not in providers and "_unreadable" not in suite:
+        _, no_coverage = provider_execution_status(providers, results)
+        if no_coverage:
+            print("\n  provider-dependent checks with zero execution-coverage credit:")
+            for entry in no_coverage:
+                print(f"    {entry}")
 
     if "_unreadable" not in worktree:
         for label, key in (("modified by", "modified"), ("left untracked by", "untracked")):
