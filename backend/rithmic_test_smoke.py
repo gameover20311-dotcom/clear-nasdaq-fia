@@ -104,6 +104,7 @@ async def health() -> dict:
     }
 
 
+@app.get("/probe")
 @app.post("/probe")
 async def probe() -> dict:
     return await run_probe(20)
