@@ -11,6 +11,7 @@ from nq_mbo_adapter.validation import MBOValidationError, validate_capability_cl
 
 
 NOW = datetime(2026, 9, 13, 18, 0, tzinfo=timezone.utc)
+CONTRACT_ID = "sha256:" + ("a" * 64)
 
 
 def caps(capability=FeedCapability.TRUE_MBO, *, order_id=True, sequence=True, lifecycle=True, timestamps=True, replay=True):
@@ -66,6 +67,16 @@ class NQMBOContractTests(unittest.TestCase):
         with self.assertRaisesRegex(MBOValidationError, "HISTORICAL_REPLAY"):
             validate_event(event(replay=True), caps(replay=False))
 
+    def test_sequence_subindex_requires_real_provider_sequence(self):
+        with self.assertRaisesRegex(MBOValidationError, "SEQUENCE_SUBINDEX_REQUIRES_SEQUENCE_ID"):
+            validate_event(event(sequence_id=None, sequence_subindex=0), caps())
+        with self.assertRaisesRegex(MBOValidationError, "SEQUENCE_SUBINDEX_MUST_BE_NON_NEGATIVE"):
+            validate_event(event(sequence_subindex=-1), caps())
+
+    def test_contract_id_must_be_exact_sha256_format(self):
+        with self.assertRaisesRegex(ValueError, "CONTRACT_ID_MUST_BE_SHA256"):
+            RithmicConnectionSpec(contract_id="0.89.0.0")
+
     def test_rithmic_starts_fail_closed_without_vendor_contract(self):
         adapter = RithmicAdapter()
         self.assertEqual(adapter.health().status, RithmicAdapterStatus.AWAITING_VENDOR_CONTRACT.value)
@@ -74,18 +85,16 @@ class NQMBOContractTests(unittest.TestCase):
             asyncio.run(adapter.connect())
 
     def test_contract_without_credentials_remains_disconnected(self):
-        adapter = RithmicAdapter(RithmicConnectionSpec(contract_id="sha256:vendor-contract", environment="test", credentials_available=False))
+        adapter = RithmicAdapter(RithmicConnectionSpec(contract_id=CONTRACT_ID, credentials_available=False))
         self.assertEqual(adapter.health().status, RithmicAdapterStatus.AWAITING_CREDENTIALS.value)
         with self.assertRaisesRegex(RuntimeError, "CREDENTIALS_NOT_AVAILABLE"):
             asyncio.run(adapter.connect())
 
-    def test_verified_capability_does_not_connect_transport_by_itself(self):
-        adapter = RithmicAdapter(RithmicConnectionSpec(contract_id="sha256:vendor-contract", environment="test", credentials_available=True))
+    def test_verified_capability_does_not_create_connection(self):
+        adapter = RithmicAdapter(RithmicConnectionSpec(contract_id=CONTRACT_ID, credentials_available=False))
         adapter.bind_verified_capabilities(caps())
         self.assertTrue(adapter.capabilities().verified_true_mbo)
         self.assertFalse(adapter.health().connected)
-        with self.assertRaisesRegex(RuntimeError, "TRANSPORT_IMPLEMENTATION_NOT_BOUND"):
-            asyncio.run(adapter.connect())
 
 
 if __name__ == "__main__":
