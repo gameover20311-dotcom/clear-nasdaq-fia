@@ -3,6 +3,7 @@ name: CNMI Shadow Verify
 on:
   push:
     branches:
+      - main
       - cnmi-shadow-integration
     paths:
       - 'research/cnmi_shadow/**'
