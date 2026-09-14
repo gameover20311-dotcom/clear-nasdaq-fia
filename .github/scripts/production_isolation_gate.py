@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Fail-closed static boundary gate for CLEAR NASDAQ production surfaces.
 
-This is deliberately narrower than a security proof: it checks the declared
-production Python surfaces for direct, indirect-literal, and dynamic-import
-references to research/shadow packages. It also runs hostile self-tests so a
-broken scanner cannot silently report PASS.
+This is not a complete security proof. It is a hostile static guard for the
+specific scientific boundary: known research/shadow packages must not acquire
+an undeclared production import path. The scanner covers direct imports,
+aliased importlib usage, from-import aliases, simple statically-resolvable
+string construction, config variables, and forbidden module literals. Its own
+hostile self-test runs before the real repository scan in CI.
 """
 
 from __future__ import annotations
@@ -46,12 +48,39 @@ def _iter_python_files(root: Path) -> Iterable[Path]:
     if not root.exists():
         return
     for path in sorted(root.rglob("*.py")):
-        # Test modules are not runtime production surfaces.
         if path.name.startswith("test_") or "/tests/" in path.as_posix():
             continue
         if "__pycache__" in path.parts:
             continue
         yield path
+
+
+def _static_string(node: ast.AST, bindings: dict[str, str]) -> str | None:
+    """Resolve a deliberately small, safe subset of static string expressions."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.Name):
+        return bindings.get(node.id)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _static_string(node.left, bindings)
+        right = _static_string(node.right, bindings)
+        if left is not None and right is not None:
+            return left + right
+        return None
+    if isinstance(node, ast.JoinedStr):
+        parts: list[str] = []
+        for value in node.values:
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                parts.append(value.value)
+            elif isinstance(value, ast.FormattedValue):
+                piece = _static_string(value.value, bindings)
+                if piece is None:
+                    return None
+                parts.append(piece)
+            else:
+                return None
+        return "".join(parts)
+    return None
 
 
 def scan_source(source: str, label: str = "<memory>") -> list[dict[str, object]]:
@@ -66,37 +95,81 @@ def scan_source(source: str, label: str = "<memory>") -> list[dict[str, object]]
             "detail": str(exc),
         }]
 
+    importlib_aliases = {"importlib"}
+    import_module_aliases: set[str] = set()
+    bindings: dict[str, str] = {}
+
     def add(kind: str, node: ast.AST, detail: str) -> None:
-        violations.append({
+        item = {
             "path": label,
             "kind": kind,
             "line": getattr(node, "lineno", 0),
             "detail": detail,
-        })
+        }
+        if item not in violations:
+            violations.append(item)
 
+    # Pass 1: learn obvious aliases and statically resolvable string bindings.
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "importlib":
+                    importlib_aliases.add(alias.asname or "importlib")
+        elif isinstance(node, ast.ImportFrom) and node.module == "importlib":
+            for alias in node.names:
+                if alias.name == "import_module":
+                    import_module_aliases.add(alias.asname or alias.name)
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            value_node = node.value
+            if value_node is None:
+                continue
+            value = _static_string(value_node, bindings)
+            if value is None:
+                continue
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                if isinstance(target, ast.Name):
+                    bindings[target.id] = value
+
+    # Pass 2: detect production-boundary references.
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 if _is_forbidden(alias.name):
                     add("IMPORT", node, alias.name)
+
         elif isinstance(node, ast.ImportFrom):
             module = node.module or ""
             if _is_forbidden(module):
                 add("IMPORT_FROM", node, module)
+
         elif isinstance(node, ast.Call):
-            func_name = ""
+            dynamic_import = False
+            func_label = ""
             if isinstance(node.func, ast.Name):
-                func_name = node.func.id
+                if node.func.id == "__import__" or node.func.id in import_module_aliases:
+                    dynamic_import = True
+                    func_label = node.func.id
             elif isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
-                func_name = f"{node.func.value.id}.{node.func.attr}"
-            if func_name in {"__import__", "importlib.import_module"} and node.args:
-                arg = node.args[0]
-                if isinstance(arg, ast.Constant) and isinstance(arg.value, str) and _is_forbidden(arg.value):
-                    add("DYNAMIC_IMPORT", node, f"{func_name}({arg.value!r})")
+                if node.func.value.id in importlib_aliases and node.func.attr == "import_module":
+                    dynamic_import = True
+                    func_label = f"{node.func.value.id}.import_module"
+
+            if dynamic_import and node.args:
+                module_name = _static_string(node.args[0], bindings)
+                if module_name is not None and _is_forbidden(module_name):
+                    add("DYNAMIC_IMPORT", node, f"{func_label}({module_name!r})")
+
         elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-            # Catches config-driven module paths or wrappers that avoid a direct import.
             if _is_forbidden(node.value):
                 add("FORBIDDEN_LITERAL", node, node.value[:240])
+
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            value_node = node.value
+            if value_node is not None:
+                value = _static_string(value_node, bindings)
+                if value is not None and _is_forbidden(value):
+                    add("FORBIDDEN_STATIC_BINDING", node, value[:240])
 
     return violations
 
@@ -121,6 +194,11 @@ def hostile_self_test() -> dict[str, object]:
         "from_import": ("from mfre_v125_shadow import status\n", 1),
         "builtin_dynamic": ("x=__import__('research.cnmi_shadow')\n", 1),
         "importlib_dynamic": ("import importlib\nx=importlib.import_module('nq_mbo_adapter.rithmic')\n", 1),
+        "importlib_alias": ("import importlib as il\nx=il.import_module('dpcse_v23_shadow')\n", 1),
+        "from_importlib_alias": ("from importlib import import_module as load\nx=load('mfre_v125_shadow')\n", 1),
+        "concatenated_dynamic": ("import importlib\nx=importlib.import_module('dpcse_' + 'v23_shadow')\n", 1),
+        "bound_dynamic": ("import importlib\nMODULE='mfre_' + 'v125_shadow'\nx=importlib.import_module(MODULE)\n", 1),
+        "constant_fstring_dynamic": ("import importlib\nPART='cnmi_shadow'\nx=importlib.import_module(f'research.{PART}')\n", 1),
         "config_literal": ("MODULE='simons_shadow_lab_v1.runner'\n", 1),
     }
     results: dict[str, object] = {}
