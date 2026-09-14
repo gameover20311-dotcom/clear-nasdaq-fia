@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -112,4 +113,9 @@ async def probe() -> dict:
 
 @app.on_event("startup")
 async def startup_probe() -> None:
-    asyncio.create_task(run_probe(20))
+    async def _run_and_log() -> None:
+        result = await run_probe(20)
+        # Result contains no credentials; adapter health is intentionally secret-free.
+        print("RITHMIC_SMOKE_RESULT=" + json.dumps(result, sort_keys=True), flush=True)
+
+    asyncio.create_task(_run_and_log())
