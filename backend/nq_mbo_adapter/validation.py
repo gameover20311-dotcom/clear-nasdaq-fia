@@ -27,6 +27,11 @@ def validate_event(event: MBOEvent, capabilities: SourceCapabilities) -> None:
         raise MBOValidationError("INSTRUMENT_CONTRACT_VENUE_REQUIRED")
     if event.raw_source_hash is not None and not _SHA256.fullmatch(event.raw_source_hash):
         raise MBOValidationError("RAW_SOURCE_HASH_MUST_BE_SHA256")
+    if event.sequence_subindex is not None:
+        if isinstance(event.sequence_subindex, bool) or event.sequence_subindex < 0:
+            raise MBOValidationError("SEQUENCE_SUBINDEX_MUST_BE_NON_NEGATIVE_INTEGER")
+        if event.sequence_id is None:
+            raise MBOValidationError("SEQUENCE_SUBINDEX_REQUIRES_SEQUENCE_ID")
 
     if event.capability is FeedCapability.TRUE_MBO:
         if not capabilities.verified_true_mbo:
