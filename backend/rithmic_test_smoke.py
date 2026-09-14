@@ -47,6 +47,7 @@ async def run_probe(seconds: int = 20) -> dict:
             "requested_contract": "NQ",
             "event_count": 0,
             "true_mbo_event_count": 0,
+            "sequence_ids": [],
         }
         try:
             await asyncio.wait_for(adapter.connect(), timeout=25)
@@ -56,19 +57,25 @@ async def run_probe(seconds: int = 20) -> dict:
             await asyncio.wait_for(adapter.subscribe("NQ"), timeout=25)
             result["subscription"] = "PASS"
 
-            iterator = adapter.events().__aiter__()
+            # Read the adapter queue directly for this staging-only smoke probe.
+            # Repeated wait_for(iterator.__anext__()) calls cancel and close an
+            # async generator on timeout, which caused the previous probe to end
+            # early and falsely report zero events.
             deadline = asyncio.get_running_loop().time() + max(1, min(seconds, 30))
             while asyncio.get_running_loop().time() < deadline:
                 timeout = max(0.1, min(2.0, deadline - asyncio.get_running_loop().time()))
                 try:
-                    event = await asyncio.wait_for(iterator.__anext__(), timeout=timeout)
+                    event = await asyncio.wait_for(adapter._event_queue.get(), timeout=timeout)
                 except asyncio.TimeoutError:
                     continue
-                except StopAsyncIteration:
+                if event is None:
                     break
                 result["event_count"] += 1
                 if getattr(getattr(event, "capability", None), "value", None) == "TRUE_MBO":
                     result["true_mbo_event_count"] += 1
+                seq = getattr(event, "sequence_id", None)
+                if seq is not None and seq not in result["sequence_ids"] and len(result["sequence_ids"]) < 10:
+                    result["sequence_ids"].append(seq)
                 if result["event_count"] >= 50:
                     break
 
