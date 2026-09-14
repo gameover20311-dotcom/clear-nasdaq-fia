@@ -5,16 +5,19 @@ selected frozen CNMI research-governance rules into a fail-closed executable
 adapter without modifying the frozen CNMI artifacts or CLEAR NASDAQ forecast
 logic.
 
-Identity: CNMI_SHADOW_ADAPTER_V1_NONAUTHORITATIVE
+Identity: CNMI_SHADOW_ADAPTER_V1_1_NONAUTHORITATIVE
 Production influence: none
 Deployment authority: none
 Predictive edge claim: none
 
-The frozen CNMI package explicitly stopped before implementation/integration.
-This adapter therefore does NOT claim to be the frozen CNMI package itself. It
-is a separate shadow implementation created under later user authorization.
-Protocol-specific margins, statistical procedures and preference maps must be
-supplied by the calling protocol; this module invents no universal defaults.
+Hardening note:
+A prior version could report ``production_admissible=True`` from caller-supplied
+booleans alone. That overstated what a non-authoritative shadow adapter can
+prove. V1.1 therefore separates *structural production eligibility* from
+*production admission*. Structural eligibility may be evaluated here, but
+production admission remains false until a trusted external verifier is bound
+and executed. This adapter never converts self-attestation into production
+proof.
 """
 
 from __future__ import annotations
@@ -23,12 +26,13 @@ import hashlib
 import json
 from typing import Any, Dict, Iterable, List, Mapping
 
-ADAPTER_ID = "CNMI_SHADOW_ADAPTER_V1_NONAUTHORITATIVE"
+ADAPTER_ID = "CNMI_SHADOW_ADAPTER_V1_1_NONAUTHORITATIVE"
 FRAMEWORK_SCOPE = "RESEARCH_GOVERNANCE_ONLY"
 PRODUCTION_INFLUENCE = False
 DEPLOYMENT_AUTHORIZED = False
 PREDICTIVE_EDGE_CLAIMED = False
 CNMI_NATIVE_105_34_10 = "NOT_CLAIMED"
+EXTERNAL_PRODUCTION_VERIFIER_BOUND = False
 
 LEVELS = ("RESEARCH", "CORE", "PRODUCTION")
 
@@ -55,6 +59,7 @@ HARD_GATES = {
     "H8": "Security/integrity",
     "H9": "Statistical/formal validity",
 }
+REQUIRED_PRODUCTION_HARD_GATES = frozenset(HARD_GATES)
 
 COMPLETENESS_STATES = {
     "COMPLETE_VERIFIED",
@@ -66,10 +71,11 @@ COMPLETENESS_STATES = {
     "LATENT_PRIOR_EXPOSURE_NOT_EXCLUDABLE",
 }
 
-UNTOUCHED_ELIGIBLE_STATES = {
+PRODUCTION_ALLOWED_PROVENANCE_STATES = {
     "COMPLETE_VERIFIED",
     "COMPLETE_BY_CONTROLLED_ACCESS_BOUNDARY",
 }
+UNTOUCHED_ELIGIBLE_STATES = set(PRODUCTION_ALLOWED_PROVENANCE_STATES)
 
 PARETO_STATES = {
     "POINT_ESTIMATE_PARETO",
@@ -77,9 +83,6 @@ PARETO_STATES = {
     "PARETO_DOMINANCE_NOT_IDENTIFIED",
     "PARETO_INCOMPARABLE",
 }
-
-INTEGRITY_FAILURE_STATES = {"DELIBERATELY_UNDOCUMENTED_OR_DESTROYED"}
-RECOVERABLE_PENDING_STATES = {"RECOVERABLE_BUT_MISSING"}
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -108,6 +111,7 @@ def status() -> Dict[str, Any]:
         "deployment_authorized": DEPLOYMENT_AUTHORIZED,
         "predictive_edge_claimed": PREDICTIVE_EDGE_CLAIMED,
         "cnmi_native_105_34_10": CNMI_NATIVE_105_34_10,
+        "external_production_verifier_bound": EXTERNAL_PRODUCTION_VERIFIER_BOUND,
         "hard_gates": dict(HARD_GATES),
         "levels": list(LEVELS),
         "policy": {
@@ -116,6 +120,11 @@ def status() -> Dict[str, Any]:
             "universal_statistical_pareto_test": None,
             "universal_scalar_preference_map": None,
             "production_admission_implies_deployment": False,
+            "production_requires_all_hard_gates": True,
+            "unknown_claim_types_fail_closed": True,
+            "incomplete_provenance_blocks_production": True,
+            "bare_candidate_self_attestation_never_enough": True,
+            "production_requires_external_verifier": True,
         },
     }
 
@@ -131,10 +140,27 @@ def _evaluate_hard_gates(candidate: Mapping[str, Any], requested_level: str, rea
         return False
 
     ok = True
-    for gate in applicable:
-        if gate not in HARD_GATES:
-            reasons.append(f"HARD_GATE:{gate}=UNKNOWN")
+    normalized = [str(g) for g in applicable]
+    if len(normalized) != len(set(normalized)):
+        reasons.append("APPLICABLE_HARD_GATES:DUPLICATE")
+        ok = False
+
+    unknown = sorted(set(normalized) - set(HARD_GATES))
+    for gate in unknown:
+        reasons.append(f"HARD_GATE:{gate}=UNKNOWN")
+        ok = False
+
+    # Production is not allowed to let the caller silently omit a hard gate.
+    gates_to_check = set(normalized)
+    if requested_level == "PRODUCTION":
+        missing = sorted(REQUIRED_PRODUCTION_HARD_GATES - set(normalized))
+        if missing:
+            reasons.append(f"PRODUCTION:HARD_GATES_NOT_DECLARED:{','.join(missing)}")
             ok = False
+        gates_to_check |= REQUIRED_PRODUCTION_HARD_GATES
+
+    for gate in sorted(gates_to_check):
+        if gate not in HARD_GATES:
             continue
         if provided.get(gate) is not True:
             reasons.append(f"HARD_GATE:{gate}=FAILED_OR_UNPROVEN")
@@ -150,15 +176,19 @@ def _evaluate_claims(candidate: Mapping[str, Any], reasons: List[str]) -> bool:
     if not isinstance(claims, list) or not claims:
         reasons.append("CLAIMS:MISSING")
         return False
+
     ok = True
     for i, claim in enumerate(claims):
         if not isinstance(claim, Mapping):
             reasons.append(f"CLAIM:{i}=MALFORMED")
             ok = False
             continue
+
         ctype = str(claim.get("type") or "").upper()
-        if ctype not in CLAIM_TYPES and not claim.get("explicit_evidence_rule"):
-            reasons.append(f"CLAIM:{i}=UNKNOWN_TYPE_WITHOUT_EVIDENCE_RULE")
+        if ctype not in CLAIM_TYPES:
+            # A candidate must not be able to invent its own claim type and then
+            # bless it with a self-supplied "explicit evidence rule".
+            reasons.append(f"CLAIM:{i}=UNKNOWN_TYPE_UNREGISTERED")
             ok = False
 
         if claim.get("requires_materiality") is True:
@@ -168,9 +198,17 @@ def _evaluate_claims(candidate: Mapping[str, Any], reasons: List[str]) -> bool:
                 ok = False
             else:
                 required = {
-                    "estimand", "target_population", "eligibility_rule", "outcome_transform",
-                    "horizon", "aggregation_rule", "canonical_units", "margin",
-                    "provenance_class", "provenance_evidence", "freeze_identity",
+                    "estimand",
+                    "target_population",
+                    "eligibility_rule",
+                    "outcome_transform",
+                    "horizon",
+                    "aggregation_rule",
+                    "canonical_units",
+                    "margin",
+                    "provenance_class",
+                    "provenance_evidence",
+                    "freeze_identity",
                     "permitted_claim_semantics",
                 }
                 missing = sorted(required - set(identity))
@@ -189,6 +227,7 @@ def _evaluate_claims(candidate: Mapping[str, Any], reasons: List[str]) -> bool:
             elif state != "CONFIRMATORY_PARETO_ESTABLISHED":
                 reasons.append(f"CLAIM:{i}=CONFIRMATORY_PARETO_NOT_ESTABLISHED")
                 ok = False
+
     return ok
 
 
@@ -232,6 +271,7 @@ def _core_requirements(candidate: Mapping[str, Any], reasons: List[str]) -> bool
 
 
 def _production_requirements(candidate: Mapping[str, Any], reasons: List[str]) -> bool:
+    """Return structural eligibility only, never final production admission."""
     ok = _require(
         candidate,
         (
@@ -254,11 +294,8 @@ def _production_requirements(candidate: Mapping[str, Any], reasons: List[str]) -
     if completeness not in COMPLETENESS_STATES:
         reasons.append("PRODUCTION:PROVENANCE_COMPLETENESS_STATE_MISSING")
         ok = False
-    elif completeness in INTEGRITY_FAILURE_STATES:
-        reasons.append("INTEGRITY_FAILURE:DELIBERATE_PROVENANCE_LOSS")
-        ok = False
-    elif completeness in RECOVERABLE_PENDING_STATES:
-        reasons.append("RECOVERABLE_BUT_MISSING:PROVENANCE_PENDING")
+    elif completeness not in PRODUCTION_ALLOWED_PROVENANCE_STATES:
+        reasons.append(f"PRODUCTION:PROVENANCE_NOT_COMPLETE:{completeness}")
         ok = False
 
     if candidate.get("claims_untouched_confirmation") is True:
@@ -279,8 +316,11 @@ def evaluate_candidate(candidate: Mapping[str, Any]) -> Dict[str, Any]:
     """Evaluate a candidate under the shadow governance adapter.
 
     The caller supplies protocol-specific margins and inference results. This
-    function validates governance structure; it does not invent scientific
-    thresholds, statistical corrections, Pareto tests or utility weights.
+    function validates governance structure; it does not independently verify
+    market data, ledgers, artifacts, independence, signatures, or external
+    runtime evidence. Therefore a structurally complete production candidate is
+    reported only as ``production_structurally_eligible``. Final production
+    admission remains false until a trusted external verifier is actually bound.
     """
     if not isinstance(candidate, Mapping):
         return {
@@ -289,8 +329,10 @@ def evaluate_candidate(candidate: Mapping[str, Any]) -> Dict[str, Any]:
             "decision": "ABSTAIN_MALFORMED_CANDIDATE",
             "research_admissible": False,
             "core_admissible": False,
+            "production_structurally_eligible": False,
             "production_admissible": False,
             "deployment_authorized": False,
+            "evidence_independence_status": "NOT_EVALUATED",
             "reasons": ["CANDIDATE:MALFORMED"],
         }
 
@@ -303,15 +345,23 @@ def evaluate_candidate(candidate: Mapping[str, Any]) -> Dict[str, Any]:
     claims_ok = _evaluate_claims(candidate, reasons)
     research_ok = hard_ok and claims_ok and _research_requirements(candidate, reasons)
     core_ok = research_ok and _core_requirements(candidate, reasons)
-    production_ok = core_ok and _production_requirements(candidate, reasons)
+    production_structural_ok = core_ok and _production_requirements(candidate, reasons)
+
+    # This module is deliberately not a trusted external verifier. No combination
+    # of caller-supplied booleans can turn that fact into a production proof.
+    production_ok = False
+    if requested == "PRODUCTION" and production_structural_ok:
+        reasons.append("PRODUCTION:EXTERNAL_VERIFIER_NOT_BOUND")
 
     earned = "NONE"
     if research_ok:
         earned = "RESEARCH"
     if core_ok:
         earned = "CORE"
-    if production_ok:
-        earned = "PRODUCTION"
+
+    structural_earned = earned
+    if production_structural_ok:
+        structural_earned = "PRODUCTION"
 
     requested_supported = {
         "RESEARCH": research_ok,
@@ -319,7 +369,11 @@ def evaluate_candidate(candidate: Mapping[str, Any]) -> Dict[str, Any]:
         "PRODUCTION": production_ok,
     }.get(requested, False)
 
-    decision = f"{requested}_ADMISSIBLE" if requested_supported else f"{requested or 'UNKNOWN'}_NOT_ADMISSIBLE"
+    decision = (
+        f"{requested}_ADMISSIBLE"
+        if requested_supported
+        else f"{requested or 'UNKNOWN'}_NOT_ADMISSIBLE"
+    )
 
     result = {
         **status(),
@@ -327,11 +381,18 @@ def evaluate_candidate(candidate: Mapping[str, Any]) -> Dict[str, Any]:
         "decision": decision,
         "requested_level": requested or None,
         "highest_earned_level": earned,
+        "highest_structural_level": structural_earned,
         "research_admissible": research_ok,
         "core_admissible": core_ok,
+        "production_structurally_eligible": production_structural_ok,
         "production_admissible": production_ok,
         "deployment_authorized": False,
         "production_influence": False,
+        "evidence_independence_status": (
+            "DEPENDENCE_NOT_EXCLUDABLE"
+            if production_structural_ok
+            else "NOT_ESTABLISHED"
+        ),
         "reasons": reasons,
         "positive_metrics_can_override_hard_gate": False,
         "candidate_digest": _digest(candidate),
