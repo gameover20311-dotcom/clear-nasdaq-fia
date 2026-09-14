@@ -1,0 +1,61 @@
+name: Controlled Stage 5 MFRE
+on:
+  push:
+    branches: [feat/final-controlled-integration-20260914]
+permissions:
+  contents: write
+jobs:
+  mfre:
+    if: github.event.head_commit.message == 'Run controlled Stage 5 MFRE'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Fetch exact frozen MFRE shadow source
+        run: |
+          git fetch origin feat/mfre-v1-2-5-shadow-integration-20260913
+          git cat-file -e ffef7e12ce1561836b588f57f3b27aefa82282ab^{commit}
+          git checkout ffef7e12ce1561836b588f57f3b27aefa82282ab -- backend/mfre_v125_shadow
+      - name: Verify frozen theory boundary and MFRE regression
+        working-directory: backend
+        run: |
+          python -m unittest discover -v -s mfre_v125_shadow/tests -p 'test_*.py'
+          python - <<'PY'
+          from mfre_v125_shadow import status
+          from mfre_v125_shadow.contract import IMPLEMENTATION_SCOPE, PRODUCTION_AUTHORIZED, MFRE_INCREMENTAL_VALUE, REAL_MARKET_EDGE
+          assert status.THEORY_FREEZE=='FINAL_FREEZE_PASS'
+          assert PRODUCTION_AUTHORIZED is False
+          assert status.EXECUTION_ENGINE_BOUND is False
+          assert status.PREDICTIVE_EDGE=='NOT_PROVEN'
+          assert MFRE_INCREMENTAL_VALUE=='NOT_TESTED'
+          assert REAL_MARKET_EDGE=='NOT_TESTED'
+          assert 'SHADOW' in IMPLEMENTATION_SCOPE.upper(), IMPLEMENTATION_SCOPE
+          print('MFRE_THEORY_FREEZE=FINAL_FREEZE_PASS')
+          print('MFRE_PRODUCTION_AUTHORITY=false')
+          print('MFRE_INCREMENTAL_VALUE=NOT_TESTED')
+          PY
+      - name: Prove BASE/DPCSE/old Forward-OOS isolation
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          from fia.identity import all_fingerprints
+          from dpcse_v23_shadow.campaign import bootstrap_manifest
+          expected={'model':'91e5d9a67625171c384dfcd6edb9bc36586a687dddb7ae7c5c54d194ce3da863','protocol':'f28842b437ffcd76c9702c15ef2bc072a0ead1e08ff3c5590cef2f61278245cc','infrastructure':'1b01dbf4c3458d7cbcc96cb30d7a854ecc95a8b4fe16d54bacb9382ed4a41054'}
+          d=all_fingerprints(); got={k:d[k]['digest'] for k in expected}; assert got==expected,(got,expected)
+          m=bootstrap_manifest(); assert m['status']=='NOT_ARMED' and m['locked_rows']==0 and m['resolved_rows']==0 and m['candidate_model'] is None
+          print('BASE_FIA_UNCHANGED=PASS')
+          print('DPCSE_PRODUCTION_AUTHORITY=false')
+          PY
+          cd ..
+          test -z "$(git diff --name-only 982930c2f87ec70d46b4bac813068f77868df804 -- backend/fia_forward_oos backend/fia_backtest_phase14/data backend/fia_backtest_phase20/data)"
+          echo OLD_FORWARD_OOS_UNCHANGED=PASS
+      - name: Commit Stage 5
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/mfre_v125_shadow
+          git commit -m 'Integrate MFRE V1.2.5 as shadow reasoning controller only'
+          git push origin HEAD:feat/final-controlled-integration-20260914
