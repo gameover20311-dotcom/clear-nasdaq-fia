@@ -6,11 +6,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BRAIN = ROOT / "backend" / "clear_nasdaq_brain"
-TARGETS = [
-    BRAIN / "fia_brain" / "cloud_llm.py",
-    BRAIN / "tests" / "test_release_manifest_v661.py",
-    BRAIN / "MANIFEST.json",
-]
+MANIFEST = BRAIN / "MANIFEST.json"
+
 
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
@@ -19,9 +16,44 @@ def sha256(path: Path) -> str:
             h.update(chunk)
     return h.hexdigest()
 
-for p in TARGETS:
-    print(json.dumps({
-        "path": p.relative_to(ROOT).as_posix(),
-        "size": p.stat().st_size,
-        "sha256": sha256(p),
-    }, sort_keys=True))
+obj = json.loads(MANIFEST.read_text(encoding="utf-8"))
+listed = {row["path"]: row for row in obj["files"]}
+
+print("MANIFEST_REVISION", obj.get("manifest_revision"))
+print("MANIFEST_SIZE", MANIFEST.stat().st_size)
+print("MANIFEST_SHA256", sha256(MANIFEST))
+
+mismatches = []
+missing = []
+for rel, row in sorted(listed.items()):
+    path = BRAIN / rel
+    if not path.is_file():
+        missing.append(rel)
+        continue
+    actual_size = path.stat().st_size
+    actual_sha = sha256(path)
+    if actual_size != row["size"] or actual_sha != row["sha256"]:
+        rec = {
+            "path": rel,
+            "recorded_size": row["size"],
+            "actual_size": actual_size,
+            "recorded_sha256": row["sha256"],
+            "actual_sha256": actual_sha,
+        }
+        mismatches.append(rec)
+        print("MISMATCH", json.dumps(rec, sort_keys=True))
+
+active_python = sorted(
+    p.relative_to(BRAIN).as_posix()
+    for p in BRAIN.rglob("*.py")
+    if "__pycache__" not in p.parts
+)
+omitted = [rel for rel in active_python if rel not in listed]
+
+print("MISMATCH_COUNT", len(mismatches))
+print("MISSING_LISTED_COUNT", len(missing))
+for rel in missing:
+    print("MISSING_LISTED", rel)
+print("OMITTED_ACTIVE_PYTHON_COUNT", len(omitted))
+for rel in omitted:
+    print("OMITTED_ACTIVE_PYTHON", rel)
