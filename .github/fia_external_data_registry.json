@@ -1,0 +1,36 @@
+{
+  "schema": "FIA_EXTERNAL_DATA_REGISTRY_V1",
+  "datasets": [
+    {
+      "dataset_id": "POLYGON_NEWS_20250901_20260831",
+      "canonical_repo_path": "backend/fia_backtest_phase20/data/polygon_news_20250901_20260831.json",
+      "expected_size": 137965689,
+      "expected_sha256": "d172fd04f2d395f72dab4412e6318a6f6fc4c77dd5fa5125ba1fff5cc76fc9eb",
+      "scope": "HISTORICAL_RESEARCH_ONLY",
+      "repository_policy": "INTENTIONALLY_NOT_COMMITTED_LARGE_EXTERNAL_FIXTURE",
+      "absence_status": "MISSING_EXTERNAL_DATA",
+      "scientific_credit_when_absent": "NONE",
+      "predictive_validity_credit_when_absent": false,
+      "forward_oos_credit_when_absent": false,
+      "required_by": [
+        {
+          "entry": "fia_backtest_phase20/full_backtest.py",
+          "baseline_failure_status": "MISSING_FIXTURE_OR_DATA",
+          "required_output_fragment": "Missing Polygon archive cache: fia_backtest_phase20/data/polygon_news_20250901_20260831.json"
+        },
+        {
+          "entry": "fia_backtest_phase28/phase28_integrity_test.py",
+          "baseline_failure_status": "FAIL",
+          "required_output_fragment": "Polygon one-year news archive present FAIL"
+        }
+      ],
+      "provenance": {
+        "canonical_identity_source": "frozen CLEAR NASDAQ source-of-truth manifests",
+        "historical_packaging_evidence": "2026-09-04 packaging logs recorded this exact path inside audited project packages",
+        "repository_omission_evidence": "2026-09-07 GitHub-copy packaging command explicitly excluded this exact 137MB path",
+        "baseline_decision_commit": "9a2d7315a56abd82810256316d86ff253f33f3c6",
+        "baseline_decision": "MISSING_CANONICAL_DATA; do not redownload, synthesize, substitute, or relabel"
+      }
+    }
+  ]
+}

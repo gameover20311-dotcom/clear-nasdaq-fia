@@ -1,20 +1,11 @@
 # CLEAR NASDAQ — final CI gate (harness only)
 #
-# WHY
-# ---
-# Previously the suite step decided the build by calling SystemExit(1) the moment
-# it disliked the counts. Everything after it was skipped, so a failing suite
-# meant the two checks that actually protect the evidence base — protected
-# artifacts byte-identical across the whole run, and a clean working tree — never
-# ran at all. The run reported the failure it happened to notice first and stayed
-# silent about the two questions that matter most.
-#
-# Reporting and adjudication are now separate. Each earlier step records what it
-# observed and exits 0. This gate reads every record and decides once, so a red
-# suite can no longer hide an artifact mutation behind it.
-#
-# This gate never downgrades a failure. It exists to make MORE evidence visible,
-# not to let any of it pass.
+# Reporting and adjudication are separate. The gate never converts unavailable
+# historical data into PASS. Exact registered canonical external data may be
+# reported MISSING_EXTERNAL_DATA / NOT_TESTED with zero scientific, predictive,
+# Forward-OOS, or provider-execution coverage credit. Any undeclared missing
+# input, wrong bytes, fail-open check, code failure, environment block, mutation,
+# or protected-artifact change remains fatal.
 from __future__ import annotations
 
 import argparse
@@ -28,10 +19,9 @@ FAILING_STATUSES = (
     "TIMEOUT",
     "TRUE_EXTERNAL_ENV_BLOCK",
 )
-
-# A provider-dependent check that never reached its assertions proves nothing
-# about a providers.py split, so it is not allowed to count as coverage.
-NOT_EXECUTED = ("TRUE_EXTERNAL_ENV_BLOCK", "PROJECT_IMPORT_DEFECT")
+NOT_TESTED_STATUSES = ("MISSING_EXTERNAL_DATA",)
+HARD_NOT_EXECUTED = ("TRUE_EXTERNAL_ENV_BLOCK", "PROJECT_IMPORT_DEFECT")
+NO_COVERAGE_STATUSES = ("MISSING_EXTERNAL_DATA",)
 
 
 def load(path):
@@ -39,6 +29,74 @@ def load(path):
         return json.loads(Path(path).read_text(encoding="utf-8"))
     except Exception as error:
         return {"_unreadable": f"{type(error).__name__}: {error}"}
+
+
+def validate_external_not_tested(suite):
+    """Prove every MISSING_EXTERNAL_DATA is exact, declared, and creditless."""
+    reg = suite.get("external_data_registry") or {}
+    errors = list(reg.get("errors") or [])
+    if not reg.get("valid"):
+        errors.append("external-data registry is not valid")
+
+    datasets = reg.get("datasets") or {}
+    entry_map = reg.get("entry_map") or {}
+    results = suite.get("results") or {}
+
+    not_tested = []
+    for entry, record in results.items():
+        if record.get("status") != "MISSING_EXTERNAL_DATA":
+            continue
+        not_tested.append(entry)
+        req = entry_map.get(entry)
+        if not req:
+            errors.append(f"{entry}: MISSING_EXTERNAL_DATA without registry declaration")
+            continue
+        dataset = datasets.get(req.get("dataset_id")) or {}
+        ev = record.get("evidence") or {}
+        if dataset.get("state") != "MISSING_EXTERNAL_DATA":
+            errors.append(f"{entry}: dataset state is not missing")
+        if ev.get("dataset_id") != dataset.get("dataset_id"):
+            errors.append(f"{entry}: evidence dataset identity mismatch")
+        if ev.get("expected_size") != dataset.get("expected_size"):
+            errors.append(f"{entry}: expected size mismatch")
+        if ev.get("expected_sha256") != dataset.get("expected_sha256"):
+            errors.append(f"{entry}: expected sha256 mismatch")
+        if ev.get("scientific_credit") != "NONE":
+            errors.append(f"{entry}: missing data granted scientific credit")
+        if ev.get("predictive_validity_credit") is not False:
+            errors.append(f"{entry}: missing data granted predictive-validity credit")
+        if ev.get("forward_oos_credit") is not False:
+            errors.append(f"{entry}: missing data granted Forward-OOS credit")
+
+    for entry, req in entry_map.items():
+        dataset = datasets.get(req.get("dataset_id")) or {}
+        if dataset.get("state") != "MISSING_EXTERNAL_DATA":
+            continue
+        status = (results.get(entry) or {}).get("status")
+        if status != "MISSING_EXTERNAL_DATA":
+            errors.append(f"{entry}: required missing dataset but status={status!r}")
+
+    return not errors, errors, sorted(not_tested)
+
+
+def provider_execution_status(providers, results):
+    """Separate hard non-execution from explicit external-data NOT_TESTED.
+
+    MISSING_EXTERNAL_DATA is not a provider coverage success. It receives zero
+    provider-execution credit, but when the external-data contract has already
+    validated it as an expected canonical-data absence it is also not a code or
+    environment regression. The final output must preserve that distinction.
+    """
+    entries = providers.get("entries", {}) if isinstance(providers, dict) else {}
+    hard_not_run = sorted(
+        entry for entry in entries
+        if (results.get(entry) or {}).get("status") in HARD_NOT_EXECUTED
+    )
+    no_coverage = sorted(
+        entry for entry in entries
+        if (results.get(entry) or {}).get("status") in NO_COVERAGE_STATUSES
+    )
+    return hard_not_run, no_coverage
 
 
 def main():
@@ -53,11 +111,8 @@ def main():
     artifacts = load(args.artifacts)
     worktree = load(args.worktree)
     providers = load(args.providers)
-
     gates = []
 
-    # 1. Every record must exist. A missing one means a step died without
-    #    reporting, which is itself a failure rather than an absence of news.
     for name, record in (
         ("suite", suite), ("artifacts", artifacts),
         ("worktree", worktree), ("providers", providers),
@@ -68,24 +123,29 @@ def main():
             gates.append((f"record:{name}", True, "present"))
 
     counts = suite.get("counts", {}) if "_unreadable" not in suite else {}
+    results = suite.get("results", {}) if "_unreadable" not in suite else {}
 
-    # 2. Dependencies. CI installs and verifies the declared set, so a genuine
-    #    external block here means the environment is not what it claims.
     env_blocked = counts.get("TRUE_EXTERNAL_ENV_BLOCK", 0)
+    gates.append(("dependencies", env_blocked == 0, f"TRUE_EXTERNAL_ENV_BLOCK={env_blocked}"))
+
+    external_ok, external_errors, not_tested_entries = (
+        validate_external_not_tested(suite) if "_unreadable" not in suite
+        else (False, ["suite unreadable"], [])
+    )
     gates.append((
-        "dependencies", env_blocked == 0,
-        f"TRUE_EXTERNAL_ENV_BLOCK={env_blocked}",
+        "external_data_contract", external_ok,
+        f"{len(not_tested_entries)} exact historical check(s) NOT_TESTED; "
+        f"errors={len(external_errors)}",
     ))
 
-    # 3. Suite outcome.
     failing = sum(counts.get(status, 0) for status in FAILING_STATUSES)
+    not_tested = sum(counts.get(status, 0) for status in NOT_TESTED_STATUSES)
     gates.append((
         "suite", failing == 0,
-        f"{counts.get('PASS', 0)} pass, {failing} failing of "
-        f"{suite.get('entry_count', '?')}",
+        f"{counts.get('PASS', 0)} pass, {failing} failing, {not_tested} NOT_TESTED "
+        f"of {suite.get('entry_count', '?')}",
     ))
 
-    # 4. Protected artifacts, compared across the WHOLE run.
     if "_unreadable" not in artifacts:
         changed = artifacts.get("changed", [])
         ok = bool(artifacts.get("verify_ok")) and not changed
@@ -95,28 +155,21 @@ def main():
             f"verify_ok={artifacts.get('verify_ok')}",
         ))
 
-    # 5. Working tree. Anything the suite wrote to a tracked file shows here,
-    #    whether or not the registry happens to protect it.
     if "_unreadable" not in worktree:
         modified = worktree.get("modified", worktree.get("dirty", []))
         untracked = worktree.get("untracked", [])
         gates.append((
             "working_tree", not modified and not untracked,
-            f"{len(modified)} tracked file(s) modified, "
-            f"{len(untracked)} untracked file(s) left",
+            f"{len(modified)} tracked file(s) modified, {len(untracked)} untracked file(s) left",
         ))
 
-    # 6. Provider coverage.
     if "_unreadable" not in providers and "_unreadable" not in suite:
-        results = suite.get("results", {})
-        not_run = sorted(
-            entry for entry in providers.get("entries", {})
-            if results.get(entry, {}).get("status") in NOT_EXECUTED
-        )
+        hard_not_run, no_coverage = provider_execution_status(providers, results)
         gates.append((
-            "provider_coverage", not not_run,
-            f"{providers.get('count', 0)} provider-dependent checks, "
-            f"{len(not_run)} did not execute",
+            "provider_coverage", not hard_not_run,
+            f"{providers.get('count', 0)} provider-dependent checks; "
+            f"{len(no_coverage)} explicit external NOT_TESTED with zero coverage credit; "
+            f"{len(hard_not_run)} unexpectedly did not execute",
         ))
 
     width = max(len(name) for name, _, _ in gates)
@@ -125,6 +178,24 @@ def main():
     print("=" * 70)
     for name, ok, detail in gates:
         print(f"  {'PASS' if ok else 'FAIL'}  {name:<{width}}  {detail}")
+
+    if external_errors:
+        print("\n  external-data contract errors:")
+        for error in external_errors:
+            print(f"    {error}")
+
+    if not_tested_entries:
+        print("\n  historical checks explicitly NOT_TESTED — zero scientific/predictive/Forward-OOS credit:")
+        for entry in not_tested_entries:
+            ev = results[entry].get("evidence", {})
+            print(f"    {entry}  dataset={ev.get('dataset_id')}  expected_sha256={ev.get('expected_sha256')}")
+
+    if "_unreadable" not in providers and "_unreadable" not in suite:
+        _, no_coverage = provider_execution_status(providers, results)
+        if no_coverage:
+            print("\n  provider-dependent checks with zero execution-coverage credit:")
+            for entry in no_coverage:
+                print(f"    {entry}")
 
     if "_unreadable" not in worktree:
         for label, key in (("modified by", "modified"), ("left untracked by", "untracked")):
@@ -135,13 +206,12 @@ def main():
                     print(f"    {path}")
 
     if "_unreadable" not in suite:
-        for entry, record in sorted(suite.get("results", {}).items()):
+        for entry, record in sorted(results.items()):
             if record["status"] in FAILING_STATUSES:
                 evidence = record.get("evidence", {})
                 print(f"\n  {record['status']}  {entry}")
                 if evidence.get("exception_type"):
-                    print(f"      {evidence.get('exception_type')}: "
-                          f"{evidence.get('exception_message')}")
+                    print(f"      {evidence.get('exception_type')}: {evidence.get('exception_message')}")
                 for line in evidence.get("printed_failure", []):
                     print(f"      reported: {line}")
                 print(f"      {evidence.get('reason')}")
@@ -152,7 +222,7 @@ def main():
         print("RESULT: FAIL — " + ", ".join(failed))
         print("=" * 70)
         return 1
-    print("RESULT: PASS — all gates green")
+    print("RESULT: PASS — executable gates green; NOT_TESTED historical checks remain explicitly uncredited")
     print("=" * 70)
     return 0
 

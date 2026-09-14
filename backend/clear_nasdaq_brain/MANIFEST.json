@@ -1,8 +1,8 @@
 {
  "name": "CLEAR NASDAQ \u2014 FIA BRAIN V7.4 FINAL THREE-BRAIN (V6.6.2 hardened base)",
  "version": "7.4.0-final-three-brain",
- "manifest_revision": 2,
- "manifest_revision_note": "Release version is unchanged. Only the integrity RECORD is revised: revision 1 did not describe its own payload. Revision 1 is retained below as SUPERSEDED_DEFECTIVE and is not presented as ever correct.",
+ "manifest_revision": 4,
+ "manifest_revision_note": "Release version is unchanged. Revision 4 advances integrity metadata only for a stale probability-prompt TEST expectation exposed after the earlier manifest blocker was removed. The strengthened runtime prompt from commit 49646b2 is byte-unchanged. No model logic, BASE_FIA, Forward-OOS, sealed historical artifact, predictive result, or production path is changed.",
  "manifest_revision_history": [
   {
    "revision": 1,
@@ -57,6 +57,77 @@
    ],
    "superseded_at_utc": "2026-09-11T23:44:28.992822+00:00",
    "superseded_by_commit": "f9f2337bc971c1d6dab341fe0d7e92614248fa61"
+  },
+  {
+   "revision": 2,
+   "status": "SUPERSEDED_STALE_BOOKKEEPING",
+   "manifest_sha256": "564b43d0a116021a10f6380fb325b358fd57b50e7abb63fe7b6408dc1842a093",
+   "manifest_size": 32017,
+   "entries_misdescribed_at_baseline": [
+    {
+     "path": "fia_brain/cloud_llm.py",
+     "recorded_size": 7738,
+     "recorded_sha256": "7fbd5b278a74a6cceff0fbefc3e7eac97ad99fd77f98d01e58e1cab71ab3c31e",
+     "baseline_actual_size": 13351,
+     "baseline_actual_sha256": "d85828ee3960b5c072e650af18f6d82f8da03e7f6207922c793a513bc7361e69"
+    },
+    {
+     "path": "fia_brain/final_three_brain.py",
+     "recorded_size": 15606,
+     "recorded_sha256": "2cf9797876298ac1ac81ea320449a3fdb2c0add072c656d7d8ad791fd4efbf60",
+     "baseline_actual_size": 16052,
+     "baseline_actual_sha256": "a47ed83b209ceb495d0f3e483fe875e23e9a6e66c2cd1c9cc322428771f65e7f"
+    },
+    {
+     "path": "fia_brain/prompts.py",
+     "recorded_size": 7106,
+     "recorded_sha256": "43e03f3a630b6f04033494a857f23e0c3e87204e2bcd89f1444b87f7fd70e3ea",
+     "baseline_actual_size": 7501,
+     "baseline_actual_sha256": "723f0e68052b1af97e80523a3fd62b597fb4a3e77bf593712883045d4f157c2a"
+    },
+    {
+     "path": "tests/test_release_manifest_v661.py",
+     "recorded_size": 5411,
+     "recorded_sha256": "09a4e47d7bfee6e5e239254fbd6c709697aacf9ef97f0f2eaa08bee61bf427a5",
+     "baseline_actual_size": 4574,
+     "baseline_actual_sha256": "207c8fa63882a008381c8e375572498be96311237618153930a995177dca0dbe"
+    }
+   ],
+   "known_runtime_commits_after_r2": [
+    "369652fcfc2a0d54b4184ac0689058ae498a88ab",
+    "a3684086e7192896448aaee89eaa53acad4a177b",
+    "bd3c2e9fd2c5a333c2db28a003863cd53e8a6d84",
+    "f1e75651db6056eb4a87c990f368e852c6168b7a",
+    "49646b2ea5f6e005d54a3c76cad0eedeab565b69"
+   ],
+   "correction_reason": "Exhaustive baseline audit found exactly four r2 entries whose recorded identity did not match the checkout: cloud_llm.py, final_three_brain.py, prompts.py, and the release-manifest test entry itself. Git history proves named hosted-GPT-OSS recovery changes for the three runtime files. The test-entry mismatch is recorded as observed without inventing an unproven cause. Revision 3 updates bookkeeping only.",
+   "superseded_at_utc": "2026-09-14T17:58:54Z",
+   "superseded_by": "MANIFEST_REVISION_3_BASELINE_FIA_GATE_REPAIR"
+  },
+  {
+   "revision": 3,
+   "status": "SUPERSEDED_STALE_TEST_EXPECTATION",
+   "manifest_sha256": "cedfa8da6e33c474107d65f74ac8bd079ede6d522502fafbe49006feb6703cd9",
+   "manifest_size": 34514,
+   "correction_reason": "After the r1/r2 bookkeeping blocker was repaired, the full baseline suite reached tests/test_probability_prompt_contract_v6_4.py and exposed a stale literal-string expectation. Commit 49646b2 had intentionally replaced the old one-line probability wording with a stronger four-step arithmetic contract. Revision 4 changes only that stale test expectation plus the release-manifest test needed to preserve this provenance; fia_brain/prompts.py and all runtime/model/Forward-OOS logic remain byte-unchanged.",
+   "entries_changed_for_revision4": [
+    {
+     "path": "tests/test_probability_prompt_contract_v6_4.py",
+     "recorded_size": 258,
+     "recorded_sha256": "f36add20783577d4ae466e089d177f32b3fb76787762f7b6a0338750c3a1b84e",
+     "actual_size": 788,
+     "actual_sha256": "cfaabb17c24ab70d2bb5977b1fa34dd7d939419a58cca7e19613e3934b8f3e48"
+    },
+    {
+     "path": "tests/test_release_manifest_v661.py",
+     "recorded_size": 4999,
+     "recorded_sha256": "be16866eb112e6c50a6e83a29c504dbe1b1c7aff752ed28ad1e155b184b46bdc",
+     "actual_size": 4966,
+     "actual_sha256": "5a042d1d7719cd89f608a0c4a19616c9c70213d565d8a6c6ee3d77c48da15e09"
+    }
+   ],
+   "superseded_at_utc": "2026-09-14T21:31:47+03:00",
+   "superseded_by_commit": "2130b835a9e53aef535450318a402d5adac2feaa"
   }
  ],
  "release_status": "ENGINEERING_RELEASE_GATE_PASS__REAL_E2E_REQUIRED_FOR_PRODUCTION",
@@ -209,8 +280,8 @@
   },
   {
    "path": "fia_brain/cloud_llm.py",
-   "size": 7738,
-   "sha256": "7fbd5b278a74a6cceff0fbefc3e7eac97ad99fd77f98d01e58e1cab71ab3c31e"
+   "size": 13351,
+   "sha256": "d85828ee3960b5c072e650af18f6d82f8da03e7f6207922c793a513bc7361e69"
   },
   {
    "path": "fia_brain/config.py",
@@ -249,8 +320,8 @@
   },
   {
    "path": "fia_brain/final_three_brain.py",
-   "size": 15606,
-   "sha256": "2cf9797876298ac1ac81ea320449a3fdb2c0add072c656d7d8ad791fd4efbf60"
+   "size": 16052,
+   "sha256": "a47ed83b209ceb495d0f3e483fe875e23e9a6e66c2cd1c9cc322428771f65e7f"
   },
   {
    "path": "fia_brain/guardrails.py",
@@ -324,8 +395,8 @@
   },
   {
    "path": "fia_brain/prompts.py",
-   "size": 7106,
-   "sha256": "43e03f3a630b6f04033494a857f23e0c3e87204e2bcd89f1444b87f7fd70e3ea"
+   "size": 7501,
+   "sha256": "723f0e68052b1af97e80523a3fd62b597fb4a3e77bf593712883045d4f157c2a"
   },
   {
    "path": "fia_brain/quality.py",
@@ -769,8 +840,8 @@
   },
   {
    "path": "tests/test_probability_prompt_contract_v6_4.py",
-   "size": 258,
-   "sha256": "f36add20783577d4ae466e089d177f32b3fb76787762f7b6a0338750c3a1b84e"
+   "size": 788,
+   "sha256": "cfaabb17c24ab70d2bb5977b1fa34dd7d939419a58cca7e19613e3934b8f3e48"
   },
   {
    "path": "tests/test_probability_rounding_repair_v6_3.py",
@@ -829,8 +900,8 @@
   },
   {
    "path": "tests/test_release_manifest_v661.py",
-   "size": 5411,
-   "sha256": "09a4e47d7bfee6e5e239254fbd6c709697aacf9ef97f0f2eaa08bee61bf427a5"
+   "size": 4966,
+   "sha256": "5a042d1d7719cd89f608a0c4a19616c9c70213d565d8a6c6ee3d77c48da15e09"
   },
   {
    "path": "tests/test_response_schemas_v6_5.py",
