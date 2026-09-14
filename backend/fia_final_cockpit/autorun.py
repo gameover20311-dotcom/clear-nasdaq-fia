@@ -34,6 +34,100 @@ def _wait_for_backend(port: str) -> None:
     raise RuntimeError("BACKEND_NOT_READY: " + last)
 
 
+def _keepalive(stop_event: threading.Event) -> None:
+    """Temporary proof-only keepalive for Render Free.
+
+    Render Free spins down after 15 minutes without inbound traffic. Hosted Groq can
+    legitimately direct this E2E run to wait longer than that between model calls.
+    During the one-shot proof only, send a public health request every four minutes so
+    the hosting lifecycle cannot kill a scientifically valid provider wait. This does
+    not touch prompts, evidence, schemas, validators, BASE_FIA, or Forward-OOS.
+    """
+    host = str(os.environ.get("RENDER_EXTERNAL_HOSTNAME") or "").strip()
+    if not host:
+        _emit("GPTOSS_KEEPALIVE_DISABLED", {"reason": "RENDER_EXTERNAL_HOSTNAME_MISSING"})
+        return
+    url = "https://" + host + "/api/health"
+    _emit("GPTOSS_KEEPALIVE_ARMED", {"interval_seconds": 240, "host": host})
+    while not stop_event.wait(240):
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"Accept": "application/json", "User-Agent": "CLEAR-NASDAQ-GPTOSS-PROOF/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=20) as response:
+                status = int(getattr(response, "status", 0) or 0)
+            _emit("GPTOSS_KEEPALIVE", {"status": status})
+        except Exception as exc:
+            _emit(
+                "GPTOSS_KEEPALIVE_ERROR",
+                {"type": type(exc).__name__, "error": str(exc)[:240]},
+            )
+
+
+def _instrument_brain(brain: Any) -> None:
+    """Proof-only observability wrappers; no inputs or outputs are modified."""
+    original_analysis = brain._ask_analysis
+    original_structured = brain._ask_structured
+    original_judge = brain._ask_judge
+
+    def observed_analysis(label, *args, **kwargs):
+        started = time.time()
+        _emit("GPTOSS_STAGE_START", {"kind": "analysis", "stage": str(label)})
+        try:
+            out = original_analysis(label, *args, **kwargs)
+            _emit(
+                "GPTOSS_STAGE_OK",
+                {"kind": "analysis", "stage": str(label), "elapsed_seconds": round(time.time() - started, 2)},
+            )
+            return out
+        except Exception as exc:
+            _emit(
+                "GPTOSS_STAGE_FAIL",
+                {"kind": "analysis", "stage": str(label), "type": type(exc).__name__, "error": str(exc)[:400], "elapsed_seconds": round(time.time() - started, 2)},
+            )
+            raise
+
+    def observed_structured(label, *args, **kwargs):
+        started = time.time()
+        _emit("GPTOSS_STAGE_START", {"kind": "structured", "stage": str(label)})
+        try:
+            out = original_structured(label, *args, **kwargs)
+            _emit(
+                "GPTOSS_STAGE_OK",
+                {"kind": "structured", "stage": str(label), "elapsed_seconds": round(time.time() - started, 2)},
+            )
+            return out
+        except Exception as exc:
+            _emit(
+                "GPTOSS_STAGE_FAIL",
+                {"kind": "structured", "stage": str(label), "type": type(exc).__name__, "error": str(exc)[:400], "elapsed_seconds": round(time.time() - started, 2)},
+            )
+            raise
+
+    def observed_judge(evidence, proposed, seed, role, policy):
+        started = time.time()
+        role_text = " ".join(str(role or "").split())[:120]
+        _emit("GPTOSS_STAGE_START", {"kind": "judge", "stage": "JUDGE", "role": role_text})
+        try:
+            out = original_judge(evidence, proposed, seed, role, policy)
+            _emit(
+                "GPTOSS_STAGE_OK",
+                {"kind": "judge", "stage": "JUDGE", "role": role_text, "elapsed_seconds": round(time.time() - started, 2)},
+            )
+            return out
+        except Exception as exc:
+            _emit(
+                "GPTOSS_STAGE_FAIL",
+                {"kind": "judge", "stage": "JUDGE", "role": role_text, "type": type(exc).__name__, "error": str(exc)[:400], "elapsed_seconds": round(time.time() - started, 2)},
+            )
+            raise
+
+    brain._ask_analysis = observed_analysis
+    brain._ask_structured = observed_structured
+    brain._ask_judge = observed_judge
+
+
 def _compact_final(value: Any) -> Dict[str, Any]:
     obj = value if isinstance(value, dict) else {}
     return {
@@ -47,6 +141,8 @@ def _compact_final(value: Any) -> Dict[str, Any]:
 
 def _run_once() -> None:
     started = time.time()
+    keepalive_stop = threading.Event()
+    keepalive_thread = None
     try:
         backend_root = Path(__file__).resolve().parents[1]
         brain_root = backend_root / "clear_nasdaq_brain"
@@ -57,6 +153,14 @@ def _run_once() -> None:
 
         port = str(os.environ.get("PORT") or "10000").strip()
         _wait_for_backend(port)
+
+        keepalive_thread = threading.Thread(
+            target=_keepalive,
+            args=(keepalive_stop,),
+            name="clear-nasdaq-gptoss-proof-keepalive",
+            daemon=True,
+        )
+        keepalive_thread.start()
 
         brain_root_s = str(brain_root)
         if brain_root_s not in sys.path:
@@ -74,6 +178,7 @@ def _run_once() -> None:
 
         cfg = load(str(brain_root / "config.json"))
         brain = FIABrain(cfg)
+        _instrument_brain(brain)
 
         health = brain.client.health()
         _emit(
@@ -153,6 +258,11 @@ def _run_once() -> None:
                 "elapsed_seconds": round(time.time() - started, 2),
             },
         )
+    finally:
+        keepalive_stop.set()
+        if keepalive_thread is not None:
+            keepalive_thread.join(timeout=1.0)
+        _emit("GPTOSS_KEEPALIVE_STOPPED", {"elapsed_seconds": round(time.time() - started, 2)})
 
 
 def start() -> None:
