@@ -1,0 +1,73 @@
+name: CNMI Shadow Verify
+
+on:
+  push:
+    branches:
+      - cnmi-shadow-integration
+    paths:
+      - 'research/cnmi_shadow/**'
+      - 'CNMI_SHADOW_INTEGRATION.md'
+      - '.github/workflows/cnmi-shadow-verify.yml'
+  pull_request:
+    paths:
+      - 'research/cnmi_shadow/**'
+      - 'CNMI_SHADOW_INTEGRATION.md'
+      - '.github/workflows/cnmi-shadow-verify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-cnmi-shadow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Compile adapter and regression
+        run: |
+          python -m py_compile research/cnmi_shadow/adapter.py research/cnmi_shadow/test_adapter.py
+
+      - name: Run hostile shadow regression
+        run: |
+          python -m unittest discover -s research/cnmi_shadow -p 'test_adapter.py' -v
+
+      - name: Verify production boundary literals
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('research/cnmi_shadow/adapter.py')
+          text = p.read_text(encoding='utf-8')
+          required = [
+              'PRODUCTION_INFLUENCE = False',
+              'DEPLOYMENT_AUTHORIZED = False',
+              'PREDICTIVE_EDGE_CLAIMED = False',
+              'CNMI_NATIVE_105_34_10 = "NOT_CLAIMED"',
+          ]
+          missing = [x for x in required if x not in text]
+          if missing:
+              raise SystemExit('CNMI shadow boundary missing: ' + repr(missing))
+          forbidden = [
+              'from fia.engine import',
+              'from fia.forward_oos import',
+              'record_forward_forecast(',
+              'build_forecast(',
+          ]
+          found = [x for x in forbidden if x in text]
+          if found:
+              raise SystemExit('CNMI shadow crossed production boundary: ' + repr(found))
+          print('CNMI_SHADOW_PRODUCTION_BOUNDARY=PASS')
+          PY
+
+      - name: Verify backend scientific identity scope untouched
+        run: |
+          test ! -e backend/fia/cnmi_shadow.py
+          test ! -e backend/tests/test_cnmi_shadow.py
+          echo 'CNMI_SHADOW_OUTSIDE_BACKEND_FINGERPRINT_SCOPE=PASS'
