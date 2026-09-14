@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import time
 import urllib.error
 import urllib.request
 from typing import Any, Dict, Optional
@@ -10,6 +12,37 @@ from .local_llm import LocalModelError, _extract_json, _loads_strict
 
 GROQ_BASE = "https://api.groq.com/openai/v1"
 GROQ_MODEL = "openai/gpt-oss-20b"
+
+
+def _rate_limit_delay(exc: urllib.error.HTTPError, detail: str, attempt: int) -> float:
+    """Return a bounded provider-directed wait for HTTP 429 only.
+
+    This does not alter prompts, schemas, probabilities, evidence, or validation.
+    It only prevents a valid hosted GPT-OSS run from failing because several
+    legitimate Three-Brain calls land inside the same Groq TPM window.
+    """
+    candidates = []
+    try:
+        raw = str(exc.headers.get("Retry-After") or "").strip()
+        if raw:
+            candidates.append(float(raw))
+    except Exception:
+        pass
+
+    for pattern in (
+        r"try again in\s+([0-9]+(?:\.[0-9]+)?)s",
+        r"retry after\s+([0-9]+(?:\.[0-9]+)?)s",
+    ):
+        match = re.search(pattern, str(detail or ""), flags=re.IGNORECASE)
+        if match:
+            try:
+                candidates.append(float(match.group(1)))
+            except Exception:
+                pass
+
+    # Conservative fallback grows only when the provider gave no usable delay.
+    delay = max(candidates) if candidates else min(60.0, 15.0 * (attempt + 1))
+    return max(1.0, min(75.0, delay + 1.0))
 
 
 class GroqClient:
@@ -42,6 +75,7 @@ class GroqClient:
             "system_fingerprints": [],
             "last_request_id": None,
             "last_usage": None,
+            "rate_limit_retries": 0,
         }
 
     def _key(self) -> str:
@@ -162,34 +196,64 @@ class GroqClient:
         }
 
         raw = json.dumps(payload, allow_nan=False).encode("utf-8")
-        req = urllib.request.Request(
-            self.base_url + "/chat/completions",
-            data=raw,
-            headers=self._headers(),
-            method="POST",
-        )
-
+        request_timeout = int(timeout if timeout is not None else self.timeout)
         try:
-            with urllib.request.urlopen(
-                req,
-                timeout=int(timeout if timeout is not None else self.timeout),
-            ) as r:
-                body = r.read(20_000_001)
-            if len(body) > 20_000_000:
-                raise LocalModelError("Groq response too large")
-            response = _loads_strict(body.decode("utf-8"))
-        except urllib.error.HTTPError as e:
+            max_rate_retries = int(os.getenv("GROQ_RATE_LIMIT_RETRIES", "8"))
+        except Exception:
+            max_rate_retries = 8
+        max_rate_retries = max(0, min(max_rate_retries, 12))
+
+        response = None
+        for attempt in range(max_rate_retries + 1):
+            req = urllib.request.Request(
+                self.base_url + "/chat/completions",
+                data=raw,
+                headers=self._headers(),
+                method="POST",
+            )
             try:
-                detail = e.read(4000).decode("utf-8", "replace")
-            except Exception:
-                detail = ""
-            raise LocalModelError(
-                "Groq HTTP %s: %s" % (e.code, detail[:1000])
-            ) from e
-        except Exception as e:
-            raise LocalModelError(
-                type(e).__name__ + ": " + str(e)[:500]
-            ) from e
+                with urllib.request.urlopen(req, timeout=request_timeout) as r:
+                    body = r.read(20_000_001)
+                if len(body) > 20_000_000:
+                    raise LocalModelError("Groq response too large")
+                response = _loads_strict(body.decode("utf-8"))
+                break
+            except urllib.error.HTTPError as e:
+                try:
+                    detail = e.read(4000).decode("utf-8", "replace")
+                except Exception:
+                    detail = ""
+                if int(e.code) == 429 and attempt < max_rate_retries:
+                    delay = _rate_limit_delay(e, detail, attempt)
+                    self.runtime_provenance["rate_limit_retries"] = int(
+                        self.runtime_provenance.get("rate_limit_retries") or 0
+                    ) + 1
+                    print(
+                        "GROQ_RATE_LIMIT_RETRY",
+                        json.dumps(
+                            {
+                                "attempt": attempt + 1,
+                                "sleep_seconds": round(delay, 2),
+                                "provider_model": self.model,
+                            },
+                            sort_keys=True,
+                        ),
+                        flush=True,
+                    )
+                    time.sleep(delay)
+                    continue
+                raise LocalModelError(
+                    "Groq HTTP %s: %s" % (e.code, detail[:1000])
+                ) from e
+            except LocalModelError:
+                raise
+            except Exception as e:
+                raise LocalModelError(
+                    type(e).__name__ + ": " + str(e)[:500]
+                ) from e
+
+        if not isinstance(response, dict):
+            raise LocalModelError("Groq response unavailable after rate-limit retries")
 
         fingerprint = str(response.get("system_fingerprint") or "").strip()
         if fingerprint:
