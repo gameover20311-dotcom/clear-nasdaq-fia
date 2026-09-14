@@ -1,8 +1,8 @@
 {
  "name": "CLEAR NASDAQ \u2014 FIA BRAIN V7.4 FINAL THREE-BRAIN (V6.6.2 hardened base)",
  "version": "7.4.0-final-three-brain",
- "manifest_revision": 3,
- "manifest_revision_note": "Release version is unchanged. Revision 3 advances only integrity metadata for four exact r2-vs-baseline mismatches found by an exhaustive audit. The three runtime files are not edited by this repair; the manifest test was strengthened to enforce r1+r2 provenance and the r3 bytes. No Forward-OOS seal, protected scientific artifact, historical evidence, or predictive result is rewritten.",
+ "manifest_revision": 4,
+ "manifest_revision_note": "Release version is unchanged. Revision 4 advances integrity metadata only for a stale probability-prompt TEST expectation exposed after the earlier manifest blocker was removed. The strengthened runtime prompt from commit 49646b2 is byte-unchanged. No model logic, BASE_FIA, Forward-OOS, sealed historical artifact, predictive result, or production path is changed.",
  "manifest_revision_history": [
   {
    "revision": 1,
@@ -103,6 +103,31 @@
    "correction_reason": "Exhaustive baseline audit found exactly four r2 entries whose recorded identity did not match the checkout: cloud_llm.py, final_three_brain.py, prompts.py, and the release-manifest test entry itself. Git history proves named hosted-GPT-OSS recovery changes for the three runtime files. The test-entry mismatch is recorded as observed without inventing an unproven cause. Revision 3 updates bookkeeping only.",
    "superseded_at_utc": "2026-09-14T17:58:54Z",
    "superseded_by": "MANIFEST_REVISION_3_BASELINE_FIA_GATE_REPAIR"
+  },
+  {
+   "revision": 3,
+   "status": "SUPERSEDED_STALE_TEST_EXPECTATION",
+   "manifest_sha256": "cedfa8da6e33c474107d65f74ac8bd079ede6d522502fafbe49006feb6703cd9",
+   "manifest_size": 34514,
+   "correction_reason": "After the r1/r2 bookkeeping blocker was repaired, the full baseline suite reached tests/test_probability_prompt_contract_v6_4.py and exposed a stale literal-string expectation. Commit 49646b2 had intentionally replaced the old one-line probability wording with a stronger four-step arithmetic contract. Revision 4 changes only that stale test expectation plus the release-manifest test needed to preserve this provenance; fia_brain/prompts.py and all runtime/model/Forward-OOS logic remain byte-unchanged.",
+   "entries_changed_for_revision4": [
+    {
+     "path": "tests/test_probability_prompt_contract_v6_4.py",
+     "recorded_size": 258,
+     "recorded_sha256": "f36add20783577d4ae466e089d177f32b3fb76787762f7b6a0338750c3a1b84e",
+     "actual_size": 788,
+     "actual_sha256": "cfaabb17c24ab70d2bb5977b1fa34dd7d939419a58cca7e19613e3934b8f3e48"
+    },
+    {
+     "path": "tests/test_release_manifest_v661.py",
+     "recorded_size": 4999,
+     "recorded_sha256": "be16866eb112e6c50a6e83a29c504dbe1b1c7aff752ed28ad1e155b184b46bdc",
+     "actual_size": 4966,
+     "actual_sha256": "5a042d1d7719cd89f608a0c4a19616c9c70213d565d8a6c6ee3d77c48da15e09"
+    }
+   ],
+   "superseded_at_utc": "2026-09-14T21:31:47+03:00",
+   "superseded_by_commit": "2130b835a9e53aef535450318a402d5adac2feaa"
   }
  ],
  "release_status": "ENGINEERING_RELEASE_GATE_PASS__REAL_E2E_REQUIRED_FOR_PRODUCTION",
@@ -815,8 +840,8 @@
   },
   {
    "path": "tests/test_probability_prompt_contract_v6_4.py",
-   "size": 258,
-   "sha256": "f36add20783577d4ae466e089d177f32b3fb76787762f7b6a0338750c3a1b84e"
+   "size": 788,
+   "sha256": "cfaabb17c24ab70d2bb5977b1fa34dd7d939419a58cca7e19613e3934b8f3e48"
   },
   {
    "path": "tests/test_probability_rounding_repair_v6_3.py",
@@ -875,8 +900,8 @@
   },
   {
    "path": "tests/test_release_manifest_v661.py",
-   "size": 4999,
-   "sha256": "be16866eb112e6c50a6e83a29c504dbe1b1c7aff752ed28ad1e155b184b46bdc"
+   "size": 4966,
+   "sha256": "5a042d1d7719cd89f608a0c4a19616c9c70213d565d8a6c6ee3d77c48da15e09"
   },
   {
    "path": "tests/test_response_schemas_v6_5.py",
