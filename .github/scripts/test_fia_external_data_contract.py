@@ -152,4 +152,18 @@ assert "MISSING_EXTERNAL_DATA" not in suite.FAILING_STATUSES
 assert "MISSING_EXTERNAL_DATA" in gate.NOT_TESTED_STATUSES
 assert "MISSING_EXTERNAL_DATA" not in gate.FAILING_STATUSES
 
+# 9. A provider-dependent check blocked by registered external historical data
+# receives zero provider-execution coverage credit without becoming a hard code
+# or environment failure. This prevents the final gate from reporting a fake
+# fully-executed provider surface while preserving the truthful NOT_TESTED state.
+providers = {"entries": {"research/check.py": {"kind": "direct"}}}
+hard_not_run, no_coverage = gate.provider_execution_status(providers, good_suite["results"])
+assert hard_not_run == []
+assert no_coverage == ["research/check.py"]
+
+broken_results = {"research/check.py": {"status": "PROJECT_IMPORT_DEFECT", "evidence": {}}}
+hard_not_run, no_coverage = gate.provider_execution_status(providers, broken_results)
+assert hard_not_run == ["research/check.py"]
+assert no_coverage == []
+
 print("PASS external historical data contract hostile tests")
