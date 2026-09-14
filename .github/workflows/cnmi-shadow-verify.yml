@@ -2,17 +2,23 @@ name: CNMI Shadow Verify
 
 on:
   push:
-    branches:
-      - main
-      - cnmi-shadow-integration
+    branches: ["**"]
     paths:
       - 'research/cnmi_shadow/**'
+      - 'backend/main.py'
+      - 'backend/fia/**'
+      - 'backend/fia_final_cockpit/**'
       - 'CNMI_SHADOW_INTEGRATION.md'
+      - '.github/scripts/production_isolation_gate.py'
       - '.github/workflows/cnmi-shadow-verify.yml'
   pull_request:
     paths:
       - 'research/cnmi_shadow/**'
+      - 'backend/main.py'
+      - 'backend/fia/**'
+      - 'backend/fia_final_cockpit/**'
       - 'CNMI_SHADOW_INTEGRATION.md'
+      - '.github/scripts/production_isolation_gate.py'
       - '.github/workflows/cnmi-shadow-verify.yml'
 
 permissions:
@@ -21,7 +27,7 @@ permissions:
 jobs:
   verify-cnmi-shadow:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout exact revision
@@ -32,13 +38,29 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Compile adapter and regression
+      - name: Compile adapter, regression, mutation and boundary gate
         run: |
-          python -m py_compile research/cnmi_shadow/adapter.py research/cnmi_shadow/test_adapter.py
+          python -m py_compile \
+            research/cnmi_shadow/adapter.py \
+            research/cnmi_shadow/test_adapter.py \
+            research/cnmi_shadow/mutation_probe.py \
+            .github/scripts/production_isolation_gate.py
 
       - name: Run hostile shadow regression
         run: |
           python -m unittest discover -s research/cnmi_shadow -p 'test_adapter.py' -v
+
+      - name: Kill targeted fail-open mutations
+        run: |
+          python research/cnmi_shadow/mutation_probe.py
+
+      - name: Attack production-isolation verifier itself
+        run: |
+          python .github/scripts/production_isolation_gate.py --self-test
+
+      - name: Scan full declared production surface for hidden shadow influence
+        run: |
+          python .github/scripts/production_isolation_gate.py
 
       - name: Verify production boundary literals
         run: |
@@ -51,6 +73,8 @@ jobs:
               'DEPLOYMENT_AUTHORIZED = False',
               'PREDICTIVE_EDGE_CLAIMED = False',
               'CNMI_NATIVE_105_34_10 = "NOT_CLAIMED"',
+              'EXTERNAL_PRODUCTION_VERIFIER_BOUND = False',
+              'production_ok = False',
           ]
           missing = [x for x in required if x not in text]
           if missing:
