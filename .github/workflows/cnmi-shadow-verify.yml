@@ -52,7 +52,7 @@ jobs:
 
       - name: Kill targeted fail-open mutations
         run: |
-          python research/cnmi_shadow/mutation_probe.py
+          python -m research.cnmi_shadow.mutation_probe
 
       - name: Attack production-isolation verifier itself
         run: |
