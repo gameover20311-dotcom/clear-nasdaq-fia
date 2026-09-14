@@ -34,6 +34,17 @@ def _wait_for_backend(port: str) -> None:
     raise RuntimeError("BACKEND_NOT_READY: " + last)
 
 
+def _compact_final(value: Any) -> Dict[str, Any]:
+    obj = value if isinstance(value, dict) else {}
+    return {
+        "direction": obj.get("direction"),
+        "bullish_probability": obj.get("bullish_probability"),
+        "bearish_probability": obj.get("bearish_probability"),
+        "confidence": obj.get("confidence"),
+        "regime": obj.get("regime"),
+    }
+
+
 def _run_once() -> None:
     started = time.time()
     try:
@@ -85,6 +96,10 @@ def _run_once() -> None:
 
         passes = result.get("passes") if isinstance(result.get("passes"), dict) else {}
         final = result.get("final") if isinstance(result.get("final"), dict) else {}
+        by_horizon = result.get("final_by_horizon") if isinstance(result.get("final_by_horizon"), dict) else {}
+        freeze = (passes or {}).get("three_brain_freeze") if isinstance((passes or {}).get("three_brain_freeze"), dict) else {}
+        runtime_events = result.get("runtime_events") if isinstance(result.get("runtime_events"), list) else []
+        inference_runtime = result.get("inference_runtime") if isinstance(result.get("inference_runtime"), dict) else {}
         summary = {
             "provider": "groq",
             "provider_model": "openai/gpt-oss-20b",
@@ -94,18 +109,39 @@ def _run_once() -> None:
             "specialists": len((passes or {}).get("specialists") or {}),
             "candidates": len((passes or {}).get("candidates") or []),
             "judges": len((passes or {}).get("judges") or []),
+            "final_4h": _compact_final(by_horizon.get("4h")),
+            "final_8h": _compact_final(by_horizon.get("8h")),
             "direction": final.get("direction"),
             "bullish_probability": final.get("bullish_probability"),
             "bearish_probability": final.get("bearish_probability"),
             "confidence": final.get("confidence"),
+            "snapshot_sha256": result.get("snapshot_sha256"),
+            "ledger_sha256": result.get("ledger_sha256"),
+            "three_brain_freeze_sha256": freeze.get("freeze_sha256"),
             "result_sha256": result.get("result_sha256"),
             "base_fia_modified": result.get("base_fia_modified"),
             "forward_oos_modified": result.get("forward_oos_modified"),
+            "runtime_event_count": len(runtime_events),
+            "rate_limit_retries": inference_runtime.get("rate_limit_retries"),
+            "request_size_retries": inference_runtime.get("request_size_retries"),
             "elapsed_seconds": round(time.time() - started, 2),
         }
         Path("/tmp/clear_nasdaq_gptoss_autorun.json").write_text(
             json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
             encoding="utf-8",
+        )
+        _emit("GPTOSS_AUTORUN_RUNTIME_EVENTS", {"events": runtime_events})
+        _emit(
+            "GPTOSS_AUTORUN_PROVIDER_PROVENANCE",
+            {
+                "provider": inference_runtime.get("provider"),
+                "provider_model": inference_runtime.get("provider_model"),
+                "runtime_identity_scope": inference_runtime.get("runtime_identity_scope"),
+                "rate_limit_retries": inference_runtime.get("rate_limit_retries"),
+                "request_size_retries": inference_runtime.get("request_size_retries"),
+                "last_request_id_present": bool(inference_runtime.get("last_request_id")),
+                "system_fingerprints": inference_runtime.get("system_fingerprints") or [],
+            },
         )
         _emit("GPTOSS_AUTORUN_RESULT", summary)
     except Exception as exc:
