@@ -3,6 +3,10 @@
 
 This is not a claim of exhaustive mutation testing. It attacks the exact
 fail-closed properties that previously had plausible bypasses.
+
+A mutation is counted as *killed* only when the mutated implementation violates
+the safety property that the normal regression suite asserts. In other words,
+we deliberately create the bug and require the test oracle to notice it.
 """
 
 from __future__ import annotations
@@ -28,14 +32,20 @@ def load_mutant(old: str, new: str):
 
 
 def main() -> int:
-    probes = []
+    probes: list[tuple[str, bool, str]] = []
 
-    # M1: self-attested structural eligibility must never become admission.
+    # M1: if the external-verifier boundary is removed, a bare self-attested
+    # production candidate becomes admitted. The oracle must detect that.
     ns = load_mutant("production_ok = False", "production_ok = production_structural_ok")
     out = ns["evaluate_candidate"](base_candidate())
-    probes.append(("external_verifier_boundary", out["production_admissible"] is False))
+    probes.append((
+        "external_verifier_boundary",
+        out["production_admissible"] is True,
+        "mutant admitted a self-attested production candidate",
+    ))
 
-    # M2: production cannot omit a hard gate from the caller-declared applicable set.
+    # M2: if the all-production-gates rule is disabled, omitting H9 becomes
+    # structurally eligible. That unsafe transition must be detected.
     ns = load_mutant(
         'if requested_level == "PRODUCTION":',
         'if False and requested_level == "PRODUCTION":',
@@ -43,9 +53,13 @@ def main() -> int:
     c = base_candidate()
     c["applicable_hard_gates"].remove("H9")
     out = ns["evaluate_candidate"](c)
-    probes.append(("omitted_production_hard_gate", out["production_structurally_eligible"] is False))
+    probes.append((
+        "omitted_production_hard_gate",
+        out["production_structurally_eligible"] is True,
+        "mutant allowed omitted H9",
+    ))
 
-    # M3: unknown claim type cannot authorize itself with a local evidence rule.
+    # M3: disabling the registered-claim check allows a locally invented claim.
     ns = load_mutant(
         "if ctype not in CLAIM_TYPES:",
         "if False and ctype not in CLAIM_TYPES:",
@@ -53,9 +67,14 @@ def main() -> int:
     c = base_candidate("RESEARCH")
     c["claims"] = [{"type": "NEW_MAGIC_CLAIM", "explicit_evidence_rule": {"x": True}}]
     out = ns["evaluate_candidate"](c)
-    probes.append(("unknown_claim_type", out["research_admissible"] is False))
+    probes.append((
+        "unknown_claim_type",
+        out["research_admissible"] is True,
+        "mutant admitted unregistered claim type",
+    ))
 
-    # M4: incomplete/unrecoverable provenance must not be structurally production eligible.
+    # M4: disabling provenance completeness lets an unrecoverable record become
+    # structurally production eligible.
     ns = load_mutant(
         "elif completeness not in PRODUCTION_ALLOWED_PROVENANCE_STATES:",
         "elif False and completeness not in PRODUCTION_ALLOWED_PROVENANCE_STATES:",
@@ -63,9 +82,13 @@ def main() -> int:
     c = base_candidate()
     c["provenance_completeness_state"] = "HISTORICALLY_UNRECOVERABLE"
     out = ns["evaluate_candidate"](c)
-    probes.append(("unrecoverable_provenance", out["production_structurally_eligible"] is False))
+    probes.append((
+        "unrecoverable_provenance",
+        out["production_structurally_eligible"] is True,
+        "mutant allowed historically unrecoverable provenance",
+    ))
 
-    # M5: a false hard gate must remain non-compensable.
+    # M5: disabling the hard-gate value check lets H1=false pass structurally.
     ns = load_mutant(
         "if provided.get(gate) is not True:",
         "if False and provided.get(gate) is not True:",
@@ -73,9 +96,14 @@ def main() -> int:
     c = base_candidate()
     c["hard_gates"]["H1"] = False
     out = ns["evaluate_candidate"](c)
-    probes.append(("false_hard_gate", out["production_structurally_eligible"] is False))
+    probes.append((
+        "false_hard_gate",
+        out["production_structurally_eligible"] is True,
+        "mutant allowed H1=false",
+    ))
 
-    # M6: duplicate applicability declarations are rejected instead of normalized away.
+    # M6: disabling duplicate detection lets a malformed gate declaration remain
+    # structurally eligible.
     ns = load_mutant(
         "if len(normalized) != len(set(normalized)):",
         "if False and len(normalized) != len(set(normalized)):",
@@ -83,11 +111,19 @@ def main() -> int:
     c = base_candidate()
     c["applicable_hard_gates"].append("H1")
     out = ns["evaluate_candidate"](c)
-    probes.append(("duplicate_applicable_gate", out["production_structurally_eligible"] is False))
+    probes.append((
+        "duplicate_applicable_gate",
+        out["production_structurally_eligible"] is True,
+        "mutant allowed duplicate applicable gate",
+    ))
 
     report = {
-        "mutations": [{"name": name, "killed": killed} for name, killed in probes],
-        "killed": sum(1 for _, killed in probes if killed),
+        "oracle_semantics": "killed=true iff injected bug changes behavior into the unsafe state that regression is meant to reject",
+        "mutations": [
+            {"name": name, "killed": killed, "unsafe_effect": effect}
+            for name, killed, effect in probes
+        ],
+        "killed": sum(1 for _, killed, _ in probes if killed),
         "total": len(probes),
     }
     report["status"] = "PASS" if report["killed"] == report["total"] else "FAIL"
