@@ -26,7 +26,7 @@ def seq_contract(step=1):
     return SequenceContract("TEST_VENDOR_SEQUENCE_V1", lambda token: int(token), step)
 
 
-def event(seq="100", *, contract="NQZ6", exchange_time=NOW, receive_time=None, action=EventAction.ADD, order_id=None, replay=False):
+def event(seq="100", *, subindex=None, contract="NQZ6", exchange_time=NOW, receive_time=None, action=EventAction.ADD, order_id=None, replay=False):
     return MBOEvent(
         instrument="NQ",
         contract=contract,
@@ -36,7 +36,8 @@ def event(seq="100", *, contract="NQZ6", exchange_time=NOW, receive_time=None, a
         exchange_timestamp=exchange_time,
         receive_timestamp=receive_time or exchange_time + timedelta(milliseconds=1),
         sequence_id=str(seq),
-        order_id=order_id or f"ORDER-{seq}",
+        sequence_subindex=subindex,
+        order_id=order_id or f"ORDER-{seq}-{subindex}",
         side=Side.BID,
         price=Decimal("25000.25"),
         quantity=1,
@@ -59,12 +60,38 @@ class StreamIntegrityGateTests(unittest.TestCase):
         self.assertEqual(gate.ingest(event("100"), now=NOW + timedelta(seconds=1)).status, IntegrityStatus.PASS)
         self.assertEqual(gate.ingest(event("101", exchange_time=NOW+timedelta(milliseconds=2)), now=NOW + timedelta(seconds=1)).status, IntegrityStatus.PASS)
 
-    def test_duplicate_sequence_fails_closed(self):
+    def test_duplicate_sequence_fails_closed_without_batch_subindex(self):
         gate = StreamIntegrityGate(capabilities=capabilities(), expected_contract="NQZ6", sequence_contract=seq_contract())
         gate.ingest(event("100"), now=NOW + timedelta(seconds=1))
         r = gate.ingest(event("100", exchange_time=NOW+timedelta(milliseconds=2), order_id="OTHER"), now=NOW + timedelta(seconds=1))
         self.assertEqual(r.status, IntegrityStatus.FAIL)
         self.assertEqual(r.reason, "DUPLICATE_SEQUENCE_ID")
+
+    def test_same_provider_sequence_accepts_ordered_batch_subindices(self):
+        gate = StreamIntegrityGate(capabilities=capabilities(), expected_contract="NQZ6", sequence_contract=seq_contract())
+        self.assertEqual(gate.ingest(event("100", subindex=0), now=NOW + timedelta(seconds=1)).status, IntegrityStatus.PASS)
+        self.assertEqual(gate.ingest(event("100", subindex=1), now=NOW + timedelta(seconds=1)).status, IntegrityStatus.PASS)
+        self.assertEqual(gate.ingest(event("101", subindex=0, exchange_time=NOW+timedelta(milliseconds=2)), now=NOW + timedelta(seconds=1)).status, IntegrityStatus.PASS)
+
+    def test_batch_subindex_must_start_at_zero_and_increase(self):
+        gate = StreamIntegrityGate(capabilities=capabilities(), expected_contract="NQZ6", sequence_contract=seq_contract())
+        r = gate.ingest(event("100", subindex=1), now=NOW + timedelta(seconds=1))
+        self.assertEqual(r.status, IntegrityStatus.FAIL)
+        self.assertEqual(r.reason, "BATCH_SUBINDEX_MUST_START_AT_ZERO")
+
+        gate = StreamIntegrityGate(capabilities=capabilities(), expected_contract="NQZ6", sequence_contract=seq_contract())
+        self.assertEqual(gate.ingest(event("100", subindex=0), now=NOW + timedelta(seconds=1)).status, IntegrityStatus.PASS)
+        self.assertEqual(gate.ingest(event("100", subindex=2), now=NOW + timedelta(seconds=1)).status, IntegrityStatus.PASS)
+        r = gate.ingest(event("100", subindex=1, order_id="LATE"), now=NOW + timedelta(seconds=1))
+        self.assertEqual(r.status, IntegrityStatus.FAIL)
+        self.assertEqual(r.reason, "SEQUENCE_SUBINDEX_OUT_OF_ORDER")
+
+    def test_duplicate_sequence_position_fails_closed(self):
+        gate = StreamIntegrityGate(capabilities=capabilities(), expected_contract="NQZ6", sequence_contract=seq_contract())
+        self.assertEqual(gate.ingest(event("100", subindex=0), now=NOW + timedelta(seconds=1)).status, IntegrityStatus.PASS)
+        r = gate.ingest(event("100", subindex=0, order_id="OTHER"), now=NOW + timedelta(seconds=1))
+        self.assertEqual(r.status, IntegrityStatus.FAIL)
+        self.assertEqual(r.reason, "DUPLICATE_SEQUENCE_POSITION")
 
     def test_sequence_gap_fails_only_under_declared_sequence_contract(self):
         gate = StreamIntegrityGate(capabilities=capabilities(), expected_contract="NQZ6", sequence_contract=seq_contract(step=1))
