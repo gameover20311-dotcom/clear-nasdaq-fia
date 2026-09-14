@@ -47,6 +47,24 @@ def base_candidate(level="PRODUCTION"):
     }
 
 
+def valid_materiality_identity():
+    return {
+        "estimand": "x",
+        "target_population": "p",
+        "eligibility_rule": "g",
+        "outcome_transform": "identity",
+        "horizon": "8h",
+        "aggregation_rule": "mean",
+        "canonical_units": "unit",
+        "margin": 1.0,
+        "provenance_class": "DEVELOPMENT_INFORMED",
+        "provenance_evidence": "documented",
+        "freeze_identity": "v1",
+        "permitted_claim_semantics": "development-informed only",
+        "confirmatory_outcome_used_to_set_margin": False,
+    }
+
+
 class CNMIShadowTests(unittest.TestCase):
     def test_identity_is_explicitly_nonauthoritative(self):
         s = status()
@@ -58,12 +76,35 @@ class CNMIShadowTests(unittest.TestCase):
         self.assertFalse(s["external_production_verifier_bound"])
         self.assertEqual(CNMI_NATIVE_105_34_10, "NOT_CLAIMED")
         self.assertTrue(s["policy"]["bare_candidate_self_attestation_never_enough"])
+        self.assertTrue(s["policy"]["requested_level_caps_evaluation_scope"])
 
     def test_research_candidate_can_be_admitted_without_predictive_gain(self):
         out = evaluate_candidate(base_candidate("RESEARCH"))
         self.assertTrue(out["research_admissible"])
         self.assertEqual(out["decision"], "RESEARCH_ADMISSIBLE")
+        self.assertFalse(out["core_admissible"])
+        self.assertFalse(out["production_structurally_eligible"])
         self.assertFalse(out["deployment_authorized"])
+
+    def test_research_request_cannot_surface_production_eligibility(self):
+        c = base_candidate("RESEARCH")
+        c["applicable_hard_gates"] = ["H1"]
+        c["hard_gates"] = {"H1": True}
+        out = evaluate_candidate(c)
+        self.assertTrue(out["research_admissible"])
+        self.assertFalse(out["core_admissible"])
+        self.assertFalse(out["production_structurally_eligible"])
+        self.assertEqual(out["highest_structural_level"], "RESEARCH")
+
+    def test_invalid_requested_level_cannot_earn_any_level(self):
+        out = evaluate_candidate(base_candidate("MAGIC"))
+        self.assertFalse(out["research_admissible"])
+        self.assertFalse(out["core_admissible"])
+        self.assertFalse(out["production_structurally_eligible"])
+        self.assertFalse(out["production_admissible"])
+        self.assertEqual(out["highest_earned_level"], "NONE")
+        self.assertEqual(out["highest_structural_level"], "NONE")
+        self.assertIn("REQUESTED_LEVEL:INVALID_OR_MISSING", out["reasons"])
 
     def test_core_can_pass_without_production_evidence(self):
         c = base_candidate("CORE")
@@ -71,6 +112,7 @@ class CNMIShadowTests(unittest.TestCase):
         out = evaluate_candidate(c)
         self.assertTrue(out["core_admissible"])
         self.assertEqual(out["decision"], "CORE_ADMISSIBLE")
+        self.assertFalse(out["production_structurally_eligible"])
         self.assertFalse(out["deployment_authorized"])
 
     def test_hard_gate_failure_is_noncompensable(self):
@@ -179,26 +221,30 @@ class CNMIShadowTests(unittest.TestCase):
         self.assertIn("CLAIM:0=MATERIALITY_IDENTITY_MISSING", out["reasons"])
         self.assertIsNone(out["policy"]["universal_materiality_margin"])
 
-    def test_contaminated_materiality_is_rejected(self):
+    def test_materiality_identity_rejects_empty_required_values(self):
         c = base_candidate()
+        identity = valid_materiality_identity()
+        identity["freeze_identity"] = "   "
+        identity["provenance_evidence"] = None
         c["claims"] = [{
             "type": "EMPIRICAL_NONINFERIORITY",
             "requires_materiality": True,
-            "materiality_identity": {
-                "estimand": "x",
-                "target_population": "p",
-                "eligibility_rule": "g",
-                "outcome_transform": "identity",
-                "horizon": "8h",
-                "aggregation_rule": "mean",
-                "canonical_units": "unit",
-                "margin": 1.0,
-                "provenance_class": "DEVELOPMENT_INFORMED",
-                "provenance_evidence": "documented",
-                "freeze_identity": "v1",
-                "permitted_claim_semantics": "development-informed only",
-                "confirmatory_outcome_used_to_set_margin": True,
-            },
+            "materiality_identity": identity,
+        }]
+        out = evaluate_candidate(c)
+        self.assertFalse(out["production_structurally_eligible"])
+        marker = next(r for r in out["reasons"] if r.startswith("CLAIM:0=MATERIALITY_IDENTITY_EMPTY:"))
+        self.assertIn("freeze_identity", marker)
+        self.assertIn("provenance_evidence", marker)
+
+    def test_contaminated_materiality_is_rejected(self):
+        c = base_candidate()
+        identity = valid_materiality_identity()
+        identity["confirmatory_outcome_used_to_set_margin"] = True
+        c["claims"] = [{
+            "type": "EMPIRICAL_NONINFERIORITY",
+            "requires_materiality": True,
+            "materiality_identity": identity,
         }]
         out = evaluate_candidate(c)
         self.assertFalse(out["production_structurally_eligible"])
