@@ -86,6 +86,13 @@ class FakeDepthByOrder:
         return b"rithmic-depth-by-order-batch-123"
 
 
+class FakeDepthSequenceZero(FakeDepthByOrder):
+    sequence_number = 0
+
+    def SerializeToString(self, deterministic=False):
+        return b"rithmic-depth-by-order-batch-zero"
+
+
 class FakeDepthWithoutSourceTimestamp(FakeDepthByOrder):
     sequence_number = 124
     source_ssboe = 0
@@ -169,6 +176,21 @@ class RithmicTransportTests(unittest.TestCase):
             self.assertEqual((first.action, second.action), (EventAction.ADD, EventAction.MODIFY))
             self.assertEqual((first.side, second.side), (Side.BID, Side.ASK))
             self.assertEqual(first.capability, FeedCapability.TRUE_MBO)
+            await adapter.disconnect()
+        asyncio.run(run())
+
+    def test_zero_sequence_is_valid_uint64_and_is_not_treated_as_missing(self):
+        async def run():
+            adapter = self.adapter()
+            await adapter.connect()
+            await adapter.subscribe("NQZ6")
+            await adapter._on_market_depth(FakeDepthSequenceZero())
+
+            self.assertTrue(adapter.capabilities().verified_true_mbo)
+            self.assertEqual(adapter.health().last_sequence_id, "0")
+            stream = adapter.events()
+            first = await asyncio.wait_for(stream.__anext__(), timeout=1)
+            self.assertEqual((first.sequence_id, first.sequence_subindex), ("0", 0))
             await adapter.disconnect()
         asyncio.run(run())
 
