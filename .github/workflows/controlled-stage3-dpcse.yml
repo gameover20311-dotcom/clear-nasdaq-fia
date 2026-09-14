@@ -1,0 +1,57 @@
+name: Controlled Stage 3 DPCSE
+on:
+  push:
+    branches: [feat/final-controlled-integration-20260914]
+permissions:
+  contents: write
+jobs:
+  dpcse:
+    if: github.event.head_commit.message == 'Run controlled Stage 3 DPCSE'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Fetch exact frozen DPCSE V2.3 source
+        run: |
+          git fetch origin feat/dpcse-v2-3-shadow-20260913
+          git cat-file -e d1cafc7c7a36f8fdc7926f8986e14fbc8da9505a^{commit}
+          git checkout d1cafc7c7a36f8fdc7926f8986e14fbc8da9505a -- backend/dpcse_v23_shadow
+      - name: Verify DPCSE V2.3 frozen protocol
+        working-directory: backend
+        run: |
+          python -m unittest -v dpcse_v23_shadow.test_v23_protocol
+          python - <<'PY'
+          from dpcse_v23_shadow.campaign import bootstrap_manifest
+          m=bootstrap_manifest()
+          assert m['status']=='NOT_ARMED'
+          assert m['candidate_model'] is None
+          assert m['locked_rows']==0 and m['resolved_rows']==0
+          assert m['pilot_alpha']==0.0
+          assert m['historical_backfill']=='FORBIDDEN'
+          print('DPCSE_VERSION=V2.3')
+          print('DPCSE_STATUS=NOT_ARMED')
+          print('DPCSE_N=0')
+          print('DPCSE_PRODUCTION_AUTHORITY=false')
+          PY
+      - name: Prove BASE identities and old Forward-OOS unchanged
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          from fia.identity import all_fingerprints
+          expected={'model':'91e5d9a67625171c384dfcd6edb9bc36586a687dddb7ae7c5c54d194ce3da863','protocol':'f28842b437ffcd76c9702c15ef2bc072a0ead1e08ff3c5590cef2f61278245cc','infrastructure':'1b01dbf4c3458d7cbcc96cb30d7a854ecc95a8b4fe16d54bacb9382ed4a41054'}
+          d=all_fingerprints(); got={k:d[k]['digest'] for k in expected}; assert got==expected,(got,expected)
+          print('BASE_FIA_UNCHANGED=PASS')
+          PY
+          cd ..
+          test -z "$(git diff --name-only 982930c2f87ec70d46b4bac813068f77868df804 -- backend/fia_forward_oos backend/fia_backtest_phase14/data backend/fia_backtest_phase20/data)"
+          echo OLD_FORWARD_OOS_UNCHANGED=PASS
+      - name: Commit Stage 3
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/dpcse_v23_shadow
+          git commit -m 'Integrate frozen DPCSE V2.3 in shadow research mode'
+          git push origin HEAD:feat/final-controlled-integration-20260914
