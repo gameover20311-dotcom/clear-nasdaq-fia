@@ -22,6 +22,11 @@ class SequenceContract:
     `parse` converts the exact provider sequence token into an integer only when
     the vendor contract proves that such an ordering exists. `expected_step`
     must also come from the provider contract; the adapter never assumes +1.
+
+    Providers may batch several order mutations under one sequence number.  In
+    that case MBOEvent.sequence_subindex identifies the exact zero-based
+    position inside the provider batch; the provider sequence itself is never
+    synthetically rewritten.
     """
 
     contract_id: str
@@ -45,9 +50,8 @@ class IntegrityResult:
 class StreamIntegrityGate:
     """Fail-closed live-stream integrity gate for one contract/subscription.
 
-    The gate is intentionally stateful.  A RESET clears sequence continuity but
-    does not erase the seen-event hash set, so an exact duplicate cannot be
-    silently accepted after reconnect/reset.
+    A RESET clears continuity but not duplicate-event/sequence-position memory.
+    This prevents an exact replay after reconnect from silently being accepted.
     """
 
     def __init__(
@@ -67,9 +71,10 @@ class StreamIntegrityGate:
         self._sequence_contract = sequence_contract
         self._max_receive_age_seconds = max_receive_age_seconds
         self._seen_hashes: set[str] = set()
-        self._seen_sequences: set[str] = set()
+        self._seen_sequence_positions: set[tuple[str, int | None]] = set()
         self._last_exchange_time: datetime | None = None
         self._last_sequence_int: int | None = None
+        self._last_sequence_subindex: int | None = None
 
     @property
     def ready_for_true_mbo(self) -> bool:
@@ -89,8 +94,11 @@ class StreamIntegrityGate:
         if event.event_hash in self._seen_hashes:
             return IntegrityResult(IntegrityStatus.FAIL, event.event_hash, "DUPLICATE_EVENT_HASH")
 
-        if event.sequence_id is not None and event.sequence_id in self._seen_sequences:
-            return IntegrityResult(IntegrityStatus.FAIL, event.event_hash, "DUPLICATE_SEQUENCE_ID")
+        if event.sequence_id is not None:
+            position = (event.sequence_id, event.sequence_subindex)
+            if position in self._seen_sequence_positions:
+                reason = "DUPLICATE_SEQUENCE_ID" if event.sequence_subindex is None else "DUPLICATE_SEQUENCE_POSITION"
+                return IntegrityResult(IntegrityStatus.FAIL, event.event_hash, reason)
 
         if self._last_exchange_time is not None and event.exchange_timestamp < self._last_exchange_time:
             return IntegrityResult(IntegrityStatus.FAIL, event.event_hash, "EXCHANGE_TIMESTAMP_REVERSAL")
@@ -114,23 +122,38 @@ class StreamIntegrityGate:
                 return IntegrityResult(IntegrityStatus.FAIL, event.event_hash, "SEQUENCE_PARSE_FAILED")
             if isinstance(sequence_value, bool) or not isinstance(sequence_value, int):
                 return IntegrityResult(IntegrityStatus.FAIL, event.event_hash, "SEQUENCE_PARSE_NOT_INTEGER")
-            if event.action is not EventAction.RESET and self._last_sequence_int is not None:
-                expected = self._last_sequence_int + self._sequence_contract.expected_step
-                if sequence_value != expected:
-                    return IntegrityResult(IntegrityStatus.FAIL, event.event_hash, "SEQUENCE_GAP_OR_OUT_OF_ORDER")
+
+            if event.action is not EventAction.RESET:
+                if self._last_sequence_int is None:
+                    if event.sequence_subindex is not None and event.sequence_subindex != 0:
+                        return IntegrityResult(IntegrityStatus.FAIL, event.event_hash, "BATCH_SUBINDEX_MUST_START_AT_ZERO")
+                elif sequence_value == self._last_sequence_int:
+                    if event.sequence_subindex is None or self._last_sequence_subindex is None:
+                        return IntegrityResult(IntegrityStatus.FAIL, event.event_hash, "DUPLICATE_SEQUENCE_ID")
+                    if event.sequence_subindex <= self._last_sequence_subindex:
+                        return IntegrityResult(IntegrityStatus.FAIL, event.event_hash, "SEQUENCE_SUBINDEX_OUT_OF_ORDER")
+                else:
+                    expected = self._last_sequence_int + self._sequence_contract.expected_step
+                    if sequence_value != expected:
+                        return IntegrityResult(IntegrityStatus.FAIL, event.event_hash, "SEQUENCE_GAP_OR_OUT_OF_ORDER")
+                    if event.sequence_subindex is not None and event.sequence_subindex != 0:
+                        return IntegrityResult(IntegrityStatus.FAIL, event.event_hash, "BATCH_SUBINDEX_MUST_START_AT_ZERO")
         else:
             sequence_value = None
 
         # State mutates only after every check passes.
         self._seen_hashes.add(event.event_hash)
         if event.sequence_id is not None:
-            self._seen_sequences.add(event.sequence_id)
+            self._seen_sequence_positions.add((event.sequence_id, event.sequence_subindex))
         self._last_exchange_time = event.exchange_timestamp
 
         if event.action is EventAction.RESET:
             self._last_sequence_int = None
+            self._last_sequence_subindex = None
             return IntegrityResult(IntegrityStatus.RESET_ACCEPTED, event.event_hash)
 
         if sequence_value is not None:
-            self._last_sequence_int = sequence_value
+            if sequence_value != self._last_sequence_int:
+                self._last_sequence_int = sequence_value
+            self._last_sequence_subindex = event.sequence_subindex
         return IntegrityResult(IntegrityStatus.PASS, event.event_hash)
