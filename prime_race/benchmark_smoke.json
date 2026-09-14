@@ -1,0 +1,34 @@
+{
+  "version": "1.0-smoke",
+  "source_package": "CLEAR_NASDAQ_MAIN_PROJECT_FULL_20260914_060116.zip",
+  "tasks": [
+    {
+      "id": "F01",
+      "category": "temporal_integrity",
+      "severity": "CRITICAL",
+      "control": false,
+      "question": "At 13:20 ET on a weekday, with checkpoint 13:00 ET and 10-minute grace, what is scientifically allowed?",
+      "context": "0309: def checkpoint_state(now: Optional[datetime] = None) -> Dict[str, Any]:\n0310:     \"\"\"Return whether a *new* live lock is permitted right now.\n0311: \n0312:     There is intentionally no backfill mode.  A process started after the grace\n0313:     window must wait for the next eligible trading weekday.\n0314:     \"\"\"\n0315:     now = (now or utcnow()).astimezone(timezone.utc)\n0316:     ny = now.astimezone(NY)\n0317:     cp = _checkpoint_time()\n0318:     grace = max(1, int(os.getenv(\"FIA_FORWARD_OOS_GRACE_MINUTES\", \"10\") or \"10\"))\n0319:     scheduled_ny = datetime.combine(ny.date(), cp, tzinfo=NY)\n0320:     closes_ny = scheduled_ny + timedelta(minutes=grace)\n0321:     weekday = ny.weekday() < 5\n0322:     eligible = weekday and scheduled_ny <= ny < closes_ny\n0323:     return {\n0324:         \"eligible_now\": eligible,\n0325:         \"weekday\": weekday,\n0326:         \"now_utc\": _iso(now),\n0327:         \"now_et\": ny.isoformat(),\n0328:         \"checkpoint_date_et\": ny.date().isoformat(),\n0329:         \"scheduled_checkpoint_et\": scheduled_ny.isoformat(),\n0330:         \"window_closes_et\": closes_ny.isoformat(),\n0331:         \"grace_minutes\": grace,\n0332:         \"missed_backfill_allowed\": False,\n0333:     }",
+      "options": {
+        "A": "Create a late lock and mark it forward",
+        "B": "Backfill the missed 13:00 lock",
+        "C": "Do not create a lock; wait for next eligible checkpoint",
+        "D": "Use nearest historical snapshot"
+      }
+    },
+    {
+      "id": "F02",
+      "category": "temporal_integrity",
+      "severity": "CRITICAL",
+      "control": false,
+      "question": "At 17:07 UTC, a canonical 5-minute bar starts 17:05. Is it eligible as a completed bar?",
+      "context": "0696: def _completed_close_from_start_bars(\n0697:     timestamps: Sequence[Any],\n0698:     closes: Sequence[Any],\n0699:     as_of: datetime,\n0700:     max_age_minutes: float,\n0701:     *,\n0702:     interval_minutes: int = 5,\n0703:     source: str,\n0704: ) -> Optional[Dict[str, Any]]:\n0705:     \"\"\"\n0706:     Select the newest fully completed bar.\n0707: \n0708:     Both Massive Futures ``window_start`` and Yahoo chart timestamps\n0709:     represent bar START times. A 5-minute bar is eligible only when:\n0710: \n0711:         bar_start + 5 minutes <= as_of\n0712: \n0713:     Irregular timestamps (for example a live partial quote stamped\n0714:     03:40:37) are rejected. This prevents an unfinished candle from\n0715:     entering the scientific Forward-OOS record.\n0716:     \"\"\"\n0717: \n0718:     as_of = as_of.astimezone(timezone.utc)\n0719:     interval_seconds = int(interval_minutes * 60)\n0720: \n0721:     best = None\n0722: \n0723:     for raw_ts, raw_close in zip(\n0724:         timestamps or [],\n0725:         closes or [],\n0726:     ):\n0727:         try:\n0728:             ts = int(raw_ts)\n0729:             close = float(raw_close)\n0730: \n0731:             if not math.isfinite(close):\n0732:                 continue\n0733: \n0734:             # Scientific rule: canonical completed 5m grid only.\n0735:             if ts % interval_seconds != 0:\n0736:                 continue\n0737: \n0738:             bar_start = datetime.fromtimestamp(\n0739:                 ts,\n0740:                 tz=timezone.utc,\n0741:             )\n0742: \n0743:             bar_end = bar_start + timedelta(\n0744:                 seconds=interval_seconds\n0745:             )\n0746: \n0747:             if bar_end > as_of:\n0748:                 continue\n0749: \n0750:             if best is None or bar_start > best[0]:\n0751:                 best = (\n0752:                     bar_start,\n0753:                     bar_end,\n0754:                     close,\n0755:                 )\n0756: \n0757:         except (\n0758:             TypeError,\n0759:             ValueError,\n0760:             OverflowError,\n0761:         ):\n0762:             continue\n0763: \n0764:     if best is None:\n0765:         return None\n0766: \n0767:     bar_start, bar_end, close = best\n0768: \n0769:     age_min = (\n0770:         as_of - bar_end\n0771:     ).total_seconds() / 60.0\n0772: \n0773:     if (\n0774:         age_min < -1e-9\n0775:         or age_min > max_age_minutes\n0776:     ):\n0777:         return None",
+      "options": {
+        "A": "Yes, because bar_start <= as_of",
+        "B": "No, because bar_end=17:10 > as_of",
+        "C": "Yes if close is finite",
+        "D": "Only if provider is Yahoo"
+      }
+    }
+  ]
+}
