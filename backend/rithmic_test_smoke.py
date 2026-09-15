@@ -16,9 +16,12 @@ from nq_mbo_adapter.session_collector import (
     CAMPAIGN_END_UTC,
     CAMPAIGN_ID,
     CAMPAIGN_START_UTC,
+)
+from nq_mbo_adapter.session_collector_v2 import (
     ContinuousSessionCollector,
     POLICY_VERSION as COLLECTOR_POLICY_VERSION,
     hostile_self_test as collector_self_test,
+    runtime_hostile_self_test,
 )
 
 CONTRACT_ID = "sha256:79fb70b98bfd448a860c68b6e65f9d6b747fe560c5c08b3a159bc32bb206c238"
@@ -112,7 +115,13 @@ async def collector_proof_contract() -> dict:
 
 @app.get("/collector/selftest")
 async def collector_test() -> dict:
-    return collector_self_test()
+    state_result = collector_self_test()
+    runtime_result = await runtime_hostile_self_test()
+    return {
+        "pass": bool(state_result.get("pass") and runtime_result.get("pass")),
+        "state": state_result,
+        "runtime": runtime_result,
+    }
 
 
 @app.get("/cert/selftest")
@@ -151,13 +160,17 @@ async def reconnect_disabled_while_collecting() -> dict:
 @app.on_event("startup")
 async def startup_collector() -> None:
     cert_test_result = certification_self_test()
-    collector_test_result = collector_self_test()
+    collector_state_test = collector_self_test()
+    collector_runtime_test = await runtime_hostile_self_test()
     print("RITHMIC_CERT_SELFTEST=" + json.dumps(cert_test_result, sort_keys=True), flush=True)
-    print("RITHMIC_COLLECTOR_SELFTEST=" + json.dumps(collector_test_result, sort_keys=True), flush=True)
+    print("RITHMIC_COLLECTOR_STATE_SELFTEST=" + json.dumps(collector_state_test, sort_keys=True), flush=True)
+    print("RITHMIC_COLLECTOR_RUNTIME_SELFTEST=" + json.dumps(collector_runtime_test, sort_keys=True), flush=True)
     if not cert_test_result.get("pass"):
         raise RuntimeError("Rithmic certification hostile self-test failed")
-    if not collector_test_result.get("pass"):
-        raise RuntimeError("Rithmic continuous collector hostile self-test failed")
+    if not collector_state_test.get("pass"):
+        raise RuntimeError("Rithmic collector state hostile self-test failed")
+    if not collector_runtime_test.get("pass"):
+        raise RuntimeError("Rithmic collector runtime hostile self-test failed")
     await collector.start()
     print(
         "RITHMIC_COLLECTOR_STARTED="
