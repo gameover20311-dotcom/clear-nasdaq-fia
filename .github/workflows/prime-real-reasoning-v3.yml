@@ -1,0 +1,52 @@
+name: Prime Real Reasoning V3
+
+on:
+  push:
+    branches:
+      - prime-real-reasoning-repair-v2
+    paths:
+      - 'prime_race/prime_real_reasoning_v3.py'
+      - 'prime_race/test_prime_real_reasoning_v3.py'
+      - '.github/workflows/prime-real-reasoning-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reasoning-v3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PRIME_V3_MODEL_ID: HuggingFaceTB/SmolLM2-360M-Instruct
+      PRIME_V3_SEED: '26091521'
+      PRIME_V3_TASKS_PER_FAMILY: '7'
+      PRIME_V3_OUT: prime_v3_results
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Hostile preflight without model runtime
+        run: |
+          set -euo pipefail
+          cd prime_race
+          python test_prime_real_reasoning_v3.py
+      - name: Install CPU-only model runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers>=4.46,<5' safetensors
+      - name: Execute frozen BASE vs real reasoning V3 on 105 unseen tasks
+        run: |
+          set -euo pipefail
+          cd prime_race
+          python prime_real_reasoning_v3.py | tee ../prime_v3_stdout.txt
+      - name: Upload V3 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: prime-real-reasoning-v3-evidence
+          path: |
+            prime_race/prime_v3_results/
+            prime_v3_stdout.txt
+          if-no-files-found: error
