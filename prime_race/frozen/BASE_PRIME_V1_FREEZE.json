@@ -1,0 +1,58 @@
+{
+  "freeze_id": "BASE_PRIME_V1_20260915",
+  "status": "FROZEN_DO_NOT_OVERWRITE",
+  "scope": "PRIME_ZERO_BUDGET_REPAIR_BASELINE",
+  "source_branch": "prime-battle-orchestrator-v1",
+  "source_commit_before_repair": "1b2012306f177fe98c4aed9348123557c75d0702",
+  "prime_source_branch": "prime-zero-budget-arena-v1",
+  "prime_source_commit": "dce92baf9b9f16115aa5a2eeddef3d9b6479e9b3",
+  "baseline_runner": {
+    "path": "prime_race/battle_open_model_runner.py",
+    "blob_sha": "eb89f674a6ea347513f63c4b82f89ccb67c74bca",
+    "parser_version": "STRICT_EXPLICIT_OR_LEADING_V2",
+    "architecture": [
+      "draft",
+      "attack_a_reads_draft",
+      "attack_b_counter_reads_draft_and_attack",
+      "final_judge_reads_all_prior_outputs"
+    ],
+    "calls_per_task": 4
+  },
+  "manual_challenge": {
+    "policy_version": "PRIME_ZERO_BUDGET_MANUAL_CHALLENGE_V1",
+    "challenge_id": "606c2a8399858b23200a0d574813f003265a237b8d36952edf720211aff7e70f",
+    "source_public_task_sha256": "aec18081deb7de637bf5049cb2912cbdefef108d1a3d8ddb5aa3532d30aeac98",
+    "task_count": 8,
+    "answers_exposed_to_model": false,
+    "resubmission_possible": true,
+    "promotion_evidence": false
+  },
+  "clean_baseline_result": {
+    "model_id": "HuggingFaceTB/SmolLM2-360M-Instruct",
+    "prime_score": "1/8",
+    "matched_plain_score": "0/8",
+    "prime_calls": 32,
+    "matched_plain_calls": 32,
+    "confidence_brier_prime": 0.25,
+    "confidence_brier_plain": 0.25,
+    "receipt_sha256": "4c9f241e711f9ff570910139f1834c564a205da2cfb357d0f9350cf843ab261f",
+    "workflow_run_id": 35000983149,
+    "workflow_artifact_id": 10410081138,
+    "workflow_artifact_sha256": "e431fa3c4b928ef801c33c4203bdf01f38378612951f26d82eb488e78d2efb61",
+    "verdict_scope": "DEVELOPMENT_SAME_MODEL_ARCHITECTURE_TEST",
+    "architecture_advantage": "NOT_PROVEN",
+    "evidence_independence": "DEPENDENCE_NOT_EXCLUDABLE"
+  },
+  "harness_defect_history": {
+    "old_parser_result": "INVALIDATED",
+    "reason": "Old fallback could infer a choice from arbitrary standalone A/B/C/D letters in prose.",
+    "charged_to_prime": false,
+    "repair": "Strict explicit-or-leading choice parser; arbitrary prose rejected."
+  },
+  "claim_controls": [
+    "WORLD_NUMBER_ONE_NOT_PROVEN",
+    "PRIME_BEATS_ASTRA_NOT_TESTED",
+    "GENERAL_SUPERIORITY_NOT_PROVEN",
+    "PRODUCTION_READINESS_NOT_PROVEN"
+  ]
+}
