@@ -1,0 +1,52 @@
+name: Prime V4 Forensic Qualification V2
+
+on:
+  push:
+    branches:
+      - prime-v4-forensic-rerun-v1
+    paths:
+      - 'prime_race/prime_v4_forensic_qualification.py'
+      - 'prime_race/prime_v4_forensic_qualification_v2.py'
+      - '.github/workflows/prime-v4-forensic-qualification-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  forensic-v4-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      PRIME_V4_MODEL_ID: HuggingFaceTB/SmolLM2-360M-Instruct
+      PRIME_V4_FORENSIC_SEED: '2609152417'
+      PRIME_V4_TASKS_PER_FAMILY: '8'
+      PRIME_V4_FORENSIC_OUT: prime_v4_forensic_v2_results
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Preflight unique-task and leakage-separation gate
+        run: |
+          set -euo pipefail
+          cd prime_race
+          python prime_v4_forensic_qualification_v2.py --selftest
+      - name: Install CPU-only pinned runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers>=4.46,<5' safetensors huggingface_hub
+      - name: Execute unchanged Prime V4 on corrected 128-task forensic holdout
+        run: |
+          set -euo pipefail
+          cd prime_race
+          python prime_v4_forensic_qualification_v2.py | tee ../prime_v4_forensic_v2_stdout.txt
+      - name: Upload forensic qualification V2 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: prime-v4-forensic-v2-evidence
+          path: |
+            prime_race/prime_v4_forensic_v2_results/
+            prime_v4_forensic_v2_stdout.txt
+          if-no-files-found: error
