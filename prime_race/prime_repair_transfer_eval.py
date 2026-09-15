@@ -1,7 +1,7 @@
 from __future__ import annotations
 import hashlib, json, math, os, random
 from pathlib import Path
-from prime_race import prime_repair_eval as core
+import prime_repair_eval as core
 
 OUT=Path(os.getenv('PRIME_TRANSFER_OUT','prime_transfer_results')); OUT.mkdir(parents=True,exist_ok=True)
 SEED=int(os.getenv('PRIME_TRANSFER_SEED','0')) or int.from_bytes(os.urandom(8),'big')
@@ -56,7 +56,6 @@ def task(rng,fam,i=1):
         q='Which causal statement is warranted?'; ctx='The data are non-experimental. X tracks the outcome, but a common cause Z influences both X and the outcome. There is no intervention and no adequate control for Z.'; correct='The observed association does not by itself identify X as causal'; wrong=['Positive association proves X causes the outcome','A large sample removes confounding automatically','Z can be ignored because X is measured first']
     else: raise ValueError(fam)
     o,a=opts(rng,correct,wrong); return core.Task(tid,fam,q,ctx,o,a)
-
 def generate(seed):
     rng=random.Random(seed); out=[task(rng,f) for f in core.ALL_FAMILIES]; rng.shuffle(out); return out
 
