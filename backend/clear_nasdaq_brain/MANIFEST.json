@@ -1,8 +1,8 @@
 {
  "name": "CLEAR NASDAQ \u2014 FIA BRAIN V7.4 FINAL THREE-BRAIN (V6.6.2 hardened base)",
  "version": "7.4.0-final-three-brain",
- "manifest_revision": 2,
- "manifest_revision_note": "Release version is unchanged. Only the integrity RECORD is revised: revision 1 did not describe its own payload. Revision 1 is retained below as SUPERSEDED_DEFECTIVE and is not presented as ever correct.",
+ "manifest_revision": 3,
+ "manifest_revision_note": "Release version unchanged. Revision 3 refreshes engineering release metadata after hosted-runtime hardening and records the bounded L9 regression correction; r1/r2 remain preserved.",
  "manifest_revision_history": [
   {
    "revision": 1,
@@ -57,6 +57,43 @@
    ],
    "superseded_at_utc": "2026-09-11T23:44:28.992822+00:00",
    "superseded_by_commit": "f9f2337bc971c1d6dab341fe0d7e92614248fa61"
+  },
+  {
+   "revision": 2,
+   "status": "SUPERSEDED_STALE_AFTER_RUNTIME_HARDENING",
+   "manifest_sha256": "564b43d0a116021a10f6380fb325b358fd57b50e7abb63fe7b6408dc1842a093",
+   "manifest_size": 32017,
+   "observed_at_commit": "0989a094815d3ee3de7961ca00580e82c91cf91e",
+   "correction_reason": "Revision 2 became stale after hosted GPT-OSS runtime hardening changed cloud_llm.py, final_three_brain.py and prompts.py. Revision 3 also records the bounded L9 regression correction for citation-complete judge grounding. No Forward-OOS seal, protected scientific artifact, historical outcome or prediction is rewritten.",
+   "entries_misdescribed": [
+    {
+     "path": "fia_brain/cloud_llm.py",
+     "expected_size": 7738,
+     "actual_size": 13351,
+     "expected_sha256": "7fbd5b278a74a6cceff0fbefc3e7eac97ad99fd77f98d01e58e1cab71ab3c31e",
+     "actual_sha256": "d85828ee3960b5c072e650af18f6d82f8da03e7f6207922c793a513bc7361e69"
+    },
+    {
+     "path": "fia_brain/final_three_brain.py",
+     "expected_size": 15606,
+     "actual_size": 16052,
+     "expected_sha256": "2cf9797876298ac1ac81ea320449a3fdb2c0add072c656d7d8ad791fd4efbf60",
+     "actual_sha256": "a47ed83b209ceb495d0f3e483fe875e23e9a6e66c2cd1c9cc322428771f65e7f"
+    },
+    {
+     "path": "fia_brain/prompts.py",
+     "expected_size": 7106,
+     "actual_size": 7573,
+     "expected_sha256": "43e03f3a630b6f04033494a857f23e0c3e87204e2bcd89f1444b87f7fd70e3ea",
+     "actual_sha256": "ed60c8e54bfdc5f05a243f2f1e4143314602b715f66fa959c1d6de67610869ab"
+    }
+   ],
+   "entries_changed_by_this_correction": [
+    "tests/test_release_manifest_v661.py",
+    "tests/test_l9_validator_evidence_window_v74.py"
+   ],
+   "superseded_at_utc": "2026-09-15T00:35:25.395971+00:00",
+   "superseded_by_commit": "PENDING_REPAIR_PAYLOAD_COMMIT"
   }
  ],
  "release_status": "ENGINEERING_RELEASE_GATE_PASS__REAL_E2E_REQUIRED_FOR_PRODUCTION",
@@ -209,8 +246,8 @@
   },
   {
    "path": "fia_brain/cloud_llm.py",
-   "size": 7738,
-   "sha256": "7fbd5b278a74a6cceff0fbefc3e7eac97ad99fd77f98d01e58e1cab71ab3c31e"
+   "size": 13351,
+   "sha256": "d85828ee3960b5c072e650af18f6d82f8da03e7f6207922c793a513bc7361e69"
   },
   {
    "path": "fia_brain/config.py",
@@ -249,8 +286,8 @@
   },
   {
    "path": "fia_brain/final_three_brain.py",
-   "size": 15606,
-   "sha256": "2cf9797876298ac1ac81ea320449a3fdb2c0add072c656d7d8ad791fd4efbf60"
+   "size": 16052,
+   "sha256": "a47ed83b209ceb495d0f3e483fe875e23e9a6e66c2cd1c9cc322428771f65e7f"
   },
   {
    "path": "fia_brain/guardrails.py",
@@ -324,8 +361,8 @@
   },
   {
    "path": "fia_brain/prompts.py",
-   "size": 7106,
-   "sha256": "43e03f3a630b6f04033494a857f23e0c3e87204e2bcd89f1444b87f7fd70e3ea"
+   "size": 7573,
+   "sha256": "ed60c8e54bfdc5f05a243f2f1e4143314602b715f66fa959c1d6de67610869ab"
   },
   {
    "path": "fia_brain/quality.py",
@@ -649,8 +686,8 @@
   },
   {
    "path": "tests/test_l9_validator_evidence_window_v74.py",
-   "size": 4634,
-   "sha256": "0fd487a3e3f15b0aeab7c26a8bb37cb98cbf896b5a565c8acdd22f3c2fb5afed"
+   "size": 5751,
+   "sha256": "87f2fc26dbe431d668c22eaaac57b5c8e7e7b95798a04c07192a6f7cb7ce7048"
   },
   {
    "path": "tests/test_ledger.py",
@@ -829,8 +866,8 @@
   },
   {
    "path": "tests/test_release_manifest_v661.py",
-   "size": 5411,
-   "sha256": "09a4e47d7bfee6e5e239254fbd6c709697aacf9ef97f0f2eaa08bee61bf427a5"
+   "size": 6295,
+   "sha256": "5fca52fcd07b560aed43ad82b44f5c4d903ef9481bbd193b716fad9e730e85ce"
   },
   {
    "path": "tests/test_response_schemas_v6_5.py",

@@ -88,12 +88,30 @@ none_extra = validator_evidence_view(COMPACT, {"evidence_ids": ["E0003"]}, LED)
 assert none_extra["appended_ids"] == 0
 assert none_extra["view"] == COMPACT
 
-# --- the Three-Brain flow must actually use it for BOTH validators ---
+# --- hosted-ceiling path: exact cited subset is valid only if citation-complete ---
+REAL_MATERIAL = {k: v for k, v in MATERIAL.items() if k != "hallucinated"}
+exact = validator_evidence_view("", REAL_MATERIAL, LED, max_appendix_chars=24000)
+assert exact["already_visible"] == 0, exact
+assert exact["appended_ids"] == 6, exact
+assert exact["coverage_complete"] is True, exact
+assert exact["unresolvable_ids"] == [], exact
+for eid in ("E0089", "E0090", "E0091", "E0120", "E0007", "E0003"):
+    assert eid in exact["view"], (eid, exact)
+
+bad = validator_evidence_view("", MATERIAL, LED, max_appendix_chars=24000)
+assert bad["unresolvable_ids"] == ["E9999"], bad
+
+tiny = validator_evidence_view("", REAL_MATERIAL, LED, max_appendix_chars=40)
+assert tiny["coverage_complete"] is False and tiny["appendix_truncated_ids"], tiny
+
 src = (ROOT / "fia_brain/final_three_brain.py").read_text(encoding="utf-8")
-assert "validator_evidence_view(compact,judge_input,ledger)" in src, "judges not widened"
-assert "validator_evidence_view(compact,skeptic_advisory,ledger)" in src, "skeptic not widened"
-assert 'brain._ask_judge(judge_view["view"]' in src, "judges still receive the narrow view"
-assert 'prompts.SKEPTIC,skeptic_view["view"]' in src, "skeptic still receives the narrow view"
+normalized = "".join(src.split())
+assert 'skeptic_view=validator_evidence_view(compact,skeptic_advisory,ledger)' in normalized, "skeptic not widened"
+assert 'judge_view=validator_evidence_view("",judge_input,ledger,max_appendix_chars=24000)' in normalized, "judge citation-complete view missing"
+assert 'if(notjudge_view.get("coverage_complete"))orjudge_view.get("unresolvable_ids"):' in normalized, "judge window does not fail closed"
+assert 'brain._ask_judge(judge_view["view"]' in normalized, "judges do not receive verified cited evidence"
+assert 'prompts.SKEPTIC,skeptic_view["view"]' in normalized, "skeptic still receives the narrow view"
+assert 'brain._ask_judge(compact' not in normalized, "judge bypasses verified evidence view"
 assert "validator_evidence_window" in src, "coverage evidence not surfaced in passes"
 
 print("PASS test_l9_validator_evidence_window_v74")

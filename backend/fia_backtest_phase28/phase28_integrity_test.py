@@ -35,7 +35,14 @@ from fia_backtest_phase28.phase28_data import FuturesCache,NQ_CACHE,macro_contex
 nq=FuturesCache(NQ_CACHE)
 ok("real Massive NQ cache present",nq.available and nq.bar_count>80000,str(nq.bar_count))
 # Existing archive and SEC cache are mandatory and reproducible.
-ok("Polygon one-year news archive present",(ROOT/"fia_backtest_phase20/data/polygon_news_20250901_20260831.json").exists())
+frozen_news=ROOT/"fia_backtest_frozen/data/polygon_news_minimal_20250901_20260831.jsonl.gz"
+frozen_manifest_path=ROOT/"fia_backtest_frozen/FROZEN_NEWS_MANIFEST.json"
+ok("Frozen Polygon archive present",frozen_news.exists())
+ok("Frozen Polygon manifest present",frozen_manifest_path.exists())
+frozen_manifest=json.loads(frozen_manifest_path.read_text(encoding="utf-8"))
+ok("Frozen Polygon gzip hash pinned",sha(frozen_news)==frozen_manifest.get("sha256_gz"))
+ok("Frozen Polygon record count pinned",int(frozen_manifest.get("records") or 0)==64851)
+ok("Frozen Polygon source count preserved",int(frozen_manifest.get("source_articles") or 0)==64851)
 ok("SEC/Finnhub PTI earnings cache present",(ROOT/"fia_backtest_phase20/data/earnings_events_sec_verified_20250901_20260831.json").exists())
 # Macro missing must stay missing; never neutral/future actual.
 ctx=macro_context_asof(__import__('datetime').datetime(2026,1,5,17,tzinfo=__import__('datetime').timezone.utc),{"status":"missing","events":[]})

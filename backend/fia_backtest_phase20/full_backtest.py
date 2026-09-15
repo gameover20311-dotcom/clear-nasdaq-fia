@@ -142,7 +142,60 @@ def normalize_polygon_article(article):
     }
 
 
+_FROZEN_NEWS = (Path(__file__).resolve().parents[1] / "fia_backtest_frozen"
+                / "data" / "polygon_news_minimal_20250901_20260831.jsonl.gz")
+_FROZEN_NEWS_MANIFEST = (Path(__file__).resolve().parents[1] / "fia_backtest_frozen"
+                         / "FROZEN_NEWS_MANIFEST.json")
+
+
+def _load_frozen_news():
+    if not _FROZEN_NEWS.exists():
+        return None
+    if not _FROZEN_NEWS_MANIFEST.exists():
+        raise RuntimeError("Frozen Polygon archive exists but its manifest is missing")
+    import gzip
+    import hashlib
+    manifest = json.loads(_FROZEN_NEWS_MANIFEST.read_text(encoding="utf-8"))
+    actual_gz = hashlib.sha256(_FROZEN_NEWS.read_bytes()).hexdigest()
+    expected_gz = str(manifest.get("sha256_gz") or "")
+    if actual_gz != expected_gz:
+        raise RuntimeError(
+            f"Frozen Polygon archive hash mismatch: expected={expected_gz} actual={actual_gz}"
+        )
+    rows = []
+    with gzip.open(_FROZEN_NEWS, "rt", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    expected_records = int(manifest.get("records") or -1)
+    if len(rows) != expected_records:
+        raise RuntimeError(
+            f"Frozen Polygon archive record mismatch: expected={expected_records} actual={len(rows)}"
+        )
+    if rows:
+        first = str(rows[0].get("published_utc") or "")
+        last = str(rows[-1].get("published_utc") or "")
+        if first != str(manifest.get("coverage_first_published_utc") or ""):
+            raise RuntimeError("Frozen Polygon first timestamp disagrees with manifest")
+        if last != str(manifest.get("coverage_last_published_utc") or ""):
+            raise RuntimeError("Frozen Polygon last timestamp disagrees with manifest")
+    return rows, manifest
+
+
 def load_polygon_archive_cache():
+    frozen = _load_frozen_news()
+    if frozen is not None:
+        rows, manifest = frozen
+        return rows, {
+            "status": "frozen_minimal_archive_verified",
+            "raw": len(rows),
+            "path": str(_FROZEN_NEWS),
+            "start": manifest.get("coverage_first_published_utc"),
+            "end": manifest.get("coverage_last_published_utc"),
+            "windows": 0,
+            "sha256_gz": manifest.get("sha256_gz"),
+        }
     if not POLYGON_CACHE_PATH.exists():
         raise FileNotFoundError(
             f"Missing Polygon archive cache: {POLYGON_CACHE_PATH}"

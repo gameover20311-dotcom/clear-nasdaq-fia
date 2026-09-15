@@ -57,7 +57,7 @@ for p in ROOT.rglob('*.py'):
 # ------------------------------------------------------- supersession trail --
 # The defect must remain visible in the shipped manifest. A future regeneration
 # that drops this record fails here rather than passing quietly.
-assert obj['manifest_revision'] == 2, obj.get('manifest_revision')
+assert obj['manifest_revision'] == 3, obj.get('manifest_revision')
 history = obj['manifest_revision_history']
 assert isinstance(history, list) and history, 'revision history must not be empty'
 
@@ -72,6 +72,23 @@ assert r1['recorded_by_commit'].startswith('258cd9c'), r1['recorded_by_commit']
 assert r1['correction_reason']
 assert r1['superseded_at_utc']
 assert r1['superseded_by_commit']
+
+# Revision 2 later became stale after real hosted-runtime hardening changed
+# three shipped brain files. Keep that failure visible rather than rewriting history.
+r2 = [h for h in history if h['revision'] == 2]
+assert len(r2) == 1, 'revision 2 must be recorded exactly once'
+r2 = r2[0]
+assert r2['status'] == 'SUPERSEDED_STALE_AFTER_RUNTIME_HARDENING', r2['status']
+assert r2['manifest_sha256'] == (
+    '564b43d0a116021a10f6380fb325b358fd57b50e7abb63fe7b6408dc1842a093'), r2['manifest_sha256']
+assert r2['manifest_size'] == 32017, r2['manifest_size']
+assert {e['path'] for e in r2['entries_misdescribed']} == {
+    'fia_brain/cloud_llm.py', 'fia_brain/final_three_brain.py', 'fia_brain/prompts.py'
+}
+assert r2['correction_reason']
+assert r2['superseded_at_utc']
+assert len(r2['superseded_by_commit']) == 40
+assert all(c in '0123456789abcdef' for c in r2['superseded_by_commit'])
 
 # The exact entries revision 1 got wrong, with both the recorded and the real
 # values, so the size of the discrepancy stays auditable without a git archive.
@@ -110,4 +127,4 @@ _stale = [p.name for p in ROOT.iterdir()
           if p.is_dir() and ('backup' in p.name.lower() or '_bak' in p.name.lower())]
 assert not _stale, 'stale backup dirs must not ship in the release: %r' % (_stale,)
 
-print('PASS test_release_manifest_v661 (manifest r2, r1 recorded as superseded)')
+print('PASS test_release_manifest_v661 (manifest r3; r1+r2 preserved as superseded)')
