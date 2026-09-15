@@ -1,0 +1,61 @@
+{
+  "freeze_id": "PRIME_REAL_REASONING_REPAIR_V2_START_20260915",
+  "created_utc": "2026-09-15T18:40:00Z",
+  "source_branch": "prime-battle-orchestrator-v1",
+  "source_head_commit": "1feeb4117ed451d2b07deac2575fb64c13b36749",
+  "frozen_base": {
+    "version": "BASE_PRIME_V1_20260915",
+    "freeze_file": "prime_race/frozen/BASE_PRIME_V1_FREEZE.json",
+    "failure_report": "prime_race/frozen/BASE_PRIME_V1_FAILURE_REPORT.md"
+  },
+  "flawed_new_prime": {
+    "version": "PRIME_REPAIR_V2",
+    "candidate_commit": "af2d5b4a65b88914cd00a508b67ea79e9f1621bf",
+    "implementation_file": "prime_race/prime_repair_eval.py",
+    "implementation_blob_sha": "627fe4f85e2beaa57178aac5ef071ef44effb0df",
+    "parser_version": "STRICT_EXPLICIT_OR_LEADING_V2",
+    "verifier": "deterministic_verify in same frozen implementation blob",
+    "model_id": "HuggingFaceTB/SmolLM2-360M-Instruct",
+    "reported_30_task_run": {
+      "workflow_run_id": 35003131725,
+      "artifact_id": 10410518812,
+      "artifact_sha256": "b663798f9724565d92eab9759accb48b4c1cb70a4900255dfe4386999072b341",
+      "bundle_sha256": "fc1264956f424a98434dfa9d3b90c8c3b4341474d9ba08acd81d196dcfd9a691",
+      "taskset_id": "PRIME_REPAIR_HELDOUT_6584953942155674623_30",
+      "taskset_hash": "b6e01cad09843810a1937b556ed270803bb73582dc875f713cc4d7f3b8ab8e4d",
+      "seed": 6584953942155674623,
+      "task_count": 30,
+      "calls": {"base": 120, "new": 120},
+      "reported_score": {"base": "7/30", "new": "30/30"},
+      "raw_new_stage_scores": {
+        "draft": "9/30",
+        "attack_a": "9/30",
+        "attack_b": "7/30",
+        "independent_judge": "6/30",
+        "four_stage_aggregation_without_verifier": "7/30"
+      },
+      "raw_stage_confidence": "50 on all raw NEW stages",
+      "measurement_defect": "30/30 NEW final answers were supplied by DETERMINISTIC_VERIFIER; reasoning gain not proven",
+      "promotion_status": "REJECTED"
+    },
+    "independent_transfer_attack": {
+      "workflow_run_id": 35004598470,
+      "artifact_id": 10411830246,
+      "artifact_sha256": "44f002e762a62a0a05699e6edf79c525b3c11183d9dec2e057e19f5ee4028ee3",
+      "bundle_sha256": "5d67ba55c9e611def69707fc3b32214b3780ed6b3ee0076a9be92680e430eacf",
+      "taskset_id": "PRIME_TRANSFER_18319894013822768964_15",
+      "taskset_hash": "b967f764b0f992f53f817718915e096ded4fbbc532b5964ae8036c60ca84faa1",
+      "seed": 18319894013822768964,
+      "task_count": 15,
+      "deterministic_verifier_coverage": 0,
+      "calls": {"base": 60, "new": 60},
+      "score": {"base": "7/15", "new": "3/15"},
+      "new_abstains": 2,
+      "verdict": "DO_NOT_PROMOTE"
+    }
+  },
+  "historical_results_immutable": true,
+  "previous_30_tasks_status": "DEVELOPMENT_EVIDENCE_ONLY",
+  "previous_transfer_15_status": "DEVELOPMENT_EVIDENCE_ONLY",
+  "anti_overfit_rule": "No future promotion claim may reuse the previous 30 tasks or transfer 15 as final proof."
+}
