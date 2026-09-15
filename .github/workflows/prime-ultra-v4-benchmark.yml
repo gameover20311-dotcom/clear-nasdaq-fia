@@ -1,0 +1,53 @@
+name: Prime Ultra V4 Fresh Holdout
+
+on:
+  push:
+    branches:
+      - prime-ultra-repair-v4
+    paths:
+      - 'prime_race/prime_ultra_v4.py'
+      - 'prime_race/test_prime_ultra_v4.py'
+      - 'prime_race/prime_ultra_v4_benchmark.py'
+      - '.github/workflows/prime-ultra-v4-benchmark.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ultra-v4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      PRIME_V4_MODEL_ID: HuggingFaceTB/SmolLM2-360M-Instruct
+      PRIME_V4_SEED: '2609152241'
+      PRIME_V4_TASKS_PER_FAMILY: '8'
+      PRIME_V4_OUT: prime_v4_results
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Hostile structural gate
+        run: |
+          set -euo pipefail
+          cd prime_race
+          python test_prime_ultra_v4.py
+      - name: Install CPU-only model runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers>=4.46,<5' safetensors
+      - name: Execute frozen BASE vs Ultra V4 on 128 fresh unseen tasks
+        run: |
+          set -euo pipefail
+          cd prime_race
+          python prime_ultra_v4_benchmark.py | tee ../prime_v4_stdout.txt
+      - name: Upload Ultra V4 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: prime-ultra-v4-evidence
+          path: |
+            prime_race/prime_v4_results/
+            prime_v4_stdout.txt
+          if-no-files-found: error
