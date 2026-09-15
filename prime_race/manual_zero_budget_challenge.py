@@ -105,25 +105,21 @@ def _normalize_lane(value: Any) -> dict[str, dict[str, Any]]:
 
 
 def _score(lane: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    # Deliberately aggregate only. Because this challenge selects one task per
+    # category, category-level accuracy would reveal per-task correctness.
     correct = 0
     brier_terms: list[float] = []
-    category_totals: dict[str, list[bool]] = defaultdict(list)
     for task in SELECTED:
         item = lane[task.task_id]
         ok = item["choice"] == task.answer
         correct += int(ok)
         p = item["confidence"] / 100.0
         brier_terms.append((p - (1.0 if ok else 0.0)) ** 2)
-        category_totals[task.category].append(ok)
     return {
         "correct": correct,
         "n": len(SELECTED),
         "accuracy": round(correct / len(SELECTED), 6),
         "confidence_brier": round(sum(brier_terms) / len(brier_terms), 6),
-        "category_accuracy": {
-            category: round(sum(flags) / len(flags), 6)
-            for category, flags in sorted(category_totals.items())
-        },
     }
 
 
@@ -192,7 +188,12 @@ def _selftest() -> dict[str, Any]:
         "metadata": {"same_call_budget_attested": True},
     }
     receipt = _evaluate(base_payload)
-    cases["receipt_does_not_return_answer_key"] = "answer" not in json.dumps(receipt).lower()
+    cases["receipt_does_not_return_answer_key"] = (
+        receipt["answer_key_returned"] is False
+        and receipt["per_task_correctness_returned"] is False
+        and set(receipt["scores"]["prime"]) == {"correct", "n", "accuracy", "confidence_brier"}
+        and set(receipt["scores"]["challenger"]) == {"correct", "n", "accuracy", "confidence_brier"}
+    )
     cases["receipt_marks_nonpromotion"] = receipt["promotion_evidence"] is False
     cases["prime_wins_perfect_vs_wrong"] = receipt["verdict"] == "PRIME_BETTER_ON_THIS_DEVELOPMENT_CHALLENGE_ONLY"
 
