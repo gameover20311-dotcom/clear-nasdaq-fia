@@ -6,6 +6,8 @@ on:
       - prime-zero-budget-arena-v1
     paths:
       - 'prime_race/zero_budget_arena.py'
+      - 'prime_race/zero_budget_providers.py'
+      - 'prime_race/prime_race/**'
       - '.github/workflows/prime-zero-budget-arena.yml'
   workflow_dispatch:
 
@@ -50,4 +52,18 @@ jobs:
           print('PRIME_ZERO_BUDGET_ARENA_CI=PASS')
           print('SELFTEST=' + str(report['passed']) + '/' + str(report['total']))
           print('PAID_EXTERNAL_CALLS=BLOCKED')
+          PY
+      - name: Prove Render direct-script import path
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os, sys
+          os.environ.pop('ARENA_BILLING_MODE', None)
+          os.environ.pop('ARENA_PROVIDER', None)
+          sys.path.insert(0, 'prime_race')
+          import zero_budget_arena as z
+          assert z.SELFTEST['pass'], z.SELFTEST
+          assert z._provider_gate()['external_calls_allowed'] is False
+          print('RENDER_SCRIPT_IMPORT=PASS')
           PY
