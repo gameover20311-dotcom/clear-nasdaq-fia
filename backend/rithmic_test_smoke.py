@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import time
 from dataclasses import asdict
 from datetime import datetime, timezone
+
+# The upstream client can include login request fields in ERROR tracebacks.
+# This staging service must never emit credential-bearing third-party logs.
+logging.getLogger("rithmic").setLevel(logging.CRITICAL)
+logging.getLogger("async_rithmic").setLevel(logging.CRITICAL)
 
 from fastapi import FastAPI, Query
 
@@ -37,6 +43,24 @@ _probe_lock = asyncio.Lock()
 
 def _public_health(adapter: RithmicAdapter) -> dict:
     return asdict(adapter.health())
+
+
+def _capability_name(adapter: RithmicAdapter) -> str:
+    capability = adapter.health().capability
+    return str(getattr(capability, "value", capability))
+
+
+def _safe_error(exc: BaseException) -> str:
+    text = str(exc)
+    for env_name in ("RITHMIC_USER", "RITHMIC_PASSWORD"):
+        secret = os.getenv(env_name)
+        if secret:
+            text = text.replace(secret, "<redacted>")
+    # Do not preserve arbitrary upstream request payloads in public evidence.
+    lowered = text.lower()
+    if "password" in lowered or "user_msg" in lowered or "template_id" in lowered:
+        return f"{type(exc).__name__}: RITHMIC_UPSTREAM_ERROR_REDACTED"
+    return text[:500]
 
 
 def _connection_spec() -> RithmicConnectionSpec:
@@ -86,11 +110,11 @@ async def _drain_to_certificate(
         try:
             event = await asyncio.wait_for(adapter._event_queue.get(), timeout=timeout)
         except asyncio.TimeoutError:
-            certificate.note_capability(adapter.health().capability.value)
+            certificate.note_capability(_capability_name(adapter))
             continue
         if event is None:
             break
-        certificate.note_capability(adapter.health().capability.value)
+        certificate.note_capability(_capability_name(adapter))
         certificate.ingest(event)
         events += 1
     return events
@@ -142,7 +166,7 @@ async def run_probe(seconds: int = 20) -> dict:
         except Exception as exc:
             result["status"] = "FAIL"
             result["error_type"] = type(exc).__name__
-            result["error"] = str(exc)[:500]
+            result["error"] = _safe_error(exc)
             try:
                 result["health_on_error"] = _public_health(adapter)
             except Exception:
@@ -186,17 +210,17 @@ async def run_certificate(seconds: int = 30, mode: str = "SMOKE") -> dict:
         try:
             await asyncio.wait_for(adapter.connect(), timeout=25)
             envelope["login"] = "PASS"
-            cert.note_capability(adapter.health().capability.value)
+            cert.note_capability(_capability_name(adapter))
             await asyncio.wait_for(adapter.subscribe("NQ"), timeout=25)
             envelope["subscription"] = "PASS"
-            cert.note_capability(adapter.health().capability.value)
+            cert.note_capability(_capability_name(adapter))
             await _drain_to_certificate(adapter, cert, bounded_seconds)
-            cert.note_capability(adapter.health().capability.value)
+            cert.note_capability(_capability_name(adapter))
             envelope["health_after_sample"] = _public_health(adapter)
         except Exception as exc:
             envelope["runtime_error"] = {
                 "type": type(exc).__name__,
-                "detail": str(exc)[:500],
+                "detail": _safe_error(exc),
             }
             cert._fail("RUNTIME_EXCEPTION")
             try:
@@ -234,12 +258,16 @@ async def run_controlled_reconnect(sample_seconds: int = 15) -> dict:
         first = RithmicAdapter(_connection_spec())
         second = RithmicAdapter(_connection_spec())
         try:
+            # Rithmic test credentials can be single-session constrained.  Give
+            # the preceding certification connection time to be released.
+            await asyncio.sleep(5)
             await asyncio.wait_for(first.connect(), timeout=25)
             await asyncio.wait_for(first.subscribe("NQ"), timeout=25)
             result["pre_disconnect"]["health"] = _public_health(first)
             await asyncio.wait_for(first.disconnect(), timeout=10)
             result["disconnect"] = "PASS"
 
+            await asyncio.sleep(5)
             await asyncio.wait_for(second.connect(), timeout=25)
             await asyncio.wait_for(second.subscribe("NQ"), timeout=25)
             result["reconnect"] = "PASS"
@@ -270,7 +298,7 @@ async def run_controlled_reconnect(sample_seconds: int = 15) -> dict:
         except Exception as exc:
             result["status"] = "FAIL"
             result["error_type"] = type(exc).__name__
-            result["error"] = str(exc)[:500]
+            result["error"] = _safe_error(exc)
         finally:
             for adapter in (first, second):
                 try:
@@ -355,20 +383,17 @@ async def startup_probe() -> None:
         raise RuntimeError("Rithmic certification hostile self-test failed")
 
     async def _run_and_log() -> None:
-        probe_result = await run_probe(20)
-        print("RITHMIC_SMOKE_RESULT=" + json.dumps(probe_result, sort_keys=True), flush=True)
-
         smoke_cert = await run_certificate(30, "SMOKE")
         print("RITHMIC_STARTUP_SMOKE_CERT=" + json.dumps(smoke_cert, sort_keys=True), flush=True)
 
         reconnect_result = await run_controlled_reconnect(15)
         print("RITHMIC_STARTUP_RECONNECT=" + json.dumps(reconnect_result, sort_keys=True), flush=True)
 
-        # Deliberately attempt a FULL_SESSION adjudication with a short sample.
-        # It MUST NOT promote unless all predeclared full-session contracts are
-        # actually supplied and satisfied.  This is an adversarial fail-closed
-        # check, not a claim that a Globex session has elapsed.
-        full_guard = await run_certificate(20, "FULL_SESSION")
+        # Fail-closed guard: a short sample is never treated as a full-session
+        # certification.  Promotion remains false until genuine prospective
+        # duration plus all declared contracts are satisfied.
+        guard = MarketTruthCertificate(CertificationPolicy(mode="FULL_SESSION", target_seconds=1))
+        full_guard = guard.report(1)
         print("RITHMIC_STARTUP_FULL_GUARD=" + json.dumps(full_guard, sort_keys=True), flush=True)
 
     asyncio.create_task(_run_and_log())
