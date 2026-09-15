@@ -1,66 +1,33 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
-import time
-from dataclasses import asdict
-from datetime import datetime, timezone
+from fastapi import FastAPI
 
 # The upstream client can include login request fields in ERROR tracebacks.
-# This staging service must never emit credential-bearing third-party logs.
+# Never emit credential-bearing third-party logs from this staging service.
 logging.getLogger("rithmic").setLevel(logging.CRITICAL)
 logging.getLogger("async_rithmic").setLevel(logging.CRITICAL)
 
-from fastapi import FastAPI, Query
-
-from nq_mbo_adapter.certification import (
-    CertificationPolicy,
-    MarketTruthCertificate,
-    hostile_self_test,
-)
+from nq_mbo_adapter.certification import hostile_self_test as certification_self_test
 from nq_mbo_adapter.rithmic import RithmicAdapter, RithmicConnectionSpec
+from nq_mbo_adapter.session_collector import (
+    CAMPAIGN_END_UTC,
+    CAMPAIGN_ID,
+    CAMPAIGN_START_UTC,
+    ContinuousSessionCollector,
+    POLICY_VERSION as COLLECTOR_POLICY_VERSION,
+    hostile_self_test as collector_self_test,
+)
 
 CONTRACT_ID = "sha256:79fb70b98bfd448a860c68b6e65f9d6b747fe560c5c08b3a159bc32bb206c238"
 
-app = FastAPI(title="CLEAR NASDAQ Rithmic Market-Truth Shadow", docs_url=None, redoc_url=None)
-
-_last_result: dict = {
-    "status": "NOT_RUN",
-    "environment": "Rithmic Test",
-    "mode": "READ_ONLY_TICKER_PLANT",
-    "contract_id": CONTRACT_ID,
-}
-_last_certificate: dict = {
-    "status": "NOT_RUN",
-    "promotion_eligible": False,
-    "scope": "SHADOW_ONLY",
-}
-_last_reconnect: dict = {"status": "NOT_RUN"}
-_probe_lock = asyncio.Lock()
-
-
-def _public_health(adapter: RithmicAdapter) -> dict:
-    return asdict(adapter.health())
-
-
-def _capability_name(adapter: RithmicAdapter) -> str:
-    capability = adapter.health().capability
-    return str(getattr(capability, "value", capability))
-
-
-def _safe_error(exc: BaseException) -> str:
-    text = str(exc)
-    for env_name in ("RITHMIC_USER", "RITHMIC_PASSWORD"):
-        secret = os.getenv(env_name)
-        if secret:
-            text = text.replace(secret, "<redacted>")
-    # Do not preserve arbitrary upstream request payloads in public evidence.
-    lowered = text.lower()
-    if "password" in lowered or "user_msg" in lowered or "template_id" in lowered:
-        return f"{type(exc).__name__}: RITHMIC_UPSTREAM_ERROR_REDACTED"
-    return text[:500]
+app = FastAPI(
+    title="CLEAR NASDAQ Rithmic Market-Truth Shadow",
+    docs_url=None,
+    redoc_url=None,
+)
 
 
 def _connection_spec() -> RithmicConnectionSpec:
@@ -70,249 +37,16 @@ def _connection_spec() -> RithmicConnectionSpec:
     )
 
 
-def _optional_int_env(name: str) -> int | None:
-    raw = os.getenv(name, "").strip()
-    if not raw:
-        return None
-    try:
-        value = int(raw)
-    except ValueError:
-        return None
-    return value if value > 0 else None
+def _adapter_factory() -> RithmicAdapter:
+    return RithmicAdapter(_connection_spec())
 
 
-def _optional_float_env(name: str) -> float | None:
-    raw = os.getenv(name, "").strip()
-    if not raw:
-        return None
-    try:
-        value = float(raw)
-    except ValueError:
-        return None
-    return value if value >= 0 else None
-
-
-def _true_env(name: str) -> bool:
-    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
-
-
-async def _drain_to_certificate(
-    adapter: RithmicAdapter,
-    certificate: MarketTruthCertificate,
-    seconds: float,
-    *,
-    max_events: int = 10000,
-) -> int:
-    deadline = asyncio.get_running_loop().time() + max(0.1, seconds)
-    events = 0
-    while asyncio.get_running_loop().time() < deadline and events < max_events:
-        timeout = max(0.05, min(1.0, deadline - asyncio.get_running_loop().time()))
-        try:
-            event = await asyncio.wait_for(adapter._event_queue.get(), timeout=timeout)
-        except asyncio.TimeoutError:
-            certificate.note_capability(_capability_name(adapter))
-            continue
-        if event is None:
-            break
-        certificate.note_capability(_capability_name(adapter))
-        certificate.ingest(event)
-        events += 1
-    return events
-
-
-async def run_probe(seconds: int = 20) -> dict:
-    global _last_result
-    async with _probe_lock:
-        started = datetime.now(timezone.utc)
-        adapter = RithmicAdapter(_connection_spec())
-        result: dict = {
-            "status": "STARTED",
-            "started_utc": started.isoformat(),
-            "environment": "Rithmic Test",
-            "mode": "READ_ONLY_TICKER_PLANT",
-            "contract_id": CONTRACT_ID,
-            "requested_contract": "NQ",
-            "event_count": 0,
-            "true_mbo_event_count": 0,
-            "sequence_ids": [],
-        }
-        try:
-            await asyncio.wait_for(adapter.connect(), timeout=25)
-            result["login"] = "PASS"
-            result["health_after_login"] = _public_health(adapter)
-            await asyncio.wait_for(adapter.subscribe("NQ"), timeout=25)
-            result["subscription"] = "PASS"
-
-            deadline = asyncio.get_running_loop().time() + max(1, min(seconds, 30))
-            while asyncio.get_running_loop().time() < deadline:
-                timeout = max(0.1, min(2.0, deadline - asyncio.get_running_loop().time()))
-                try:
-                    event = await asyncio.wait_for(adapter._event_queue.get(), timeout=timeout)
-                except asyncio.TimeoutError:
-                    continue
-                if event is None:
-                    break
-                result["event_count"] += 1
-                if getattr(getattr(event, "capability", None), "value", None) == "TRUE_MBO":
-                    result["true_mbo_event_count"] += 1
-                seq = getattr(event, "sequence_id", None)
-                if seq is not None and seq not in result["sequence_ids"] and len(result["sequence_ids"]) < 10:
-                    result["sequence_ids"].append(seq)
-                if result["event_count"] >= 50:
-                    break
-
-            result["health_after_sample"] = _public_health(adapter)
-            result["status"] = "PASS" if result["login"] == "PASS" and result["subscription"] == "PASS" else "FAIL"
-        except Exception as exc:
-            result["status"] = "FAIL"
-            result["error_type"] = type(exc).__name__
-            result["error"] = _safe_error(exc)
-            try:
-                result["health_on_error"] = _public_health(adapter)
-            except Exception:
-                pass
-        finally:
-            try:
-                await asyncio.wait_for(adapter.disconnect(), timeout=10)
-            except Exception:
-                pass
-            result["finished_utc"] = datetime.now(timezone.utc).isoformat()
-            _last_result = result
-        return result
-
-
-async def run_certificate(seconds: int = 30, mode: str = "SMOKE") -> dict:
-    global _last_certificate
-    async with _probe_lock:
-        mode = mode.upper()
-        bounded_seconds = max(1, min(int(seconds), 300))
-        policy = CertificationPolicy(
-            mode=mode,
-            target_seconds=float(bounded_seconds),
-            minimum_true_mbo_events=max(1, _optional_int_env("RITHMIC_CERT_MIN_TRUE_MBO_EVENTS") or 1),
-            sequence_expected_step=_optional_int_env("RITHMIC_SEQUENCE_EXPECTED_STEP"),
-            require_source_time_monotonicity=_true_env("RITHMIC_SOURCE_TIME_MONOTONICITY_DECLARED"),
-            max_exchange_future_skew_seconds=_optional_float_env("RITHMIC_MAX_FUTURE_SKEW_SECONDS"),
-            require_controlled_reconnect=_true_env("RITHMIC_REQUIRE_CONTROLLED_RECONNECT"),
-            require_roll_contract_verification=_true_env("RITHMIC_REQUIRE_ROLL_VERIFICATION"),
-        )
-        cert = MarketTruthCertificate(policy)
-        adapter = RithmicAdapter(_connection_spec())
-        started = time.monotonic()
-        envelope: dict = {
-            "status": "STARTED",
-            "scope": "SHADOW_ONLY",
-            "environment": "Rithmic Test",
-            "mode": mode,
-            "requested_contract": "NQ",
-            "contract_id": CONTRACT_ID,
-        }
-        try:
-            await asyncio.wait_for(adapter.connect(), timeout=25)
-            envelope["login"] = "PASS"
-            cert.note_capability(_capability_name(adapter))
-            await asyncio.wait_for(adapter.subscribe("NQ"), timeout=25)
-            envelope["subscription"] = "PASS"
-            cert.note_capability(_capability_name(adapter))
-            await _drain_to_certificate(adapter, cert, bounded_seconds)
-            cert.note_capability(_capability_name(adapter))
-            envelope["health_after_sample"] = _public_health(adapter)
-        except Exception as exc:
-            envelope["runtime_error"] = {
-                "type": type(exc).__name__,
-                "detail": _safe_error(exc),
-            }
-            cert._fail("RUNTIME_EXCEPTION")
-            try:
-                envelope["health_on_error"] = _public_health(adapter)
-            except Exception:
-                pass
-        finally:
-            elapsed = time.monotonic() - started
-            try:
-                await asyncio.wait_for(adapter.disconnect(), timeout=10)
-            except Exception:
-                pass
-
-        report = cert.report(elapsed)
-        envelope["certificate"] = report
-        envelope["status"] = report["status"]
-        envelope["promotion_eligible"] = report["promotion_eligible"]
-        envelope["finished_utc"] = datetime.now(timezone.utc).isoformat()
-        _last_certificate = envelope
-        print("RITHMIC_MARKET_TRUTH_CERT=" + json.dumps(envelope, sort_keys=True), flush=True)
-        return envelope
-
-
-async def run_controlled_reconnect(sample_seconds: int = 15) -> dict:
-    global _last_reconnect
-    async with _probe_lock:
-        result: dict = {
-            "status": "STARTED",
-            "scope": "SHADOW_ONLY",
-            "environment": "Rithmic Test",
-            "requested_contract": "NQ",
-            "pre_disconnect": {},
-            "post_reconnect": {},
-        }
-        first = RithmicAdapter(_connection_spec())
-        second = RithmicAdapter(_connection_spec())
-        try:
-            # Rithmic test credentials can be single-session constrained.  Give
-            # the preceding certification connection time to be released.
-            await asyncio.sleep(5)
-            await asyncio.wait_for(first.connect(), timeout=25)
-            await asyncio.wait_for(first.subscribe("NQ"), timeout=25)
-            result["pre_disconnect"]["health"] = _public_health(first)
-            await asyncio.wait_for(first.disconnect(), timeout=10)
-            result["disconnect"] = "PASS"
-
-            await asyncio.sleep(5)
-            await asyncio.wait_for(second.connect(), timeout=25)
-            await asyncio.wait_for(second.subscribe("NQ"), timeout=25)
-            result["reconnect"] = "PASS"
-
-            deadline = asyncio.get_running_loop().time() + max(1, min(sample_seconds, 30))
-            event_count = 0
-            true_mbo = 0
-            while asyncio.get_running_loop().time() < deadline and event_count < 100:
-                timeout = max(0.1, min(1.0, deadline - asyncio.get_running_loop().time()))
-                try:
-                    event = await asyncio.wait_for(second._event_queue.get(), timeout=timeout)
-                except asyncio.TimeoutError:
-                    continue
-                if event is None:
-                    break
-                event_count += 1
-                if getattr(getattr(event, "capability", None), "value", None) == "TRUE_MBO":
-                    true_mbo += 1
-            result["post_reconnect"] = {
-                "health": _public_health(second),
-                "event_count": event_count,
-                "true_mbo_event_count": true_mbo,
-            }
-            if event_count > 0:
-                result["status"] = "PASS"
-            else:
-                result["status"] = "INCONCLUSIVE_NO_POST_RECONNECT_EVENTS"
-        except Exception as exc:
-            result["status"] = "FAIL"
-            result["error_type"] = type(exc).__name__
-            result["error"] = _safe_error(exc)
-        finally:
-            for adapter in (first, second):
-                try:
-                    await asyncio.wait_for(adapter.disconnect(), timeout=10)
-                except Exception:
-                    pass
-            result["finished_utc"] = datetime.now(timezone.utc).isoformat()
-            _last_reconnect = result
-            print("RITHMIC_RECONNECT_TEST=" + json.dumps(result, sort_keys=True), flush=True)
-        return result
+collector = ContinuousSessionCollector(_adapter_factory)
 
 
 @app.get("/health")
 async def health() -> dict:
+    status = collector.status()
     return {
         "ok": True,
         "service": "rithmic-market-truth-shadow",
@@ -321,9 +55,7 @@ async def health() -> dict:
         "scope": "SHADOW_ONLY",
         "contract_id": CONTRACT_ID,
         "credentials_present": bool(os.getenv("RITHMIC_USER") and os.getenv("RITHMIC_PASSWORD")),
-        "last_probe": _last_result,
-        "last_certificate": _last_certificate,
-        "last_reconnect": _last_reconnect,
+        "collector": status,
     }
 
 
@@ -339,61 +71,101 @@ async def market_truth() -> dict:
             "QQQ_PROXY": ["MASSIVE_POLYGON_FAMILY", "YAHOO", "UNAVAILABLE"],
             "FINNHUB": "LOWEST_DISABLED_WHILE_403",
         },
-        "last_certificate": _last_certificate,
-        "last_reconnect": _last_reconnect,
         "non_equivalence_rule": "QQQ_PROXY_MUST_NEVER_BE_LABELED_AS_NQ_MBO",
         "provider_dependence": "MASSIVE_POLYGON_DEPENDENCE_NOT_EXCLUDABLE",
+        "collector": collector.status(),
     }
+
+
+@app.get("/collector/status")
+async def collector_status() -> dict:
+    return collector.status()
+
+
+@app.get("/collector/proof-contract")
+async def collector_proof_contract() -> dict:
+    return {
+        "policy_version": COLLECTOR_POLICY_VERSION,
+        "campaign_id": CAMPAIGN_ID,
+        "campaign_start_utc": CAMPAIGN_START_UTC.isoformat().replace("+00:00", "Z"),
+        "campaign_end_utc": CAMPAIGN_END_UTC.isoformat().replace("+00:00", "Z"),
+        "scope": "SHADOW_ONLY",
+        "raw_payload_persistence": False,
+        "persistence": "RENDER_MANAGED_LOG_CHAIN",
+        "checkpoint_interval_seconds": 30,
+        "continuity_fail_closed": True,
+        "promotion_rule": "NO_INTERNAL_RESULT_CAN_ALONE_AUTHORIZE_PRODUCTION_PRIMARY",
+        "sequence_gap_rule": "NO_GAP_FREE_CLAIM_WITHOUT_PROVIDER_DECLARED_SEQUENCE_SEMANTICS",
+        "external_audit_obligations": [
+            "single_boot_id_across_full_campaign",
+            "no_checkpoint_timestamp_gap_above_policy",
+            "no_redeploy_during_campaign",
+            "single_connection_epoch",
+            "true_mbo_observed",
+            "contract_identity_stable",
+            "no_timestamp_regressions",
+            "no_provider_venue_instrument_mismatch",
+            "no_secret_material_in_logs",
+        ],
+    }
+
+
+@app.get("/collector/selftest")
+async def collector_test() -> dict:
+    return collector_self_test()
+
+
+@app.get("/cert/selftest")
+async def cert_test() -> dict:
+    return certification_self_test()
 
 
 @app.get("/probe")
 @app.post("/probe")
-async def probe() -> dict:
-    return await run_probe(20)
-
-
-@app.get("/cert/selftest")
-async def cert_selftest() -> dict:
-    return hostile_self_test()
+async def probe_disabled_while_collecting() -> dict:
+    return {
+        "status": "BLOCKED_CONTINUOUS_COLLECTOR_ACTIVE",
+        "reason": "A second credentialed Rithmic session would contaminate continuity evidence.",
+        "collector": collector.status(),
+    }
 
 
 @app.get("/cert/run")
-async def cert_run(
-    seconds: int = Query(default=30, ge=1, le=300),
-    mode: str = Query(default="SMOKE", pattern="^(SMOKE|FULL_SESSION)$"),
-) -> dict:
-    return await run_certificate(seconds, mode)
-
-
-@app.get("/cert/status")
-async def cert_status() -> dict:
-    return _last_certificate
+async def cert_run_disabled_while_collecting() -> dict:
+    return {
+        "status": "BLOCKED_CONTINUOUS_COLLECTOR_ACTIVE",
+        "reason": "Manual certification cannot compete with the frozen prospective collector session.",
+        "collector": collector.status(),
+    }
 
 
 @app.get("/cert/reconnect")
-async def cert_reconnect(seconds: int = Query(default=15, ge=1, le=30)) -> dict:
-    return await run_controlled_reconnect(seconds)
+async def reconnect_disabled_while_collecting() -> dict:
+    return {
+        "status": "BLOCKED_CONTINUOUS_COLLECTOR_ACTIVE",
+        "reason": "Controlled reconnect testing is separated from the prospective full-session campaign.",
+        "collector": collector.status(),
+    }
 
 
 @app.on_event("startup")
-async def startup_probe() -> None:
-    selftest = hostile_self_test()
-    print("RITHMIC_CERT_SELFTEST=" + json.dumps(selftest, sort_keys=True), flush=True)
-    if not selftest["pass"]:
+async def startup_collector() -> None:
+    cert_test_result = certification_self_test()
+    collector_test_result = collector_self_test()
+    print("RITHMIC_CERT_SELFTEST=" + json.dumps(cert_test_result, sort_keys=True), flush=True)
+    print("RITHMIC_COLLECTOR_SELFTEST=" + json.dumps(collector_test_result, sort_keys=True), flush=True)
+    if not cert_test_result.get("pass"):
         raise RuntimeError("Rithmic certification hostile self-test failed")
+    if not collector_test_result.get("pass"):
+        raise RuntimeError("Rithmic continuous collector hostile self-test failed")
+    await collector.start()
+    print(
+        "RITHMIC_COLLECTOR_STARTED="
+        + json.dumps(collector.status(), sort_keys=True),
+        flush=True,
+    )
 
-    async def _run_and_log() -> None:
-        smoke_cert = await run_certificate(30, "SMOKE")
-        print("RITHMIC_STARTUP_SMOKE_CERT=" + json.dumps(smoke_cert, sort_keys=True), flush=True)
 
-        reconnect_result = await run_controlled_reconnect(15)
-        print("RITHMIC_STARTUP_RECONNECT=" + json.dumps(reconnect_result, sort_keys=True), flush=True)
-
-        # Fail-closed guard: a short sample is never treated as a full-session
-        # certification.  Promotion remains false until genuine prospective
-        # duration plus all declared contracts are satisfied.
-        guard = MarketTruthCertificate(CertificationPolicy(mode="FULL_SESSION", target_seconds=1))
-        full_guard = guard.report(1)
-        print("RITHMIC_STARTUP_FULL_GUARD=" + json.dumps(full_guard, sort_keys=True), flush=True)
-
-    asyncio.create_task(_run_and_log())
+@app.on_event("shutdown")
+async def shutdown_collector() -> None:
+    await collector.stop()
