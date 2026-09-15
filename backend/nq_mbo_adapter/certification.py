@@ -2,15 +2,14 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from decimal import Decimal
 import hashlib
 import json
-from typing import Iterable
 
-from .integrity import SequenceContinuityGuard, SequenceContract
-from .types import EventAction, FeedCapability, MBOEvent
+from .types import EventAction, FeedCapability, MBOEvent, Side
 
 
-POLICY_VERSION = "RITHMIC_MARKET_TRUTH_CERT_V1"
+POLICY_VERSION = "RITHMIC_MARKET_TRUTH_CERT_V2"
 
 
 @dataclass(frozen=True)
@@ -21,6 +20,8 @@ class CertificationPolicy:
     expected_venue: str = "CME"
     target_seconds: float = 20.0
     minimum_true_mbo_events: int = 1
+    # Provider sequence continuity is checked only when vendor semantics are
+    # explicitly bound.  We never infer +1 from observed samples.
     sequence_expected_step: int | None = None
     require_source_time_monotonicity: bool = False
     max_exchange_future_skew_seconds: float | None = None
@@ -35,8 +36,9 @@ class CertificationPolicy:
             raise ValueError("target_seconds must be non-negative")
         if self.minimum_true_mbo_events < 1:
             raise ValueError("minimum_true_mbo_events must be >= 1")
-        if self.sequence_expected_step is not None and self.sequence_expected_step <= 0:
-            raise ValueError("sequence_expected_step must be positive when declared")
+        if self.sequence_expected_step is not None:
+            if isinstance(self.sequence_expected_step, bool) or self.sequence_expected_step <= 0:
+                raise ValueError("sequence_expected_step must be positive when declared")
         if self.max_exchange_future_skew_seconds is not None and self.max_exchange_future_skew_seconds < 0:
             raise ValueError("max_exchange_future_skew_seconds must be non-negative")
 
@@ -61,7 +63,7 @@ class MarketTruthCertificate:
     instrument_mismatch_count: int = 0
     source_time_regressions: int = 0
     future_timestamp_violations: int = 0
-    sequence_batch_duplicates: int = 0
+    sequence_position_duplicates: int = 0
     sequence_subindex_regressions: int = 0
     sequence_observations: int = 0
     sequence_failures: list[str] = field(default_factory=list)
@@ -73,15 +75,10 @@ class MarketTruthCertificate:
 
     _seen_hashes: set[str] = field(default_factory=set, init=False, repr=False)
     _seen_sequence_positions: set[tuple[str, int | None]] = field(default_factory=set, init=False, repr=False)
-    _last_sequence_id: str | None = field(default=None, init=False, repr=False)
+    _last_sequence_token: str | None = field(default=None, init=False, repr=False)
+    _last_sequence_value: int | None = field(default=None, init=False, repr=False)
     _last_subindex: int | None = field(default=None, init=False, repr=False)
     _last_exchange: datetime | None = field(default=None, init=False, repr=False)
-    _sequence_guard: SequenceContinuityGuard = field(init=False, repr=False)
-
-    def __post_init__(self) -> None:
-        self._sequence_guard = SequenceContinuityGuard(
-            SequenceContract(expected_step=self.policy.sequence_expected_step)
-        )
 
     @staticmethod
     def _utc_iso(dt: datetime) -> str:
@@ -107,8 +104,53 @@ class MarketTruthCertificate:
         if not passed:
             self._fail("ROLL_CONTRACT_VERIFICATION_FAILED")
 
+    def _observe_sequence(self, event: MBOEvent) -> None:
+        if event.sequence_id is None:
+            self._fail("MISSING_PROVIDER_SEQUENCE_ID")
+            return
+
+        token = str(event.sequence_id)
+        position = (token, event.sequence_subindex)
+        if position in self._seen_sequence_positions:
+            self.sequence_position_duplicates += 1
+            self._fail("DUPLICATE_SEQUENCE_POSITION")
+        self._seen_sequence_positions.add(position)
+
+        if token == self._last_sequence_token:
+            # Same provider sequence may represent a batch of order updates.
+            # Only accept an explicitly ordered increasing subindex.
+            if event.sequence_subindex is None or self._last_subindex is None:
+                self.sequence_subindex_regressions += 1
+                self._fail("SAME_SEQUENCE_WITHOUT_BATCH_SUBINDEX")
+            elif event.sequence_subindex <= self._last_subindex:
+                self.sequence_subindex_regressions += 1
+                self._fail("SEQUENCE_SUBINDEX_NOT_INCREASING")
+            self._last_subindex = event.sequence_subindex
+            return
+
+        self.sequence_observations += 1
+        expected_step = self.policy.sequence_expected_step
+        if expected_step is not None:
+            try:
+                value = int(token)
+            except (TypeError, ValueError):
+                self.sequence_failures.append("SEQUENCE_PARSE_FAILED")
+                self._fail("SEQUENCE_PARSE_FAILED")
+                value = None
+            if value is not None:
+                if self._last_sequence_value is not None:
+                    expected = self._last_sequence_value + expected_step
+                    if value != expected:
+                        self.sequence_failures.append("SEQUENCE_GAP_OR_OUT_OF_ORDER")
+                        self._fail("SEQUENCE_GAP_OR_OUT_OF_ORDER")
+                self._last_sequence_value = value
+
+        self._last_sequence_token = token
+        self._last_subindex = event.sequence_subindex
+
     def ingest(self, event: MBOEvent) -> None:
         self.event_count += 1
+
         if event.capability is FeedCapability.TRUE_MBO:
             self.true_mbo_event_count += 1
         else:
@@ -139,8 +181,13 @@ class MarketTruthCertificate:
             (self.evidence_chain_sha256 + event_hash).encode("ascii")
         ).hexdigest()
 
-        ex = event.exchange_timestamp.astimezone(timezone.utc)
-        rx = event.receive_timestamp.astimezone(timezone.utc)
+        try:
+            ex = event.exchange_timestamp.astimezone(timezone.utc)
+            rx = event.receive_timestamp.astimezone(timezone.utc)
+        except Exception:
+            self._fail("INVALID_TIMESTAMP")
+            return
+
         if self.first_exchange_utc is None:
             self.first_exchange_utc = self._utc_iso(ex)
             self.first_receive_utc = self._utc_iso(rx)
@@ -162,53 +209,18 @@ class MarketTruthCertificate:
         self._last_exchange = ex
 
         self.action_counts[event.action.value] = self.action_counts.get(event.action.value, 0) + 1
-
-        if event.sequence_id is None:
-            self._fail("MISSING_PROVIDER_SEQUENCE_ID")
-        else:
-            position = (event.sequence_id, event.sequence_subindex)
-            if position in self._seen_sequence_positions:
-                self.sequence_batch_duplicates += 1
-                self._fail("DUPLICATE_SEQUENCE_POSITION")
-            self._seen_sequence_positions.add(position)
-
-            if event.sequence_id == self._last_sequence_id:
-                if self._last_subindex is not None and event.sequence_subindex is not None:
-                    if event.sequence_subindex <= self._last_subindex:
-                        self.sequence_subindex_regressions += 1
-                        self._fail("SEQUENCE_SUBINDEX_NOT_INCREASING")
-            else:
-                result = self._sequence_guard.observe(event.sequence_id)
-                self.sequence_observations += 1
-                if not result.ok:
-                    code = result.code or "SEQUENCE_CONTINUITY_FAILURE"
-                    if code != "PROVIDER_SEQUENCE_SEMANTICS_NOT_DECLARED":
-                        self.sequence_failures.append(code)
-                        self._fail(code)
-                self._last_sequence_id = event.sequence_id
-                self._last_subindex = None
-            self._last_subindex = event.sequence_subindex
+        self._observe_sequence(event)
 
     def report(self, elapsed_seconds: float) -> dict:
-        sequence_status = (
-            "TESTED"
-            if self.policy.sequence_expected_step is not None
-            else "NOT_TESTED_PROVIDER_SEMANTICS_UNDECLARED"
-        )
-        duration_ok = elapsed_seconds >= self.policy.target_seconds
-        event_count_ok = self.true_mbo_event_count >= self.policy.minimum_true_mbo_events
-
-        blockers: list[str] = []
-        if self.hard_failures:
-            blockers.extend(self.hard_failures)
-        if not duration_ok:
+        mode = self.policy.mode.upper()
+        blockers: list[str] = list(self.hard_failures)
+        if elapsed_seconds < self.policy.target_seconds:
             blockers.append("TARGET_DURATION_NOT_REACHED")
-        if not event_count_ok:
+        if self.true_mbo_event_count < self.policy.minimum_true_mbo_events:
             blockers.append("MINIMUM_TRUE_MBO_EVENTS_NOT_REACHED")
         if self.resolved_contract is None:
             blockers.append("NO_RESOLVED_CONTRACT_EVIDENCE")
 
-        mode = self.policy.mode.upper()
         promotion_blockers = list(blockers)
         if mode == "FULL_SESSION":
             if self.policy.sequence_expected_step is None:
@@ -222,6 +234,7 @@ class MarketTruthCertificate:
             if self.policy.require_roll_contract_verification and self.roll_contract_test != "PASS":
                 promotion_blockers.append("ROLL_CONTRACT_NOT_PROVEN")
 
+        blockers = list(dict.fromkeys(blockers))
         promotion_blockers = list(dict.fromkeys(promotion_blockers))
 
         if self.hard_failures:
@@ -250,7 +263,11 @@ class MarketTruthCertificate:
             "first_receive_utc": self.first_receive_utc,
             "last_receive_utc": self.last_receive_utc,
             "max_observed_latency_ms": self.max_observed_latency_ms,
-            "sequence_status": sequence_status,
+            "sequence_status": (
+                "TESTED_AGAINST_DECLARED_STEP"
+                if self.policy.sequence_expected_step is not None
+                else "NOT_TESTED_PROVIDER_SEMANTICS_UNDECLARED"
+            ),
             "sequence_observations": self.sequence_observations,
             "sequence_failures": list(self.sequence_failures),
             "duplicate_event_hashes": self.duplicate_event_hashes,
@@ -260,7 +277,7 @@ class MarketTruthCertificate:
             "instrument_mismatch_count": self.instrument_mismatch_count,
             "source_time_regressions": self.source_time_regressions,
             "future_timestamp_violations": self.future_timestamp_violations,
-            "sequence_batch_duplicates": self.sequence_batch_duplicates,
+            "sequence_position_duplicates": self.sequence_position_duplicates,
             "sequence_subindex_regressions": self.sequence_subindex_regressions,
             "capability_transitions": list(self.capability_transitions),
             "controlled_reconnect": self.reconnect_test,
@@ -269,9 +286,10 @@ class MarketTruthCertificate:
             "hard_failures": list(self.hard_failures),
             "blockers": promotion_blockers if mode == "FULL_SESSION" else blockers,
             "claims": {
-                "transport_connected": "NOT_ASSERTED_BY_CERTIFICATE",
                 "true_mbo_observed": self.true_mbo_event_count > 0,
-                "sequence_continuity_proven": self.policy.sequence_expected_step is not None and not self.sequence_failures,
+                "sequence_continuity_proven": (
+                    self.policy.sequence_expected_step is not None and not self.sequence_failures
+                ),
                 "production_primary_approved": promotion_eligible,
             },
         }
@@ -281,7 +299,7 @@ class MarketTruthCertificate:
         return public
 
 
-def _selftest_event(
+def _event(
     *,
     seq: str = "1",
     subindex: int | None = 0,
@@ -291,9 +309,6 @@ def _selftest_event(
     second: int = 0,
     order_id: str = "O1",
 ) -> MBOEvent:
-    from decimal import Decimal
-    from .types import Side
-
     ex = datetime(2026, 9, 15, 12, 0, second, tzinfo=timezone.utc)
     rx = datetime(2026, 9, 15, 12, 0, second, 1000, tzinfo=timezone.utc)
     return MBOEvent(
@@ -322,27 +337,27 @@ def hostile_self_test() -> dict:
     results["zero_events_cannot_pass"] = c.report(1)["status"] != "SMOKE_PASS"
 
     c = MarketTruthCertificate(CertificationPolicy(mode="SMOKE", target_seconds=1))
-    c.ingest(_selftest_event())
+    c.ingest(_event())
     r = c.report(1)
-    results["single_true_mbo_can_smoke_pass_only"] = r["status"] == "SMOKE_PASS" and not r["promotion_eligible"]
+    results["smoke_pass_never_promotes"] = r["status"] == "SMOKE_PASS" and not r["promotion_eligible"]
 
     c = MarketTruthCertificate(CertificationPolicy(mode="SMOKE", target_seconds=1))
-    e = _selftest_event()
+    e = _event()
     c.ingest(e)
     c.ingest(e)
     results["duplicate_hash_fails"] = c.report(1)["status"] == "FAIL"
 
     c = MarketTruthCertificate(CertificationPolicy(mode="SMOKE", target_seconds=1))
-    c.ingest(_selftest_event(seq="1", contract="NQU6"))
-    c.ingest(_selftest_event(seq="2", contract="NQZ6", second=1, order_id="O2"))
+    c.ingest(_event(seq="1", contract="NQU6"))
+    c.ingest(_event(seq="2", contract="NQZ6", second=1, order_id="O2"))
     results["contract_drift_fails"] = c.report(1)["status"] == "FAIL"
 
     c = MarketTruthCertificate(CertificationPolicy(mode="SMOKE", target_seconds=1))
-    c.ingest(_selftest_event(source="OTHER"))
+    c.ingest(_event(source="OTHER"))
     results["provider_mismatch_fails"] = c.report(1)["status"] == "FAIL"
 
     c = MarketTruthCertificate(CertificationPolicy(mode="SMOKE", target_seconds=1))
-    c.ingest(_selftest_event(venue="OTHER"))
+    c.ingest(_event(venue="OTHER"))
     results["venue_mismatch_fails"] = c.report(1)["status"] == "FAIL"
 
     full_unknown = MarketTruthCertificate(
@@ -353,7 +368,7 @@ def hostile_self_test() -> dict:
             max_exchange_future_skew_seconds=1.0,
         )
     )
-    full_unknown.ingest(_selftest_event())
+    full_unknown.ingest(_event())
     results["unknown_sequence_semantics_blocks_promotion"] = not full_unknown.report(1)["promotion_eligible"]
 
     clean = MarketTruthCertificate(
@@ -365,9 +380,9 @@ def hostile_self_test() -> dict:
             max_exchange_future_skew_seconds=1.0,
         )
     )
-    clean.ingest(_selftest_event(seq="1", second=0, order_id="O1"))
-    clean.ingest(_selftest_event(seq="2", second=1, order_id="O2"))
-    results["known_sequence_clean_path_can_pass"] = clean.report(1)["status"] == "FULL_SESSION_PASS"
+    clean.ingest(_event(seq="1", second=0, order_id="O1"))
+    clean.ingest(_event(seq="2", second=1, order_id="O2"))
+    results["declared_sequence_clean_path_can_pass"] = clean.report(1)["status"] == "FULL_SESSION_PASS"
 
     gap = MarketTruthCertificate(
         CertificationPolicy(
@@ -378,31 +393,31 @@ def hostile_self_test() -> dict:
             max_exchange_future_skew_seconds=1.0,
         )
     )
-    gap.ingest(_selftest_event(seq="1", second=0, order_id="O1"))
-    gap.ingest(_selftest_event(seq="3", second=1, order_id="O3"))
+    gap.ingest(_event(seq="1", second=0, order_id="O1"))
+    gap.ingest(_event(seq="3", second=1, order_id="O3"))
     results["sequence_gap_fails"] = gap.report(1)["status"] == "FAIL"
 
     batch = MarketTruthCertificate(CertificationPolicy(mode="SMOKE", target_seconds=1))
-    batch.ingest(_selftest_event(seq="7", subindex=0, order_id="A"))
-    batch.ingest(_selftest_event(seq="7", subindex=1, order_id="B"))
-    results["same_provider_batch_with_increasing_subindex_allowed"] = batch.report(1)["status"] == "SMOKE_PASS"
+    batch.ingest(_event(seq="7", subindex=0, order_id="A"))
+    batch.ingest(_event(seq="7", subindex=1, order_id="B"))
+    results["batch_subindex_increase_allowed"] = batch.report(1)["status"] == "SMOKE_PASS"
 
     bad_batch = MarketTruthCertificate(CertificationPolicy(mode="SMOKE", target_seconds=1))
-    bad_batch.ingest(_selftest_event(seq="7", subindex=1, order_id="A"))
-    bad_batch.ingest(_selftest_event(seq="7", subindex=0, order_id="B"))
-    results["subindex_regression_fails"] = bad_batch.report(1)["status"] == "FAIL"
+    bad_batch.ingest(_event(seq="7", subindex=1, order_id="A"))
+    bad_batch.ingest(_event(seq="7", subindex=0, order_id="B"))
+    results["batch_subindex_regression_fails"] = bad_batch.report(1)["status"] == "FAIL"
 
     time_order = MarketTruthCertificate(
         CertificationPolicy(mode="SMOKE", target_seconds=1, require_source_time_monotonicity=True)
     )
-    time_order.ingest(_selftest_event(seq="2", second=1, order_id="A"))
-    time_order.ingest(_selftest_event(seq="1", second=0, order_id="B"))
+    time_order.ingest(_event(seq="2", second=1, order_id="A"))
+    time_order.ingest(_event(seq="1", second=0, order_id="B"))
     results["source_time_regression_fails"] = time_order.report(1)["status"] == "FAIL"
 
     return {
         "policy_version": POLICY_VERSION,
         "pass": all(results.values()),
-        "passed": sum(1 for v in results.values() if v),
+        "passed": sum(1 for value in results.values() if value),
         "total": len(results),
         "cases": results,
     }
