@@ -1,0 +1,116 @@
+name: Rithmic Session Witness
+
+on:
+  push:
+    branches:
+      - rithmic-test-live-smoke-20260915
+    paths:
+      - '.github/workflows/rithmic-session-witness.yml'
+      - 'rithmic_witness_heartbeat.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rithmic-session-witness-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  witness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Freeze witness contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'WITNESS_POLICY=RITHMIC_EXTERNAL_WITNESS_V1'
+          echo 'TARGET=https://rithmic-test-smoke-20260915.onrender.com'
+          echo 'INTERVAL_SECONDS=300'
+          echo 'MAX_ITERATIONS=68'
+          echo 'RULE=Any HTTP/JSON failure is evidence of a continuity defect; never reinterpret as PASS.'
+
+      - name: Witness collector continuously
+        shell: bash
+        env:
+          TARGET: https://rithmic-test-smoke-20260915.onrender.com
+        run: |
+          set -uo pipefail
+          failures=0
+          previous_boot=''
+          previous_checkpoint=''
+
+          contract=$(curl --fail --silent --show-error --max-time 30 "$TARGET/collector/proof-contract") || {
+            echo 'WITNESS_PROOF_CONTRACT_HTTP_FAIL'
+            exit 1
+          }
+          echo "WITNESS_PROOF_CONTRACT=$contract"
+
+          for i in $(seq 1 68); do
+            observed=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            body=$(curl --fail --silent --show-error --max-time 30 "$TARGET/collector/status")
+            rc=$?
+            if [ "$rc" -ne 0 ] || [ -z "$body" ]; then
+              echo "WITNESS_HTTP_FAIL index=$i observed_utc=$observed curl_rc=$rc"
+              failures=$((failures+1))
+            else
+              export WITNESS_BODY="$body"
+              export PREVIOUS_BOOT="$previous_boot"
+              export PREVIOUS_CHECKPOINT="$previous_checkpoint"
+              parsed=$(python - <<'PY'
+import hashlib, json, os, sys
+raw = os.environ['WITNESS_BODY']
+try:
+    data = json.loads(raw)
+except Exception as exc:
+    print(json.dumps({'ok': False, 'reason': 'INVALID_JSON', 'error_type': type(exc).__name__}, sort_keys=True))
+    sys.exit(2)
+required = ['boot_id','observed_utc','phase','collector_task_running','checkpoint_count','previous_checkpoint_sha256','health','connection_attempts','successful_connections','hard_failures']
+missing = [k for k in required if k not in data]
+if missing:
+    print(json.dumps({'ok': False, 'reason': 'MISSING_FIELDS', 'missing': missing}, sort_keys=True))
+    sys.exit(3)
+boot = str(data['boot_id'])
+prev_boot = os.environ.get('PREVIOUS_BOOT','')
+boot_changed = bool(prev_boot and prev_boot != boot)
+sha = hashlib.sha256(raw.encode('utf-8')).hexdigest()
+out = {
+    'ok': bool(data.get('collector_task_running')),
+    'response_sha256': sha,
+    'boot_id': boot,
+    'boot_changed_within_witness_run': boot_changed,
+    'observed_utc': data.get('observed_utc'),
+    'phase': data.get('phase'),
+    'checkpoint_count': data.get('checkpoint_count'),
+    'previous_checkpoint_sha256': data.get('previous_checkpoint_sha256'),
+    'connected': bool((data.get('health') or {}).get('connected')),
+    'capability': (data.get('health') or {}).get('capability'),
+    'connection_attempts': data.get('connection_attempts'),
+    'successful_connections': data.get('successful_connections'),
+    'hard_failures': data.get('hard_failures'),
+}
+print(json.dumps(out, sort_keys=True, separators=(',',':')))
+if not out['ok'] or boot_changed:
+    sys.exit(4)
+PY
+              )
+              parse_rc=$?
+              echo "WITNESS_CHECK index=$i requested_utc=$observed result=$parsed"
+              if [ "$parse_rc" -ne 0 ]; then
+                failures=$((failures+1))
+              else
+                previous_boot=$(python -c 'import json,sys; print(json.loads(sys.argv[1])["boot_id"])' "$parsed")
+                previous_checkpoint=$(python -c 'import json,sys; print(json.loads(sys.argv[1])["previous_checkpoint_sha256"])' "$parsed")
+              fi
+            fi
+
+            if [ "$i" -lt 68 ]; then
+              sleep 300
+            fi
+          done
+
+          echo "WITNESS_SUMMARY failures=$failures"
+          if [ "$failures" -ne 0 ]; then
+            exit 1
+          fi
