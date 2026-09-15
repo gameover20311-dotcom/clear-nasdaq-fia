@@ -32,7 +32,6 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json
           from prime_race import manual_zero_budget_challenge as m
 
           report = m.SELFTEST
@@ -43,6 +42,7 @@ jobs:
           assert len(m.SELECTED) == 8
           assert len({t.category for t in m.SELECTED}) == 8
           assert all('answer' not in t for t in m.PUBLIC_CHALLENGE['tasks'])
+          assert m.PUBLIC_CHALLENGE['answers_exposed'] is False
           assert m.PUBLIC_CHALLENGE['external_model_calls_made_by_service'] is False
           assert m.PUBLIC_CHALLENGE['comparison_contract']['therefore_promotion_evidence'] is False
 
@@ -54,7 +54,8 @@ jobs:
           assert challenge.status_code == 200
           challenge_payload = challenge.get_json()
           assert challenge_payload['challenge_id'] == m.CHALLENGE_ID
-          assert 'answer' not in json.dumps(challenge_payload).lower()
+          assert challenge_payload['answers_exposed'] is False
+          assert all('answer' not in task for task in challenge_payload['tasks'])
 
           perfect = {t.task_id: {'choice': t.answer, 'confidence': 100} for t in m.SELECTED}
           wrong = {
@@ -73,7 +74,8 @@ jobs:
           assert receipt['promotion_evidence'] is False
           assert receipt['answer_key_returned'] is False
           assert receipt['per_task_correctness_returned'] is False
-          assert 'answer' not in json.dumps(receipt).lower()
+          assert set(receipt['scores']['prime']) == {'correct', 'n', 'accuracy', 'confidence_brier'}
+          assert set(receipt['scores']['challenger']) == {'correct', 'n', 'accuracy', 'confidence_brier'}
 
           rejected = client.post('/score', json={
               'challenge_id': 'wrong',
