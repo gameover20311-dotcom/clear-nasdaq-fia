@@ -1,0 +1,44 @@
+name: Prime Open Model Battle
+
+on:
+  push:
+    branches:
+      - prime-battle-orchestrator-v1
+    paths:
+      - 'prime_race/battle_open_model_runner.py'
+      - '.github/workflows/prime-open-model-battle.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  first-open-model-round:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BATTLE_MODEL_ID: HuggingFaceTB/SmolLM2-360M-Instruct
+      MANUAL_CHALLENGE_BASE: https://prime-zero-budget-manual-20260915.onrender.com
+      BATTLE_OUT: battle_results
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install CPU-only battle runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers>=4.46,<5' requests safetensors
+      - name: Run equal-call Prime versus matched plain on the exact live challenge
+        run: |
+          set -euo pipefail
+          python prime_race/battle_open_model_runner.py | tee battle_stdout.txt
+      - name: Upload battle evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: prime-open-model-battle-smollm2-360m
+          path: |
+            battle_results/
+            battle_stdout.txt
+          if-no-files-found: error
