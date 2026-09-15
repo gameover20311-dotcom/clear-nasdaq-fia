@@ -39,70 +39,60 @@ jobs:
           set -uo pipefail
           failures=0
           previous_boot=''
-          previous_checkpoint=''
 
           contract=$(curl --fail --silent --show-error --max-time 30 "$TARGET/collector/proof-contract") || {
             echo 'WITNESS_PROOF_CONTRACT_HTTP_FAIL'
             exit 1
           }
+          echo "$contract" | jq -e '.continuity_fail_closed == true and .scope == "SHADOW_ONLY"' >/dev/null || {
+            echo 'WITNESS_PROOF_CONTRACT_INVALID'
+            exit 1
+          }
           echo "WITNESS_PROOF_CONTRACT=$contract"
 
           for i in $(seq 1 68); do
-            observed=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            requested=$(date -u +%Y-%m-%dT%H:%M:%SZ)
             body=$(curl --fail --silent --show-error --max-time 30 "$TARGET/collector/status")
             rc=$?
             if [ "$rc" -ne 0 ] || [ -z "$body" ]; then
-              echo "WITNESS_HTTP_FAIL index=$i observed_utc=$observed curl_rc=$rc"
+              echo "WITNESS_HTTP_FAIL index=$i requested_utc=$requested curl_rc=$rc"
+              failures=$((failures+1))
+            elif ! echo "$body" | jq -e '
+              has("boot_id") and
+              has("observed_utc") and
+              has("phase") and
+              has("collector_task_running") and
+              has("checkpoint_count") and
+              has("previous_checkpoint_sha256") and
+              has("health") and
+              has("connection_attempts") and
+              has("successful_connections") and
+              has("hard_failures") and
+              (.collector_task_running == true)
+            ' >/dev/null; then
+              echo "WITNESS_JSON_OR_CONTRACT_FAIL index=$i requested_utc=$requested"
               failures=$((failures+1))
             else
-              export WITNESS_BODY="$body"
-              export PREVIOUS_BOOT="$previous_boot"
-              export PREVIOUS_CHECKPOINT="$previous_checkpoint"
-              parsed=$(python - <<'PY'
-import hashlib, json, os, sys
-raw = os.environ['WITNESS_BODY']
-try:
-    data = json.loads(raw)
-except Exception as exc:
-    print(json.dumps({'ok': False, 'reason': 'INVALID_JSON', 'error_type': type(exc).__name__}, sort_keys=True))
-    sys.exit(2)
-required = ['boot_id','observed_utc','phase','collector_task_running','checkpoint_count','previous_checkpoint_sha256','health','connection_attempts','successful_connections','hard_failures']
-missing = [k for k in required if k not in data]
-if missing:
-    print(json.dumps({'ok': False, 'reason': 'MISSING_FIELDS', 'missing': missing}, sort_keys=True))
-    sys.exit(3)
-boot = str(data['boot_id'])
-prev_boot = os.environ.get('PREVIOUS_BOOT','')
-boot_changed = bool(prev_boot and prev_boot != boot)
-sha = hashlib.sha256(raw.encode('utf-8')).hexdigest()
-out = {
-    'ok': bool(data.get('collector_task_running')),
-    'response_sha256': sha,
-    'boot_id': boot,
-    'boot_changed_within_witness_run': boot_changed,
-    'observed_utc': data.get('observed_utc'),
-    'phase': data.get('phase'),
-    'checkpoint_count': data.get('checkpoint_count'),
-    'previous_checkpoint_sha256': data.get('previous_checkpoint_sha256'),
-    'connected': bool((data.get('health') or {}).get('connected')),
-    'capability': (data.get('health') or {}).get('capability'),
-    'connection_attempts': data.get('connection_attempts'),
-    'successful_connections': data.get('successful_connections'),
-    'hard_failures': data.get('hard_failures'),
-}
-print(json.dumps(out, sort_keys=True, separators=(',',':')))
-if not out['ok'] or boot_changed:
-    sys.exit(4)
-PY
-              )
-              parse_rc=$?
-              echo "WITNESS_CHECK index=$i requested_utc=$observed result=$parsed"
-              if [ "$parse_rc" -ne 0 ]; then
+              boot=$(echo "$body" | jq -r '.boot_id')
+              observed=$(echo "$body" | jq -r '.observed_utc')
+              phase=$(echo "$body" | jq -r '.phase')
+              checkpoint_count=$(echo "$body" | jq -r '.checkpoint_count')
+              checkpoint_sha=$(echo "$body" | jq -r '.previous_checkpoint_sha256')
+              connected=$(echo "$body" | jq -r '.health.connected')
+              capability=$(echo "$body" | jq -r '.health.capability')
+              attempts=$(echo "$body" | jq -r '.connection_attempts')
+              successes=$(echo "$body" | jq -r '.successful_connections')
+              hard_failures=$(echo "$body" | jq -c '.hard_failures')
+              response_sha=$(printf '%s' "$body" | sha256sum | awk '{print $1}')
+
+              boot_changed=false
+              if [ -n "$previous_boot" ] && [ "$previous_boot" != "$boot" ]; then
+                boot_changed=true
                 failures=$((failures+1))
-              else
-                previous_boot=$(python -c 'import json,sys; print(json.loads(sys.argv[1])["boot_id"])' "$parsed")
-                previous_checkpoint=$(python -c 'import json,sys; print(json.loads(sys.argv[1])["previous_checkpoint_sha256"])' "$parsed")
               fi
+              previous_boot="$boot"
+
+              echo "WITNESS_CHECK index=$i requested_utc=$requested observed_utc=$observed boot_id=$boot boot_changed=$boot_changed checkpoint_count=$checkpoint_count checkpoint_sha=$checkpoint_sha connected=$connected capability=$capability connection_attempts=$attempts successful_connections=$successes hard_failures=$hard_failures response_sha256=$response_sha phase=$phase"
             fi
 
             if [ "$i" -lt 68 ]; then
