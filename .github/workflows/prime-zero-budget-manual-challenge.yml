@@ -1,0 +1,91 @@
+name: Prime Zero Budget Manual Challenge
+
+on:
+  push:
+    branches:
+      - prime-zero-budget-arena-v1
+    paths:
+      - 'prime_race/manual_zero_budget_challenge.py'
+      - 'prime_race/zero_budget_hardening.py'
+      - 'prime_race/zero_budget_arena.py'
+      - '.github/workflows/prime-zero-budget-manual-challenge.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hostile-manual-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install minimal runtime
+        run: python -m pip install Flask==3.1.2
+      - name: Prove manual challenge is zero-cost, answer-key hidden, and fail-closed
+        env:
+          ARENA_BILLING_MODE: DISABLED
+          ARENA_PROVIDER: NONE
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from prime_race import manual_zero_budget_challenge as m
+
+          report = m.SELFTEST
+          assert report['pass'], report
+          assert report['passed'] == report['total'] == 12, report
+          assert m.ZERO_BUDGET is True
+          assert m.SCOPE == 'DEVELOPMENT_ONLY_NO_PROMOTION_CLAIM'
+          assert len(m.SELECTED) == 8
+          assert len({t.category for t in m.SELECTED}) == 8
+          assert all('answer' not in t for t in m.PUBLIC_CHALLENGE['tasks'])
+          assert m.PUBLIC_CHALLENGE['external_model_calls_made_by_service'] is False
+          assert m.PUBLIC_CHALLENGE['comparison_contract']['therefore_promotion_evidence'] is False
+
+          client = m.app.test_client()
+          root = client.get('/')
+          assert root.status_code == 200, root.data
+          assert root.get_json()['status'] == 'READY'
+          challenge = client.get('/challenge')
+          assert challenge.status_code == 200
+          challenge_payload = challenge.get_json()
+          assert challenge_payload['challenge_id'] == m.CHALLENGE_ID
+          assert 'answer' not in json.dumps(challenge_payload).lower()
+
+          perfect = {t.task_id: {'choice': t.answer, 'confidence': 100} for t in m.SELECTED}
+          wrong = {
+              t.task_id: {'choice': next(x for x in 'ABCD' if x != t.answer), 'confidence': 100}
+              for t in m.SELECTED
+          }
+          score = client.post('/score', json={
+              'challenge_id': m.CHALLENGE_ID,
+              'prime': perfect,
+              'challenger': wrong,
+              'metadata': {'same_call_budget_attested': True},
+          })
+          assert score.status_code == 200, score.data
+          receipt = score.get_json()
+          assert receipt['verdict'] == 'PRIME_BETTER_ON_THIS_DEVELOPMENT_CHALLENGE_ONLY'
+          assert receipt['promotion_evidence'] is False
+          assert receipt['answer_key_returned'] is False
+          assert receipt['per_task_correctness_returned'] is False
+          assert 'answer' not in json.dumps(receipt).lower()
+
+          rejected = client.post('/score', json={
+              'challenge_id': 'wrong',
+              'prime': perfect,
+              'challenger': wrong,
+          })
+          assert rejected.status_code == 400
+          assert rejected.get_json()['promotion_evidence'] is False
+
+          print('MANUAL_ZERO_BUDGET_CHALLENGE=PASS')
+          print(f'SELFTEST={report["passed"]}/{report["total"]}')
+          print('TASKS=8_ONE_PER_CATEGORY')
+          print('EXTERNAL_MODEL_CALLS=0')
+          print('PROMOTION_EVIDENCE=FALSE')
+          PY
