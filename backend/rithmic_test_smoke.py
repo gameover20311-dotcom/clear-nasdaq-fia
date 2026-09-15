@@ -355,7 +355,20 @@ async def startup_probe() -> None:
         raise RuntimeError("Rithmic certification hostile self-test failed")
 
     async def _run_and_log() -> None:
-        result = await run_probe(20)
-        print("RITHMIC_SMOKE_RESULT=" + json.dumps(result, sort_keys=True), flush=True)
+        probe_result = await run_probe(20)
+        print("RITHMIC_SMOKE_RESULT=" + json.dumps(probe_result, sort_keys=True), flush=True)
+
+        smoke_cert = await run_certificate(30, "SMOKE")
+        print("RITHMIC_STARTUP_SMOKE_CERT=" + json.dumps(smoke_cert, sort_keys=True), flush=True)
+
+        reconnect_result = await run_controlled_reconnect(15)
+        print("RITHMIC_STARTUP_RECONNECT=" + json.dumps(reconnect_result, sort_keys=True), flush=True)
+
+        # Deliberately attempt a FULL_SESSION adjudication with a short sample.
+        # It MUST NOT promote unless all predeclared full-session contracts are
+        # actually supplied and satisfied.  This is an adversarial fail-closed
+        # check, not a claim that a Globex session has elapsed.
+        full_guard = await run_certificate(20, "FULL_SESSION")
+        print("RITHMIC_STARTUP_FULL_GUARD=" + json.dumps(full_guard, sort_keys=True), flush=True)
 
     asyncio.create_task(_run_and_log())
