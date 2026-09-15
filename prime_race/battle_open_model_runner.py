@@ -14,6 +14,7 @@ MANUAL_BASE = os.getenv("MANUAL_CHALLENGE_BASE", "https://prime-zero-budget-manu
 MODEL_ID = os.getenv("BATTLE_MODEL_ID", "HuggingFaceTB/SmolLM2-360M-Instruct")
 OUT = Path(os.getenv("BATTLE_OUT", "battle_results"))
 OUT.mkdir(parents=True, exist_ok=True)
+PARSER_VERSION = "STRICT_EXPLICIT_OR_LEADING_V2"
 
 
 def fetch_json(url: str) -> dict[str, Any]:
@@ -39,24 +40,63 @@ def task_text(task: dict[str, Any]) -> str:
 
 
 def parse_answer(text: str) -> dict[str, Any]:
-    choice = None
+    """Fail closed: never infer an answer from arbitrary prose letters."""
+    raw = text.strip()
     confidence = 50
-    m = re.search(r'["\']?choice["\']?\s*[:=]\s*["\']?([ABCD])\b', text, flags=re.I)
-    if m:
-        choice = m.group(1).upper()
+
+    choice = None
+    explicit = re.search(r'["\']?choice["\']?\s*[:=]\s*["\']?([ABCD])\b', raw, flags=re.I)
+    if explicit:
+        choice = explicit.group(1).upper()
+
     if choice is None:
-        candidates = re.findall(r'(?<![A-Z])([ABCD])(?![A-Z])', text.upper())
-        if candidates:
-            choice = candidates[-1]
-    cm = re.search(r'["\']?confidence["\']?\s*[:=]\s*([0-9]{1,3})', text, flags=re.I)
+        leading = re.match(
+            r'^\s*(?:(?:answer|option)\s*[:=]?\s*)?([ABCD])(?=\s|[\.\)\]:,;\-]|$)',
+            raw,
+            flags=re.I,
+        )
+        if leading:
+            choice = leading.group(1).upper()
+
+    if choice is None:
+        named = re.search(r'(?im)^\s*(?:answer|option)\s*[:=]\s*([ABCD])\b', raw)
+        if named:
+            choice = named.group(1).upper()
+
+    cm = re.search(r'["\']?confidence["\']?\s*[:=]\s*([0-9]{1,3})', raw, flags=re.I)
     if cm:
         confidence = max(0, min(100, int(cm.group(1))))
+
     if choice not in {"A", "B", "C", "D"}:
-        raise RuntimeError(f"UNPARSEABLE_MODEL_OUTPUT:{text[:500]}")
-    return {"choice": choice, "confidence": confidence, "raw": text}
+        raise RuntimeError(f"UNPARSEABLE_MODEL_OUTPUT:{raw[:500]}")
+    return {"choice": choice, "confidence": confidence, "raw": raw}
+
+
+def parser_selftest() -> dict[str, Any]:
+    observed_failure_case = (
+        "B. A sufficiently large observational sample automatically proves causality. "
+        "The association alone does not identify a causal effect because confounding remains unresolved."
+    )
+    cases = {
+        "explicit_json": parse_answer('{"choice":"C","confidence":77}')["choice"] == "C",
+        "leading_letter": parse_answer("B. Replace the original lock and delete its prior contents.")["choice"] == "B",
+        "observed_old_parser_failure_fixed": parse_answer(observed_failure_case)["choice"] == "B",
+        "named_answer": parse_answer("Answer: D")["choice"] == "D",
+    }
+    arbitrary_prose_rejected = False
+    try:
+        parse_answer("The evidence discusses A and B but never states a final option.")
+    except RuntimeError:
+        arbitrary_prose_rejected = True
+    cases["arbitrary_prose_rejected"] = arbitrary_prose_rejected
+    return {"pass": all(cases.values()), "cases": cases, "version": PARSER_VERSION}
 
 
 def main() -> None:
+    parser_report = parser_selftest()
+    if not parser_report["pass"]:
+        raise RuntimeError(f"PARSER_SELFTEST_FAILED:{parser_report}")
+
     root = fetch_json(MANUAL_BASE + "/")
     challenge = fetch_json(MANUAL_BASE + "/challenge")
     if root.get("status") != "READY":
@@ -165,6 +205,8 @@ def main() -> None:
         "answer_key_seen_by_model": False,
         "same_model_lineage": True,
         "evidence_independence": "DEPENDENCE_NOT_EXCLUDABLE",
+        "parser": parser_report,
+        "prior_run_status": "PREVIOUS_1_VS_0_RECEIPT_INVALIDATED_BY_PARSER_DEFECT",
         "prime_calls": call_counter["prime_4x"],
         "challenger_calls": call_counter["plain_4x"],
         "submission": submission,
@@ -177,6 +219,7 @@ def main() -> None:
     print(json.dumps({
         "model_id": MODEL_ID,
         "challenge_id": challenge["challenge_id"],
+        "parser": parser_report,
         "prime_calls": call_counter["prime_4x"],
         "challenger_calls": call_counter["plain_4x"],
         "receipt": receipt,
