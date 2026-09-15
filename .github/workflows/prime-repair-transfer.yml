@@ -1,0 +1,44 @@
+name: Prime Repair Transfer Attack
+
+on:
+  push:
+    branches:
+      - prime-battle-orchestrator-v1
+    paths:
+      - 'prime_race/prime_repair_transfer_eval.py'
+      - '.github/workflows/prime-repair-transfer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  independent-transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PRIME_REPAIR_MODEL_ID: HuggingFaceTB/SmolLM2-360M-Instruct
+      PRIME_TRANSFER_SEED: '0'
+      PRIME_TRANSFER_OUT: prime_transfer_results
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install CPU-only transfer runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers>=4.46,<5' safetensors
+      - name: Attack apparent heldout PASS with independent paraphrase transfer set
+        run: |
+          set -euo pipefail
+          python prime_race/prime_repair_transfer_eval.py | tee prime_transfer_stdout.txt
+      - name: Upload transfer evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: prime-repair-transfer-evidence
+          path: |
+            prime_transfer_results/
+            prime_transfer_stdout.txt
+          if-no-files-found: error
