@@ -6,7 +6,9 @@ on:
       - prime-zero-budget-arena-v1
     paths:
       - 'prime_race/zero_budget_arena.py'
+      - 'prime_race/zero_budget_hardening.py'
       - 'prime_race/zero_budget_providers.py'
+      - 'prime_race/run_local_zero_budget.py'
       - 'prime_race/prime_race/**'
       - '.github/workflows/prime-zero-budget-arena.yml'
   workflow_dispatch:
@@ -25,7 +27,7 @@ jobs:
           python-version: '3.12'
       - name: Install minimal runtime
         run: python -m pip install Flask==3.1.2
-      - name: Prove self-tests and budget firewall
+      - name: Prove V3 benchmark integrity and budget firewall
         shell: bash
         run: |
           set -euo pipefail
@@ -33,27 +35,57 @@ jobs:
           import os
           os.environ.pop('ARENA_BILLING_MODE', None)
           os.environ.pop('ARENA_PROVIDER', None)
-          from prime_race import zero_budget_arena as z
 
-          report = z._selftest()
+          from prime_race import zero_budget_hardening as h
+          z = h.arena
+
+          report = z.SELFTEST
           assert report['pass'], report
-          assert report['passed'] == report['total'], report
+          assert report['passed'] == report['total'] == 11, report
+          assert z.POLICY_VERSION == 'PRIME_ZERO_BUDGET_ARENA_V3'
 
           gate = z._provider_gate()
           assert gate['external_calls_allowed'] is False, gate
           assert gate['billing_mode'] == 'DISABLED', gate
           assert gate['provider'] == 'NONE', gate
 
-          assert len(z.PUBLIC_TASKS) == 24
+          assert len(z.PUBLIC_TASKS) == 32
           assert all('answer' not in task for task in z.PUBLIC_TASKS)
+          assert len({task['category'] for task in z.PUBLIC_TASKS}) == 8
           assert z.ARENA_SCOPE == 'RESEARCH_ONLY_NO_PRODUCTION_INFLUENCE'
           assert z.ZERO_BUDGET is True
 
-          print('PRIME_ZERO_BUDGET_ARENA_CI=PASS')
+          positions = report['answer_position_report']
+          assert positions['overall'] == {'A': 8, 'B': 8, 'C': 8, 'D': 8}, positions
+          for category, counts in positions['by_category'].items():
+              assert counts == {'A': 1, 'B': 1, 'C': 1, 'D': 1}, (category, counts)
+
+          print('PRIME_ZERO_BUDGET_ARENA_V3_CI=PASS')
           print('SELFTEST=' + str(report['passed']) + '/' + str(report['total']))
+          print('ANSWER_POSITION_LEAKAGE=BLOCKED')
           print('PAID_EXTERNAL_CALLS=BLOCKED')
           PY
-      - name: Prove Render direct-script import path
+      - name: Prove matched-call comparison contract without provider calls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import inspect
+          from prime_race import zero_budget_hardening as h
+
+          matched = inspect.getsource(h._matched_plain)
+          prime = inspect.getsource(h.base._prime)
+          execute = inspect.getsource(h._execute_arena)
+
+          assert matched.count('call_free_provider(') == 4, matched
+          assert prime.count('call_free_provider(') == 4, prime
+          assert 'plain_4x_matched' in execute
+          assert 'prime_4x' in execute
+          assert 'prime_4x_vs_plain_4x_matched' in execute
+          assert 'provider_order_alternates_by_task' in execute
+          print('EQUAL_CALL_PRIMARY_COMPARISON=PASS')
+          PY
+      - name: Prove Render hardening import path
         shell: bash
         run: |
           set -euo pipefail
@@ -62,8 +94,9 @@ jobs:
           os.environ.pop('ARENA_BILLING_MODE', None)
           os.environ.pop('ARENA_PROVIDER', None)
           sys.path.insert(0, 'prime_race')
-          import zero_budget_arena as z
-          assert z.SELFTEST['pass'], z.SELFTEST
-          assert z._provider_gate()['external_calls_allowed'] is False
-          print('RENDER_SCRIPT_IMPORT=PASS')
+          import zero_budget_hardening as h
+          assert h.arena.SELFTEST['pass'], h.arena.SELFTEST
+          assert h.arena._provider_gate()['external_calls_allowed'] is False
+          assert h.arena.POLICY_VERSION == 'PRIME_ZERO_BUDGET_ARENA_V3'
+          print('RENDER_HARDENING_IMPORT=PASS')
           PY
