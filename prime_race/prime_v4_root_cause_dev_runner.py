@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+import json as _json
 from typing import Any
 
 import prime_v4_root_cause_dev as dev
@@ -19,9 +19,17 @@ def _stringify_mapping_keys(value: Any) -> Any:
     return value
 
 
+class _ReportSafeJsonProxy:
+    def dumps(self, obj: Any, *args: Any, **kwargs: Any) -> str:
+        return _json.dumps(_stringify_mapping_keys(obj), *args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(_json, name)
+
+
 def canonical_without_mixed_key_failure(obj: Any) -> bytes:
     normalized = _stringify_mapping_keys(obj)
-    return json.dumps(
+    return _json.dumps(
         normalized,
         sort_keys=True,
         separators=(",", ":"),
@@ -29,9 +37,10 @@ def canonical_without_mixed_key_failure(obj: Any) -> bytes:
     ).encode("utf-8")
 
 
-# HARNESS-ONLY repair: preserve experiment/model/tasks/prompts/scoring;
-# normalize report mapping keys before hashing so None + string keys serialize.
+# HARNESS-ONLY repair: preserve experiment/model/tasks/prompts/scoring.
+# Normalize report mapping keys for both hashing and final JSON serialization.
 dev.canonical = canonical_without_mixed_key_failure
+dev.json = _ReportSafeJsonProxy()
 
 
 if __name__ == "__main__":
