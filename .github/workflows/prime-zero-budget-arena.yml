@@ -1,0 +1,53 @@
+name: Prime Zero Budget Arena
+
+on:
+  push:
+    branches:
+      - prime-zero-budget-arena-v1
+    paths:
+      - 'prime_race/zero_budget_arena.py'
+      - '.github/workflows/prime-zero-budget-arena.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hostile-zero-budget-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install minimal runtime
+        run: python -m pip install Flask==3.1.2
+      - name: Prove self-tests and budget firewall
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          os.environ.pop('ARENA_BILLING_MODE', None)
+          os.environ.pop('ARENA_PROVIDER', None)
+          from prime_race import zero_budget_arena as z
+
+          report = z._selftest()
+          assert report['pass'], report
+          assert report['passed'] == report['total'], report
+
+          gate = z._provider_gate()
+          assert gate['external_calls_allowed'] is False, gate
+          assert gate['billing_mode'] == 'DISABLED', gate
+          assert gate['provider'] == 'NONE', gate
+
+          assert len(z.PUBLIC_TASKS) == 24
+          assert all('answer' not in task for task in z.PUBLIC_TASKS)
+          assert z.ARENA_SCOPE == 'RESEARCH_ONLY_NO_PRODUCTION_INFLUENCE'
+          assert z.ZERO_BUDGET is True
+
+          print('PRIME_ZERO_BUDGET_ARENA_CI=PASS')
+          print('SELFTEST=' + str(report['passed']) + '/' + str(report['total']))
+          print('PAID_EXTERNAL_CALLS=BLOCKED')
+          PY
