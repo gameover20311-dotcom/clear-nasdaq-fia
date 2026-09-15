@@ -15,14 +15,13 @@ def main() -> None:
     labels = Counter(t.answer for t in tasks)
     cases["answer_positions_not_single_label"] = len(labels) == 4
     cases["parser_explicit"] = v3.parse_answer('{"choice":"C","confidence":71}')["choice"] == "C"
-    cases["parser_prose_fail_closed"] = v3.parse_answer("A and B are discussed without a final choice.")["choice"] is None
+    cases["parser_prose_fail_closed"] = v3.parse_answer("The evidence mentions A and B but gives no final option.")["choice"] is None
     c1, s1 = v3.confidence_protocol("A", [{"choice":"A","confidence":50}] * 4)
     c2, s2 = v3.confidence_protocol("A", [{"choice":"A","confidence":50},{"choice":"B","confidence":50},{"choice":"C","confidence":50},{"choice":"A","confidence":50}])
     cases["confidence_protocol_nonconstant"] = c1 != c2
     cases["confidence_protocol_states_differ"] = s1 != s2
     m = v3.majority_three([{"choice":"A"},{"choice":"B"},{"choice":"C"}])
     cases["three_way_disagreement_inconclusive"] = m["choice"] is None and m["state"] == "INCONCLUSIVE"
-    # The benchmark deliberately includes structures outside the legacy deterministic verifier.
     coverage = sum(v3.legacy.deterministic_verify(t.public()) is not None for t in tasks)
     cases["legacy_verifier_not_full_coverage"] = coverage < len(tasks)
     passed = sum(bool(x) for x in cases.values())
