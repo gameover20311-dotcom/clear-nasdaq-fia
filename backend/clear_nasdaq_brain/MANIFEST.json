@@ -93,7 +93,7 @@
     "tests/test_l9_validator_evidence_window_v74.py"
    ],
    "superseded_at_utc": "2026-09-15T00:35:25.395971+00:00",
-   "superseded_by_commit": "PENDING_REPAIR_PAYLOAD_COMMIT"
+   "superseded_by_commit": "cabfaf9a8fd43ae3da5c85109b93086bd639a372"
   }
  ],
  "release_status": "ENGINEERING_RELEASE_GATE_PASS__REAL_E2E_REQUIRED_FOR_PRODUCTION",
