@@ -1,0 +1,59 @@
+name: Prime Repair Heldout
+
+on:
+  push:
+    branches:
+      - prime-battle-orchestrator-v1
+    paths:
+      - 'prime_race/prime_repair_eval.py'
+      - '.github/workflows/prime-repair-heldout.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repair-and-heldout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PRIME_REPAIR_MODEL_ID: HuggingFaceTB/SmolLM2-360M-Instruct
+      PRIME_REPAIR_TASKS_PER_FAMILY: '2'
+      PRIME_REPAIR_SEED: '0'
+      PRIME_REPAIR_OUT: prime_repair_results
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Hostile regression gate before model execution
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from prime_race import prime_repair_eval as m
+          r = m.regression_selftest()
+          print(json.dumps(r, indent=2, sort_keys=True))
+          assert r['pass'], r
+          assert r['fresh_solver_correct'] == r['fresh_solver_total'], r
+          assert r['cases']['attack_b_does_not_see_draft'], r
+          assert r['cases']['judge_does_not_see_prior_conclusions'], r
+          assert r['cases']['parser_arbitrary_prose_rejected'], r
+          PY
+      - name: Install CPU-only heldout runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers>=4.46,<5' safetensors
+      - name: Execute frozen BASE_PRIME versus repaired NEW_PRIME on brand-new hidden taskset
+        run: |
+          set -euo pipefail
+          python prime_race/prime_repair_eval.py | tee prime_repair_stdout.txt
+      - name: Upload repair and heldout evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: prime-repair-heldout-evidence
+          path: |
+            prime_repair_results/
+            prime_repair_stdout.txt
+          if-no-files-found: error
