@@ -85,18 +85,23 @@ jobs:
           assert 'provider_order_alternates_by_task' in execute
           print('EQUAL_CALL_PRIMARY_COMPARISON=PASS')
           PY
-      - name: Prove Render hardening import path
+      - name: Prove V3 web-app module path
         shell: bash
         run: |
           set -euo pipefail
+          python -m py_compile prime_race/zero_budget_hardening.py
           python - <<'PY'
-          import os, sys
+          import os
           os.environ.pop('ARENA_BILLING_MODE', None)
           os.environ.pop('ARENA_PROVIDER', None)
-          sys.path.insert(0, 'prime_race')
-          import zero_budget_hardening as h
-          assert h.arena.SELFTEST['pass'], h.arena.SELFTEST
-          assert h.arena._provider_gate()['external_calls_allowed'] is False
-          assert h.arena.POLICY_VERSION == 'PRIME_ZERO_BUDGET_ARENA_V3'
-          print('RENDER_HARDENING_IMPORT=PASS')
+          from prime_race import zero_budget_hardening as h
+
+          client = h.app.test_client()
+          response = client.get('/')
+          assert response.status_code == 200
+          payload = response.get_json()
+          assert payload['policy_version'] == 'PRIME_ZERO_BUDGET_ARENA_V3', payload
+          assert payload['selftest']['pass'] is True, payload
+          assert payload['provider_gate']['external_calls_allowed'] is False, payload
+          print('V3_WEB_APP_MODULE_PATH=PASS')
           PY
