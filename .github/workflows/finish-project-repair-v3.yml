@@ -1,0 +1,140 @@
+name: Finish Project Repair V3
+
+on:
+  push:
+    branches: ["repair/ultra-project-hardening-20260915"]
+    paths:
+      - '.github/workflows/finish-project-repair-v3.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair-prove-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Apply bounded repairs
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: python .github/scripts/final_repair_v3.py
+
+      - name: Commit repaired payload and bind provenance
+        run: |
+          git config user.name 'CLEAR-NASDAQ repair bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add \
+            backend/fia_backtest_phase20/full_backtest.py \
+            backend/fia_backtest_phase28/phase28_integrity_test.py \
+            backend/clear_nasdaq_brain/tests/test_release_manifest_v661.py \
+            backend/clear_nasdaq_brain/tests/test_l9_validator_evidence_window_v74.py \
+            backend/clear_nasdaq_brain/MANIFEST.json
+          git commit -m 'Finalize FIA bounded repairs and L9 contract'
+          PAYLOAD_SHA="$(git rev-parse HEAD)"
+          export PAYLOAD_SHA
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p=Path('backend/clear_nasdaq_brain/MANIFEST.json')
+          obj=json.loads(p.read_text(encoding='utf-8'))
+          r2=[x for x in obj['manifest_revision_history'] if x['revision']==2]
+          assert len(r2)==1 and r2[0]['superseded_by_commit']=='PENDING_REPAIR_PAYLOAD_COMMIT'
+          r2[0]['superseded_by_commit']=os.environ['PAYLOAD_SHA']
+          p.write_text(json.dumps(obj,indent=1,ensure_ascii=True)+'\n',encoding='utf-8')
+          PY
+          git add backend/clear_nasdaq_brain/MANIFEST.json
+          git commit -m 'Bind stale manifest revision to repair payload commit'
+          echo "FINAL_TESTED_COMMIT=$(git rev-parse HEAD)" | tee /tmp/final_commit.txt
+
+      - name: Verify repaired contracts independently
+        run: |
+          python .github/scripts/brain_manifest_audit.py
+          cd backend
+          python clear_nasdaq_brain/tests/test_release_manifest_v661.py
+          python clear_nasdaq_brain/tests/test_l9_validator_evidence_window_v74.py
+
+      - name: Hostile CNMI and production-isolation gates
+        run: |
+          python -m unittest discover -s research/cnmi_shadow -p 'test_adapter.py' -v
+          python -m research.cnmi_shadow.mutation_probe
+          python .github/scripts/production_isolation_gate.py --self-test
+          python .github/scripts/production_isolation_gate.py
+          test ! -e backend/fia/cnmi_shadow.py
+          test ! -e backend/tests/test_cnmi_shadow.py
+
+      - name: Install full dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Snapshot protected scientific artifacts
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import json,sys; sys.path.insert(0,'.')
+          from fia.artifact_guard import snapshot_protected,verify_protected,registry_manifest_id
+          pre=snapshot_protected(); v=verify_protected()
+          json.dump(pre,open('/tmp/pre.json','w'))
+          print('REGISTRY_MANIFEST',registry_manifest_id())
+          print('PROTECTED_PRE',v)
+          assert v['ok'] and not v['mismatched'] and not v['missing'], v
+          PY
+
+      - name: Derive provider-dependent coverage
+        working-directory: backend
+        run: python ../.github/scripts/fia_providers.py --out /tmp/providers.json
+
+      - name: Run full 61-check FIA suite
+        working-directory: backend
+        run: python ../.github/scripts/fia_suite.py --out /tmp/suite.json
+
+      - name: Prove protected artifacts and worktree clean
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import json,sys; sys.path.insert(0,'.')
+          from fia.artifact_guard import snapshot_protected,verify_protected
+          before=json.load(open('/tmp/pre.json')); after=snapshot_protected(); v=verify_protected()
+          changed=sorted(k for k in before if before[k]!=after[k])
+          rec={'verify_ok':v['ok'],'count':v['count'],'changed':changed,'mismatched':v['mismatched']}
+          json.dump(rec,open('/tmp/artifacts.json','w'),indent=1)
+          print('PROTECTED_POST',rec)
+          assert v['ok'] and not changed and not v['mismatched'], rec
+          PY
+          cd ..
+          python - <<'PY'
+          import json,subprocess
+          out=subprocess.run(['git','status','--porcelain'],capture_output=True,text=True).stdout
+          rows=[x.rstrip() for x in out.splitlines() if x.strip()]
+          modified=sorted(x[3:] for x in rows if not x.startswith('??'))
+          untracked=sorted(x[3:] for x in rows if x.startswith('??'))
+          rec={'dirty':modified,'modified':modified,'untracked':untracked}
+          json.dump(rec,open('/tmp/worktree.json','w'),indent=1)
+          print('WORKTREE',rec)
+          assert not modified and not untracked, rec
+          PY
+
+      - name: Final FIA gate
+        working-directory: backend
+        run: |
+          python ../.github/scripts/fia_gate.py \
+            --suite /tmp/suite.json \
+            --artifacts /tmp/artifacts.json \
+            --worktree /tmp/worktree.json \
+            --providers /tmp/providers.json
+
+      - name: Push exact tested commit only after green gate
+        run: |
+          TESTED="$(cut -d= -f2 /tmp/final_commit.txt)"
+          test "$(git rev-parse HEAD)" = "$TESTED"
+          git push origin HEAD:repair/ultra-project-hardening-20260915
+          echo "PUSHED_TESTED_COMMIT=$TESTED"
