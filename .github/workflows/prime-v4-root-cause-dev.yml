@@ -1,0 +1,41 @@
+name: Prime V4 Root Cause Development
+
+on:
+  push:
+    branches:
+      - prime-v4-root-cause-v5-dev
+    paths:
+      - 'prime_race/prime_v4_root_cause_dev.py'
+      - '.github/workflows/prime-v4-root-cause-dev.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install frozen CPU runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu 'torch==2.14.0+cpu'
+          python -m pip install 'transformers==4.57.6' 'safetensors==0.8.0' 'huggingface_hub==0.36.2'
+      - name: Run development-only causal diagnostics
+        run: |
+          set -euo pipefail
+          cd prime_race
+          python prime_v4_root_cause_dev.py | tee ../prime_v4_root_cause_dev_stdout.txt
+      - name: Upload diagnostic evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: prime-v4-root-cause-dev-evidence
+          path: |
+            prime_race/prime_v4_root_cause_dev_results/
+            prime_v4_root_cause_dev_stdout.txt
+          if-no-files-found: error
