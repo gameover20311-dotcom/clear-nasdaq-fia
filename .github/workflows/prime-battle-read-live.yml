@@ -1,0 +1,67 @@
+name: Prime Battle Read Live
+
+on:
+  push:
+    branches:
+      - prime-battle-orchestrator-v1
+    paths:
+      - '.github/workflows/prime-battle-read-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-live-battle-state:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fetch current live challenge and provider gate read-only
+        run: |
+          set -euo pipefail
+          mkdir -p battle_capture
+          curl --fail --silent --show-error --location --retry 4 --retry-all-errors \
+            https://prime-zero-budget-manual-20260915.onrender.com/ \
+            -o battle_capture/manual_root.json
+          curl --fail --silent --show-error --location --retry 4 --retry-all-errors \
+            https://prime-zero-budget-manual-20260915.onrender.com/challenge \
+            -o battle_capture/manual_challenge.json
+          curl --fail --silent --show-error --location --retry 4 --retry-all-errors \
+            https://prime-zero-budget-arena-v3-20260915.onrender.com/provider-gate \
+            -o battle_capture/v3_provider_gate.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = json.loads(Path('battle_capture/manual_root.json').read_text())
+          challenge = json.loads(Path('battle_capture/manual_challenge.json').read_text())
+          gate = json.loads(Path('battle_capture/v3_provider_gate.json').read_text())
+
+          assert root.get('status') == 'READY', root
+          assert challenge.get('challenge_id') == root.get('challenge_id'), (root, challenge)
+          assert challenge.get('answers_exposed') is False, challenge
+          assert challenge.get('external_model_calls_made_by_service') is False, challenge
+          assert challenge.get('task_count') == 8, challenge
+          assert len(challenge.get('tasks', [])) == 8, challenge
+          assert all('answer' not in task for task in challenge['tasks']), challenge
+
+          summary = {
+              'manual_status': root.get('status'),
+              'challenge_id': challenge.get('challenge_id'),
+              'task_count': challenge.get('task_count'),
+              'categories': challenge.get('categories'),
+              'answers_exposed': challenge.get('answers_exposed'),
+              'external_model_calls_made_by_service': challenge.get('external_model_calls_made_by_service'),
+              'provider_gate': gate,
+              'read_only': True,
+              'model_run_invoked': False,
+          }
+          Path('battle_capture/summary.json').write_text(json.dumps(summary, indent=2, sort_keys=True))
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
+      - name: Upload read-only battle capture
+        uses: actions/upload-artifact@v4
+        with:
+          name: prime-battle-live-capture
+          path: battle_capture/
+          if-no-files-found: error
