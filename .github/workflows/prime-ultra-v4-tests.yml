@@ -1,0 +1,30 @@
+name: Prime Ultra V4 Hostile Tests
+
+on:
+  push:
+    branches:
+      - prime-ultra-repair-v4-tests
+      - prime-ultra-repair-v4
+    paths:
+      - 'prime_race/prime_ultra_v4.py'
+      - 'prime_race/test_prime_ultra_v4.py'
+      - '.github/workflows/prime-ultra-v4-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hostile-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run hostile V4 preflight
+        run: |
+          set -euo pipefail
+          cd prime_race
+          python test_prime_ultra_v4.py
