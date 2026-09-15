@@ -1,0 +1,47 @@
+{
+  "schema_version": "PRIME_MODEL_COMPARISON_LEDGER_V1",
+  "created_utc": "2026-09-15T19:00:00Z",
+  "rules": {
+    "preserve_all_history": true,
+    "require_frozen_execution_evidence": true,
+    "allowed_verdicts": ["PRIME_WIN", "PRIME_LOSS", "TIE", "INCONCLUSIVE", "NOT_TESTED"],
+    "external_model_results_must_be_real_head_to_head": true
+  },
+  "external_model_comparisons": [],
+  "development_comparisons": [
+    {
+      "comparison_type": "SAME_MODEL_ARCHITECTURE_TEST",
+      "comparison_target": "PLAIN_MATCHED_4X",
+      "provider": "HuggingFace via GitHub Actions CPU",
+      "exact_model_id": "HuggingFaceTB/SmolLM2-360M-Instruct",
+      "date": "2026-09-15",
+      "prime_version": "pre-repair Prime 4x",
+      "task_count": 8,
+      "prime_score": "1/8",
+      "comparison_score": "0/8",
+      "call_budget": "32 vs 32",
+      "independence_status": "DEPENDENCE_NOT_EXCLUDABLE",
+      "verdict": "INCONCLUSIVE",
+      "note": "Development-only architecture signal; same model lineage and small sample."
+    },
+    {
+      "comparison_type": "INTERNAL_BASE_VS_CANDIDATE_TRANSFER",
+      "comparison_target": "BASE_PRIME_V1_20260915",
+      "provider": "HuggingFace via GitHub Actions CPU",
+      "exact_model_id": "HuggingFaceTB/SmolLM2-360M-Instruct",
+      "date": "2026-09-15",
+      "prime_version": "PRIME_REPAIR_V2",
+      "taskset_id": "PRIME_TRANSFER_18319894013822768964_15",
+      "taskset_hash": "b967f764b0f992f53f817718915e096ded4fbbc532b5964ae8036c60ca84faa1",
+      "task_count": 15,
+      "prime_score": "3/15",
+      "comparison_score": "7/15",
+      "call_budget": "60 vs 60",
+      "cost_usd": 0,
+      "deterministic_verifier_coverage": 0,
+      "independence_status": "DEPENDENCE_NOT_EXCLUDABLE",
+      "leakage_status": "NO_KNOWN_ANSWER_KEY_EXPOSURE",
+      "verdict": "PRIME_LOSS"
+    }
+  ]
+}
