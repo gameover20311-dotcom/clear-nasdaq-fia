@@ -234,11 +234,15 @@ def adjudicate_choices(stages: list[dict[str, Any]]) -> dict[str, Any]:
     if not valid:
         return {"choice": None, "state": "ABSTAIN", "support": 0, "valid_votes": 0}
     counts = Counter(valid)
-    choice, support = counts.most_common(1)[0]
+    ranked = counts.most_common()
+    choice, support = ranked[0]
+    second_support = ranked[1][1] if len(ranked) > 1 else 0
     if support == 4:
         return {"choice": choice, "state": "STRONGLY_SUPPORTED", "support": 4, "valid_votes": len(valid)}
     if support == 3:
         return {"choice": choice, "state": "PARTIALLY_SUPPORTED", "support": 3, "valid_votes": len(valid)}
+    if support == 2 and second_support < 2:
+        return {"choice": choice, "state": "WEAK_EVIDENCE", "support": 2, "valid_votes": len(valid)}
     return {"choice": None, "state": "INCONCLUSIVE", "support": support, "valid_votes": len(valid)}
 
 
@@ -250,4 +254,6 @@ def calibrated_confidence(adjudicated: dict[str, Any]) -> int:
         return 32
     if support == 3:
         return 22
+    if support == 2:
+        return 14
     return 10
